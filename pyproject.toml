@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scheduling-platform"
+version = "0.1.0"
+description = "Scheduling Optimization Platform — motor genérico de calendarización por restricciones (Módulo Académico)"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "ortools>=9.15",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=2.3",
+    "ruff>=0.15",
+    "pytest>=9.1",
+    "hypothesis>=6.156",
+    "pytest-benchmark>=5.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+scheduling_platform = ["py.typed"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "SIM", # simplify
+    "C4",  # comprehensions
+    "RUF", # ruff-specific
+]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unreachable = true
+files = ["src", "tests", "scripts"]
+
+[[tool.mypy.overrides]]
+module = "ortools.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"

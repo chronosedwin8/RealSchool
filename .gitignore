@@ -1,0 +1,16 @@
+# Entornos virtuales
+.venv/
+
+# Bytecode y cachés
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.benchmarks/
+
+# Distribución
+build/
+dist/
+*.egg-info/
