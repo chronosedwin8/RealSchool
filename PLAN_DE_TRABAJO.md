@@ -108,7 +108,10 @@ Solution Builder → Validation → Metrics → Schedule
   - Snapshot tests del CIR serializado para casos canónicos.
 - **Criterio de salida:** todo pase demuestra preservación semántica; contradicciones sembradas a propósito son detectadas antes del solver.
 
-### FASE 5 — Optimization Pipeline (Graph Builder y Conflict Explanation)
+### FASE 5 — Optimization Pipeline (Graph Builder y Conflict Explanation)  ✅ COMPLETADA (2026-07-13)
+
+> Entregado: `ConstraintGraphBuilder` (4 chequeos de infactibilidad por condición necesaria: tag sin proveedor, dominio temporal vacío, sobre-suscripción de recurso unario, demanda>oferta global), `ConflictExplanationEngine` (traduce hallazgos y `StructuralContradictionError` a `ConflictReport` renderizable), `OptimizationPipeline` (orquestador con DI del solver: analizar→CIR+pases→compilar→solve). 133 tests: catálogo de instancias infactibles con explicación accionable, pipeline e2e con FakeSolver; cobertura pipeline 100%; ADR-009. Pipeline `check.py` en verde.
+
 - **Entregables:** orquestador del pipeline (validación pre-solver → normalización/escalado de pesos → `ConstraintGraphBuilder` → compilación → solve → explicación/solución); detección de inviabilidades estructurales sobre el grafo (ej. demanda de horas > oferta disponible, aforo insuficiente, bipartitos sin matching posible — regla de Hall en casos simples); `ConflictExplanationEngine` que ante `INFEASIBLE` produce explicación legible ("Profesor Juan tiene 37h bloqueadas y debe impartir 42h; faltan 5h").
 - **Pruebas de rigor:** batería de **instancias inviables diseñadas** (una por categoría de conflicto) donde se verifica que (a) el grafo detecta las estructurales sin invocar solver, y (b) la explicación menciona las entidades correctas; pruebas del escalador de pesos (ningún criterio blando puede dominar numéricamente a otro por error de escala).
 - **Criterio de salida:** 100% de las instancias inviables del catálogo producen explicación accionable, nunca un "INFEASIBLE" mudo.
