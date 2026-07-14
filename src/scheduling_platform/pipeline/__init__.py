@@ -13,6 +13,7 @@ from .conflict_explanation import ConflictExplanationEngine
 from .graph_builder import ConstraintGraphBuilder
 from .issues import ConflictReport, StructuralIssue
 from .pipeline import OptimizationPipeline, PipelineResult
+from .telemetry import Telemetry
 
 __all__ = [
     "ConflictExplanationEngine",
@@ -21,4 +22,5 @@ __all__ = [
     "OptimizationPipeline",
     "PipelineResult",
     "StructuralIssue",
+    "Telemetry",
 ]

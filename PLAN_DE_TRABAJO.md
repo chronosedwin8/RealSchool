@@ -140,7 +140,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** una suite por regla con caso positivo (se satisface), negativo (instancia que la fuerza a fallar → INFEASIBLE o penalización) y de frontera; pruebas de trade-off del scoring (subir el peso de un criterio cambia la solución en la dirección esperada); property-based sobre las duras estructurales (ninguna solución emitida viola jamás no-solape).
 - **Criterio de salida:** cada regla del catálogo tiene sus tres pruebas y ADR de formulación matemática.
 
-### FASE 9 — Motor, Optimizador y Telemetría
+### FASE 9 — Motor, Optimizador y Telemetría  ✅ COMPLETADA (2026-07-14)
+
+> Entregado: `SchedulingEngine` (API pública con solver inyectado como factory — la capa `engine` no importa ortools), `SolutionBuilder` (variables → `Solution` canónica → horario académico), `SolutionInspector` (Informe de Penalizaciones con invariante *suma = objetivo*), **`ValidationEngine`** (re-verifica el horario con código independiente del solver) y `Telemetry` (latencia por etapa + tamaño del modelo antes/después de los pases). 193 tests: end-to-end académico→horario, invariante del informe, y detección del 100% de violaciones sembradas en soluciones corrompidas; cobertura engine+pipeline 99%; ADR-013.
+
 - **Entregables:** API pública del motor (`SchedulingEngine.solve(problem, config) -> Result`); configuración del solver expuesta (`num_search_workers`, `max_time_in_seconds`, `random_seed`); `SolutionInspector` (extrae holguras vía `solver.Assignment()` y genera el Informe de Penalizaciones); `SolutionBuilder` (variables → horario académico); **Validation Engine post-solución** (mejora recuperada: re-verifica toda solución con código independiente del solver); logging estructurado y eventos de progreso.
 - **Pruebas de rigor:** integración end-to-end (académico → solución validada); el Validation Engine ejecutado sobre soluciones **corrompidas a propósito** detecta el 100% de las violaciones sembradas; reproducibilidad total con semilla fija; el Informe de Penalizaciones cuadra exactamente con el valor de la función objetivo.
 - **Criterio de salida:** demo completa del mini-colegio y de un colegio mediano (30 docentes, 15 grupos) con informe de calidad.
