@@ -97,7 +97,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** el DSL construye árboles de expresión correctos (unitarias); contrato de `ISolver` verificado contra `FakeSolver`; ninguna clase fuera del SAL importa `ortools` (test de arquitectura con `grep`/import-linter automatizado).
 - **Criterio de salida:** una restricción de juguete expresada en DSL llega al `FakeSolver` sin que el core toque `model.Add(...)`.
 
-### FASE 4 — CIR y Optimizer Passes
+### FASE 4 — CIR y Optimizer Passes  ✅ COMPLETADA (2026-07-13)
+
+> Entregado: CIR canónico (`CirLinear`/`AllDifferent`/`BoolOr`/`Implication`/`CirModel`), `lower(DSL->CIR)`, `CirToSolverCompiler`, evaluador de referencia (`satisfies`), serialización textual, y 6 optimizer passes (`SimplifyLinearByGcd`, `Deduplicate`, `FuseComparableLinear`, `RemoveTrivial`, `DetectContradictions`, `Reorder`) con `PassManager`. 121 tests: **preservación semántica por enumeración exhaustiva**, differential testing, snapshots, contradicciones sembradas; cobertura cir 97%; ADR-008. Pipeline `check.py` en verde.
+
 - **Entregables:** representación intermedia (nodos algebraicos tipados, normalizados); pases: eliminación de redundantes, fusión de equivalentes, simplificación algebraica, detección de contradicciones estructurales, reordenamiento para propagación; `PassManager` configurable; serialización del CIR a texto (debugging y snapshot tests).
 - **Pruebas de rigor (las más críticas del proyecto):**
   - **Property-based de preservación semántica:** para instancias pequeñas generadas por Hypothesis, el espacio de soluciones antes y después de cada pase es idéntico (verificado por enumeración exhaustiva en instancias ≤ N variables).
