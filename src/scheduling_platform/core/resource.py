@@ -23,6 +23,7 @@ class Resource:
     name: str
     tags: frozenset[str] = field(default_factory=frozenset)
     capacity: int = 1
+    attributes: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         require(self.id >= 0, InvalidEntity, f"id de recurso negativo: {self.id}")
@@ -36,3 +37,14 @@ class Resource:
 
     def has_tag(self, tag: str) -> bool:
         return tag in self.tags
+
+    def attribute(self, name: str, default: int = 0) -> int:
+        """Atributo numérico genérico (p. ej. ``seats`` de un aula).
+
+        Hook de extensibilidad para que las reglas (Fase 8) accedan a datos del
+        dominio sin que el Modelo Canónico conozca su significado.
+        """
+        for key, value in self.attributes:
+            if key == name:
+                return value
+        return default

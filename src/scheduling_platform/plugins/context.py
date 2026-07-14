@@ -22,6 +22,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from ..core.problem import SchedulingProblem
+from ..core.task import Task
 from ..dsl.domain import BoolDomain
 from ..dsl.expressions import LinearExpr, Var
 from ..dsl.logic import DslConstraint, LinearConstraint
@@ -102,3 +103,37 @@ class SchedulingModelContext:
 
     def slots_covered(self, start: int, duration: int) -> Sequence[int]:
         return range(start, start + duration)
+
+    # --- ocupación (compartida por las reglas de la Fase 8) ---
+
+    def covering_starts(self, task: Task, slot: int) -> tuple[int, ...]:
+        """Inicios válidos de ``task`` cuya duración cubriría ``slot``."""
+        tid = int(task.id)
+        return tuple(s for s in self.valid_starts(tid) if s <= slot < s + task.duration)
+
+    def occupies_var(self, task_id: int, resource_id: int, slot: int) -> Var:
+        """Booleana: la tarea ocupa ese recurso en ese slot."""
+        return Var(f"occ#t{task_id}#r{resource_id}#k{slot}", BoolDomain())
+
+    def occupancy(
+        self, task: Task, resource_id: int, slot: int
+    ) -> tuple[Var, tuple[DslConstraint, ...]]:
+        """Variable de ocupación y sus restricciones de enlace.
+
+        ``occ = assign AND cover`` linealizado (ambos son 0/1), donde ``cover``
+        es la suma de los ``start`` que cubrirían el slot. Varias reglas pueden
+        pedir la misma ocupación: las keys coinciden y los enlaces duplicados son
+        inocuos (el pase de deduplicación del CIR los colapsa).
+        """
+        tid = int(task.id)
+        occ = self.occupies_var(tid, resource_id, slot)
+        covering = self.covering_starts(task, slot)
+        if not covering:
+            return occ, (LinearConstraint(occ.eq(0)),)
+        cover = _linear_sum(self.start_var(tid, s) for s in covering)
+        assign = self.assign_var(tid, resource_id)
+        return occ, (
+            LinearConstraint((occ - assign) <= 0),
+            LinearConstraint((occ - cover) <= 0),
+            LinearConstraint((occ - assign - cover) >= -1),
+        )

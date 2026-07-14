@@ -7,9 +7,8 @@ solver).
 
 from __future__ import annotations
 
-from scheduling_platform.dsl.expressions import LinearExpr
 from scheduling_platform.dsl.logic import DslConstraint
-from scheduling_platform.plugins import SchedulingModelContext, SchedulingPlugin
+from scheduling_platform.plugins import PenaltyTerm, SchedulingModelContext, SchedulingPlugin
 
 
 def assert_plugin_contract(plugin: SchedulingPlugin, context: SchedulingModelContext) -> None:
@@ -21,10 +20,15 @@ def assert_plugin_contract(plugin: SchedulingPlugin, context: SchedulingModelCon
 
     for constraint in first.constraints:
         assert isinstance(constraint, DslConstraint)
-    for term in first.objective_terms:
-        assert isinstance(term, LinearExpr)
+    for penalty in first.penalties:
+        assert isinstance(penalty, PenaltyTerm)
+        assert penalty.weight > 0, "toda penalización debe tener peso positivo"
 
+    # Un plugin solo puede referenciar variables del contexto o variables
+    # auxiliares propias con un prefijo reconocible (p. ej. ocupación).
     known = context.all_variable_keys()
     for constraint in first.constraints:
         for variable in constraint.variables():
-            assert variable.key in known, f"variable ajena al contexto: {variable.key}"
+            assert variable.key in known or variable.key.startswith("occ#"), (
+                f"variable ajena al contexto: {variable.key}"
+            )

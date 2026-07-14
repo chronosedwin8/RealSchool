@@ -168,7 +168,10 @@ class AcademicToCanonicalAdapter:
                     id=rid,
                     name=room.name,
                     tags=self._room_tags(room),
-                    capacity=1,
+                    capacity=1,  # un aula aloja una clase a la vez
+                    # los asientos NO son capacidad canónica: son un atributo que
+                    # consume la regla de capacidad de aula (Fase 8)
+                    attributes=(("seats", room.capacity),),
                 )
             )
             resource_origin[rid] = ResourceOrigin("room", int(room.id))
@@ -179,6 +182,7 @@ class AcademicToCanonicalAdapter:
         for carga in academic.assignments:
             teacher = academic.teacher_by_id(carga.teacher_id)
             subject = academic.subject_by_id(carga.subject_id)
+            group = academic.group_by_id(carga.group_id)
             room_req_tag = (
                 room_type_tag(carga.required_room_type)
                 if carga.required_room_type is not None
@@ -201,6 +205,8 @@ class AcademicToCanonicalAdapter:
                             teacher, duration, grid, academic.time_frame
                         ),
                         same_segment=True,
+                        # el tamaño del grupo alimenta la regla de capacidad de aula
+                        attributes=(("size", group.size),),
                     )
                 )
                 session_origin[tid] = SessionOrigin(carga.id, session_index)

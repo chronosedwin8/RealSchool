@@ -12,23 +12,22 @@ import importlib
 import inspect
 import pkgutil
 from collections.abc import Iterable
-from functools import reduce
-from operator import add
 from types import ModuleType
 
-from ..dsl.expressions import LinearExpr
 from ..dsl.logic import DslConstraint
-from ..dsl.model import DslModel, Objective
-from .base import SchedulingPlugin
+from ..dsl.model import DslModel
+from .base import PenaltyTerm, SchedulingPlugin
 from .context import SchedulingModelContext
+from .scoring import ScoringEngine
 
 
 class PluginRegistry:
     """Contiene los plugins registrados y cuáles están activos."""
 
-    def __init__(self) -> None:
+    def __init__(self, scoring: ScoringEngine | None = None) -> None:
         self._plugins: dict[str, SchedulingPlugin] = {}
         self._enabled: set[str] = set()
+        self._scoring = scoring if scoring is not None else ScoringEngine()
 
     def register(self, plugin: SchedulingPlugin, *, enabled: bool = True) -> None:
         if plugin.name in self._plugins:
@@ -55,14 +54,22 @@ class PluginRegistry:
         return tuple(self._plugins[name] for name in sorted(self._enabled))
 
     def build_model(self, context: SchedulingModelContext) -> DslModel:
+        """Ensambla el modelo: estructurales + reglas duras + objetivo ponderado."""
         constraints: list[DslConstraint] = list(context.structural_constraints())
-        objective_terms: list[LinearExpr] = []
+        penalties: list[PenaltyTerm] = []
         for plugin in self.enabled_plugins():
             contribution = plugin.contribute(context)
             constraints.extend(contribution.constraints)
-            objective_terms.extend(contribution.objective_terms)
-        objective = Objective(reduce(add, objective_terms)) if objective_terms else None
+            penalties.extend(contribution.penalties)
+        objective = self._scoring.build_objective(penalties)
         return DslModel(tuple(constraints), objective)
+
+    def collect_penalties(self, context: SchedulingModelContext) -> tuple[PenaltyTerm, ...]:
+        """Penalizaciones aportadas por los plugins activos (para telemetría)."""
+        penalties: list[PenaltyTerm] = []
+        for plugin in self.enabled_plugins():
+            penalties.extend(plugin.contribute(context).penalties)
+        return tuple(penalties)
 
     def _require_known(self, name: str) -> None:
         if name not in self._plugins:

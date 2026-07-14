@@ -26,9 +26,17 @@ class Task:
     requirements: tuple[ResourceRequirement, ...]
     allowed_starts: frozenset[TimeSlotIndex] | None = None
     same_segment: bool = True
+    attributes: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         require(self.id >= 0, InvalidEntity, f"id de tarea negativo: {self.id}")
         require(bool(self.name.strip()), InvalidEntity, "el nombre de la tarea no puede ser vacío")
         require(self.duration >= 1, InvalidEntity, f"duración < 1: {self.duration}")
         require(len(self.requirements) >= 1, InvalidEntity, "la tarea necesita >= 1 requerimiento")
+
+    def attribute(self, name: str, default: int = 0) -> int:
+        """Atributo numérico genérico (p. ej. ``size`` del grupo de la clase)."""
+        for key, value in self.attributes:
+            if key == name:
+                return value
+        return default
