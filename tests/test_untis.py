@@ -106,12 +106,13 @@ def test_la_rejilla_es_de_reloj_no_de_periodos(tmp_path: Path) -> None:
 # --- Adaptador ---
 
 
-def test_fusiona_la_co_docencia(tmp_path: Path) -> None:
+def test_acopla_la_clase_compartida(tmp_path: Path) -> None:
     translation = UntisToCanonicalAdapter().translate(_export(tmp_path))
-    # LS_1 y LS_2 comparten grupo de estudiantes: son la misma clase con 2 docentes
-    codocentes = [c for c in translation.courses if len(c.teacher_ids) > 1]
-    assert len(codocentes) == 1
-    assert set(codocentes[0].teacher_ids) == {"TR_A", "TR_B"}
+    # LS_1 y LS_2 comparten grupo de estudiantes: es UNA clase compartida,
+    # 2 profesores en paralelo (no co-docencia en la misma aula).
+    compartidas = [c for c in translation.couplings if len(c.teachers) > 1]
+    assert len(compartidas) == 1
+    assert set(compartidas[0].teachers) == {"TR_A", "TR_B"}
 
 
 def test_excluye_las_obligaciones_sin_curso(tmp_path: Path) -> None:
@@ -127,11 +128,31 @@ def test_la_tarea_dura_lo_que_dura_su_periodo(tmp_path: Path) -> None:
     translation = UntisToCanonicalAdapter().translate(_export(tmp_path))
     tarea = translation.problem.tasks[0]
     assert tarea.duration == 45  # minutos reales, no "1 período"
-    # requiere sus dos docentes, su curso y un aula
+    # la clase compartida ocupa sus dos docentes a la vez y su curso
     tags = {r.tag for r in tarea.requirements}
     assert "teacher#TR_A" in tags
     assert "teacher#TR_B" in tags
     assert "group#CL_1" in tags
+
+
+def test_la_clase_compartida_pide_un_aula_por_profesor(tmp_path: Path) -> None:
+    # Dos líneas paralelas con aulas propias piden 2 aulas del pool, no 1.
+    xml = XML.replace(
+        "<times><time><assigned_day>1</assigned_day><assigned_period>1</assigned_period>\n"
+        "        </time></times></lesson>",
+        "<times><time><assigned_day>1</assigned_day><assigned_period>1</assigned_period>"
+        '<assigned_room id="RM_2"/></time></times></lesson>',
+    ).replace(
+        '<room id="RM_1"><longname>Aula 1</longname></room>',
+        '<room id="RM_1"><longname>Aula 1</longname></room>'
+        '<room id="RM_2"><longname>Aula 2</longname></room>',
+    )
+    ruta = tmp_path / "u.xml"
+    ruta.write_text(xml, encoding="utf-8")
+    translation = UntisToCanonicalAdapter().translate(parse_untis(ruta))
+    tarea = translation.problem.tasks[0]
+    room_req = next(r for r in tarea.requirements if r.tag.startswith("roompool#"))
+    assert room_req.quantity == 2  # una aula por cada profesor paralelo
 
 
 # --- Solución de referencia (auditoría) ---

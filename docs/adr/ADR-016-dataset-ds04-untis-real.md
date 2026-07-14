@@ -26,44 +26,60 @@ Esto encaja exactamente con las piezas de la Fase 11: `EnumDomain` (dominios con
 huecos) e intervalos opcionales. El modelo resultante: 20.344 variables, se
 construye y compila en **0,4 s**.
 
+## Decisión: clases compartidas (Kopplungen) como acoples paralelos
+
+Untis reparte a los alumnos de uno o varios cursos en **N grupos paralelos**
+durante una materia: N profesores dan la clase **a la vez**, cada uno en su
+aula. Untis lo marca con un **grupo de estudiantes** (`SG_...`) compartido entre
+las líneas; una línea combinada (un profesor, varios cursos) une transitivamente
+los cursos del acople.
+
+- **Detección:** union-find sobre las lecciones. Se unen dos líneas si comparten
+  grupo de estudiantes, o si comparten un curso con la misma materia y
+  periodicidad (la línea combinada enlaza los cursos). Resultado: el alemán K4
+  queda como **un acople de 5 profesores y 4 cursos**, tal como se ve en Untis.
+- **Modelado:** cada acople = **una tarea** que ocupa todos sus profesores (a la
+  vez), todos sus cursos declarados, y **tantas aulas como profesores paralelos**
+  (`ResourceRequirement(roompool, quantity=N)`). El Modelo Canónico ya soporta
+  requerir N recursos de un pool: no hubo que tocar nada.
+- 595 acoples, 124 clases compartidas, hasta **9 profesores en paralelo**.
+
 ## Otras decisiones de interpretación
 
 | Rareza del dato real | Decisión |
 |---|---|
-| **Co-docencia** (2 profesores, misma clase) | Untis lo modela como *dos lecciones* con el mismo grupo de estudiantes. Se **fusionan** en un curso con varios docentes; si no, el no-solape del curso lo declararía en conflicto consigo mismo. |
-| **Lecciones sin grupo de estudiantes** | **No se fusionan**. Dos profesores con "Extracurricular" no dan la misma clase; fusionarlos los obligaría a coincidir. *(Este fue un bug real: la primera versión los fusionaba.)* |
-| **Obligaciones no lectivas** (417: reuniones, preparación, almuerzos, extracurriculares) | Se **excluyen** del modelo. El propio horario de Untis las solapa con clases: ni él las trata como exclusivas. Se reportan, no se planifican. |
-| **Pseudo-cursos** (`CL_12-GIB` y 5 más) | Aparecen en las lecciones pero Untis **no los declara** como cursos: son grupos de opción del IB. Como curso unario, uno "necesitaría" 132 períodos en una semana de 75 — el Conflict Explanation Engine lo dijo antes de tocar el solver. No imponen no-solape. |
-| **Aulas** | El export dice qué aula *usó* cada materia, no cuál *puede* usar. Se deriva un pool por materia (mediana: 3 aulas). El aula se pide **sesión a sesión**: Untis se la asigna a unas sesiones y a otras no. |
+| **Obligaciones no lectivas** (417) | Se **excluyen**. El propio horario de Untis las solapa con clases: ni él las trata como exclusivas. Se reportan, no se planifican. |
+| **Pseudo-cursos** (`CL_12-GIB` y 5 más) | Aparecen en las lecciones pero Untis **no los declara** como cursos: son grupos de opción del IB. No imponen no-solape de curso. |
+| **Aulas** | El export dice qué aula *usó* cada materia, no cuál *puede*. Se deriva un pool por materia; el nº de aulas por sesión = nº de profesores paralelos. |
 
-## Resultado: el motor como **auditor**
+## Resultado: el motor como **auditor** (y auditor de sí mismo)
 
-Aplicando el Validation Engine al horario que **Untis publicó**:
+Aplicando el Validation Engine al horario que **Untis publicó**, con el modelo
+correcto: **0 choques de recurso** sobre las 1.683 sesiones. El motor reproduce
+y valida un horario real de colegio completo, de forma independiente del solver.
 
-- **413 choques de recurso** (docente/aula/curso ocupado por dos clases a la vez,
-  en reloj real). La mayoría involucra los grupos de opción del IB.
-- **11 sesiones sin ubicar** (Untis colocó 3.013 de 3.024).
+Una versión anterior de este análisis reportó **413 choques**. Eran un **error
+de modelado nuestro** (fusionar las clases compartidas como co-docencia en un
+aula, exigiendo una sola aula). Corregido el modelo, desaparecen. El valor de
+una auditoría independiente es que también nos audita a nosotros.
 
-Esta capacidad **no depende de generar el horario**: funciona sobre el que ya
-existe, y ningún horario se publica sabiendo dónde está roto.
+## Gap Analysis: honestidad sobre la generación
 
-## Gap Analysis: honestidad sobre lo que aún no logramos
+El motor **no produce un horario desde cero** para estos datos dentro del límite
+de 90 s. No es un problema de modelado ni de infactibilidad: acabamos de validar
+la solución de Untis, luego el problema **es factible** y el motor la reconoce
+como correcta. Simplemente no la reencuentra por su cuenta en ese tiempo — es un
+problema NP-difícil de 1.683 clases reales frente a décadas de heurísticas
+propietarias de Untis.
 
-El motor **no produce un horario estrictamente válido** para estos datos dentro
-del límite de tiempo. La razón no es de rendimiento (el modelo se construye en
-0,4 s): **los datos del colegio contienen los mismos 413 solapes que un modelo
-estricto prohíbe**. No estamos resolviendo el problema que Untis resolvió, sino
-uno más duro.
-
-Para generar hace falta decidir antes qué son esos 413 solapes: datos a corregir,
-o tolerancias reales del colegio (grupos combinados, docencia de apoyo) que hay
-que modelar como tales. Los grupos de opción del IB necesitan además un modelo
-propio: no son cursos unarios, son conjuntos de alumnos que se reparten.
+El siguiente paso natural: **warm start** con el horario de Untis (que el motor
+ya sabe reconstruir) para que el motor lo *mejore* en vez de reinventarlo.
 
 ## Consecuencias técnicas
 - El **Modelo Canónico absorbió el colegio real sin cambiar una línea**: una tarea
-  puede requerir varios recursos a la vez (co-docencia, clases acopladas de hasta
-  7 cursos).
-- La rejilla de reloj real queda como requisito no negociable para este colegio.
-- Los hallazgos de datos (pseudo-cursos, obligaciones no exclusivas) los produjo
-  el propio motor, no una inspección manual.
+  puede requerir varios profesores, varios cursos y **N aulas** a la vez.
+- La rejilla de **reloj real** y el modelo de **clases compartidas** quedan como
+  requisitos no negociables para este colegio.
+- Los hallazgos de datos (pseudo-cursos, obligaciones no exclusivas) y la
+  corrección de nuestro propio error los produjo el motor, no una inspección
+  manual.

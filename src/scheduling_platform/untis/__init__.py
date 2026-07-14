@@ -8,7 +8,7 @@ misma vara de medir (Gap Analysis).
 from __future__ import annotations
 
 from .adapter import (
-    Course,
+    Coupling,
     UntisToCanonicalAdapter,
     UntisTranslation,
     untis_reference_solution,
@@ -25,7 +25,7 @@ from .parser import (
 )
 
 __all__ = [
-    "Course",
+    "Coupling",
     "UntisClass",
     "UntisExport",
     "UntisLesson",
