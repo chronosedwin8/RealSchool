@@ -31,7 +31,14 @@ def assert_isolver_contract(make_solver: SolverFactory) -> None:
     solver.add_implication(Literal(a), Literal(b))
     solver.minimize([(x, 1)], constant=0)
 
-    # 3. solve acepta configuración y None, y devuelve un SolverStatus.
+    # 3. Intervalos: fijos, opcionales y no-solape.
+    y = solver.new_int_var(0, 10, "y")
+    fijo = solver.new_interval(x, 2, "iv_x")
+    opcional = solver.new_optional_interval(y, 2, Literal(a), "iv_y")
+    assert fijo != opcional
+    solver.add_no_overlap([fijo, opcional])
+
+    # 4. solve acepta configuración y None, y devuelve un SolverStatus.
     from scheduling_platform.sal import SolverStatus
 
     status = solver.solve(SolverConfig(random_seed=1, num_search_workers=1))

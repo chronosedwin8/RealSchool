@@ -22,11 +22,12 @@ Pases incluidos:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import gcd
 from typing import ClassVar
 
-from ..dsl.domain import BoolDomain, IntDomain
+from ..dsl.domain import BoolDomain, Domain, IntDomain
 from ..sal.interface import RelOp
 from .exceptions import StructuralContradictionError
 from .nodes import CirConstraint, CirLinear, CirModel
@@ -136,6 +137,10 @@ class DetectContradictions(CirPass):
     def run(self, model: CirModel) -> CirModel:
         reasons: list[str] = []
         eq_values: dict[str, int] = {}
+        # Índice de dominios O(1). Buscarlos recorriendo la tupla de variables
+        # (cientos de miles en instituciones grandes) por cada restricción
+        # convertía este pase en cuadrático.
+        domains = dict(model.variables)
         for constraint in model.constraints:
             if not isinstance(constraint, CirLinear):
                 continue
@@ -145,7 +150,7 @@ class DetectContradictions(CirPass):
                         f"restricción imposible: 0 {constraint.op.value} {constraint.rhs}"
                     )
                 continue
-            self._check_linear(constraint, model, eq_values, reasons)
+            self._check_linear(constraint, domains, eq_values, reasons)
         if reasons:
             raise StructuralContradictionError(tuple(reasons))
         return model
@@ -153,7 +158,7 @@ class DetectContradictions(CirPass):
     def _check_linear(
         self,
         constraint: CirLinear,
-        model: CirModel,
+        domains: Mapping[str, Domain],
         eq_values: dict[str, int],
         reasons: list[str],
     ) -> None:
@@ -170,7 +175,7 @@ class DetectContradictions(CirPass):
                 reasons.append(f"igualdad sin solución entera para {key}")
                 return
             value = constraint.rhs // coef
-            if not _in_domain(model, key, value):
+            if not _in_domain(domains, key, value):
                 reasons.append(f"{key} == {value} está fuera de su dominio")
             elif key in eq_values and eq_values[key] != value:
                 reasons.append(f"{key} fijada a valores distintos: {eq_values[key]} y {value}")
@@ -235,8 +240,8 @@ def _const_holds(op: RelOp, rhs: int) -> bool:
             return rhs == 0
 
 
-def _in_domain(model: CirModel, key: str, value: int) -> bool:
-    domain = model.domain_of(key)
+def _in_domain(domains: Mapping[str, Domain], key: str, value: int) -> bool:
+    domain = domains[key]
     if isinstance(domain, BoolDomain):
         return value in (0, 1)
     if isinstance(domain, IntDomain):

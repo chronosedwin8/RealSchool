@@ -7,11 +7,18 @@ solver. El esquema es solver-agnóstico (keys de texto): la Fase 7 mapeará cada
 key a una variable CP-SAT concreta.
 
 Variables de decisión:
-- ``start#t{task}#s{slot}`` (booleana): la tarea ``task`` inicia en ``slot``.
+- ``tstart#t{task}`` (entera): período en que arranca la tarea. Su dominio son
+  exactamente los inicios válidos.
 - ``assign#t{task}#r{resource}`` (booleana): la tarea ``task`` usa ``resource``.
+- ``start#t{task}#s{slot}`` (booleana, **opcional**): la tarea inicia en ese
+  período. Es una codificación redundante con ``tstart``, pero necesaria para
+  las reglas que razonan período a período (preferencias, almuerzo, carga
+  diaria). En instituciones grandes multiplica el tamaño del modelo, así que
+  puede desactivarse (``boolean_starts=False``) cuando ninguna regla activa la
+  necesita: el motor pasa entonces a un modelo puramente de intervalos.
 
 Restricciones estructurales (semántica de las variables, no reglas de negocio):
-- Cada tarea inicia exactamente una vez.
+- Cada tarea inicia exactamente una vez (solo si hay booleanas ``start``).
 - Cada requerimiento de recurso se satisface con la cantidad pedida.
 """
 
@@ -23,16 +30,18 @@ from dataclasses import dataclass
 
 from ..core.problem import SchedulingProblem
 from ..core.task import Task
-from ..dsl.domain import BoolDomain
+from ..dsl.domain import BoolDomain, EnumDomain, IntDomain
 from ..dsl.expressions import LinearExpr, Var
 from ..dsl.logic import DslConstraint, LinearConstraint
 
 
+class BooleanStartsDisabled(RuntimeError):
+    """Una regla pidió las booleanas ``start`` en un modelo compacto."""
+
+
 def _linear_sum(variables: Iterable[Var]) -> LinearExpr:
-    acc = LinearExpr.of(0)
-    for variable in variables:
-        acc = acc + variable
-    return acc
+    """Suma de variables con coeficiente 1, normalizada en una sola pasada."""
+    return LinearExpr.from_terms((variable, 1) for variable in variables)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,9 +51,13 @@ class SchedulingModelContext:
     problem: SchedulingProblem
     valid_starts_by_task: Mapping[int, tuple[int, ...]]
     eligible_by_task: Mapping[int, Mapping[str, tuple[int, ...]]]
+    tasks_by_resource: Mapping[int, tuple[Task, ...]]
+    boolean_starts: bool = True
 
     @classmethod
-    def build(cls, problem: SchedulingProblem) -> SchedulingModelContext:
+    def build(
+        cls, problem: SchedulingProblem, *, boolean_starts: bool = True
+    ) -> SchedulingModelContext:
         providers: dict[str, list[int]] = defaultdict(list)
         for resource in problem.resources:
             for tag in resource.tags:
@@ -52,17 +65,45 @@ class SchedulingModelContext:
 
         valid_starts: dict[int, tuple[int, ...]] = {}
         eligible: dict[int, dict[str, tuple[int, ...]]] = {}
+        # Índice inverso recurso -> tareas elegibles. Sin él, cada regla tendría
+        # que cruzar todas las tareas contra todos los recursos (O(T x R)), lo
+        # que domina el tiempo de construcción en instituciones grandes.
+        by_resource: dict[int, list[Task]] = defaultdict(list)
+
         for task in problem.tasks:
             tid = int(task.id)
             valid_starts[tid] = tuple(sorted(int(s) for s in problem.valid_starts_for(task)))
-            eligible[tid] = {
-                req.tag: tuple(sorted(providers.get(req.tag, []))) for req in task.requirements
-            }
-        return cls(problem, valid_starts, eligible)
+            per_tag: dict[str, tuple[int, ...]] = {}
+            elegibles: set[int] = set()
+            for req in task.requirements:
+                rids = tuple(sorted(providers.get(req.tag, [])))
+                per_tag[req.tag] = rids
+                elegibles.update(rids)
+            eligible[tid] = per_tag
+            for rid in elegibles:
+                by_resource[rid].append(task)
+
+        return cls(
+            problem,
+            valid_starts,
+            eligible,
+            {rid: tuple(tasks) for rid, tasks in by_resource.items()},
+            boolean_starts,
+        )
+
+    def tasks_for_resource(self, resource_id: int) -> tuple[Task, ...]:
+        """Tareas que pueden usar ese recurso (índice precalculado)."""
+        return self.tasks_by_resource.get(resource_id, ())
 
     # --- vocabulario de variables ---
 
     def start_var(self, task_id: int, slot: int) -> Var:
+        if not self.boolean_starts:
+            raise BooleanStartsDisabled(
+                "este modelo se construyó sin las booleanas 'start' (modo compacto); "
+                "una regla las está pidiendo. Reconstruye el contexto con "
+                "boolean_starts=True o usa reglas basadas en 'tstart'."
+            )
         return Var(f"start#t{task_id}#s{slot}", BoolDomain())
 
     def assign_var(self, task_id: int, resource_id: int) -> Var:
@@ -78,8 +119,10 @@ class SchedulingModelContext:
         keys: set[str] = set()
         for task in self.problem.tasks:
             tid = int(task.id)
-            for slot in self.valid_starts(tid):
-                keys.add(self.start_var(tid, slot).key)
+            keys.add(self.task_start_var(tid).key)
+            if self.boolean_starts:
+                for slot in self.valid_starts(tid):
+                    keys.add(self.start_var(tid, slot).key)
             for req in task.requirements:
                 for rid in self.eligible_resources(tid, req.tag):
                     keys.add(self.assign_var(tid, rid).key)
@@ -91,9 +134,10 @@ class SchedulingModelContext:
         constraints: list[DslConstraint] = []
         for task in self.problem.tasks:
             tid = int(task.id)
-            starts = self.valid_starts(tid)
-            start_sum = _linear_sum(self.start_var(tid, s) for s in starts)
-            constraints.append(LinearConstraint(start_sum.eq(1)))
+            if self.boolean_starts:
+                starts = self.valid_starts(tid)
+                start_sum = _linear_sum(self.start_var(tid, s) for s in starts)
+                constraints.append(LinearConstraint(start_sum.eq(1)))
             for req in task.requirements:
                 assign_sum = _linear_sum(
                     self.assign_var(tid, rid) for rid in self.eligible_resources(tid, req.tag)
@@ -114,6 +158,28 @@ class SchedulingModelContext:
     def occupies_var(self, task_id: int, resource_id: int, slot: int) -> Var:
         """Booleana: la tarea ocupa ese recurso en ese slot."""
         return Var(f"occ#t{task_id}#r{resource_id}#k{slot}", BoolDomain())
+
+    def task_start_var(self, task_id: int) -> Var:
+        """Entera: el período en que arranca la tarea.
+
+        Su dominio son *exactamente* los inicios válidos (puede tener huecos),
+        así que por sí sola ya restringe la tarea a horarios legales. Es el
+        inicio que consumen los intervalos.
+        """
+        starts = self.valid_starts(task_id)
+        if not starts:
+            return Var(f"tstart#t{task_id}", IntDomain(0, 0))
+        return Var(f"tstart#t{task_id}", EnumDomain(tuple(starts)))
+
+    def start_channeling(self, task_id: int) -> DslConstraint:
+        """Enlaza las booleanas ``start`` con la entera ``tstart``.
+
+        ``sum(s * start[t,s]) == tstart[t]``. Como exactamente un ``start`` vale
+        1, la suma es justo el período elegido.
+        """
+        pairs = [(self.start_var(task_id, slot), slot) for slot in self.valid_starts(task_id)]
+        pairs.append((self.task_start_var(task_id), -1))
+        return LinearConstraint(LinearExpr.from_terms(pairs).eq(0))
 
     def occupancy(
         self, task: Task, resource_id: int, slot: int

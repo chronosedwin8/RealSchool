@@ -31,3 +31,22 @@ class IntDomain(Domain):
     def __post_init__(self) -> None:
         if self.lo > self.hi:
             raise DslError(f"dominio entero inválido: lo={self.lo} > hi={self.hi}")
+
+
+@dataclass(frozen=True, slots=True)
+class EnumDomain(Domain):
+    """Dominio con *exactamente* los valores permitidos (puede tener huecos).
+
+    Imprescindible para variables como "el período en que empieza la clase",
+    cuyos valores válidos no forman un rango contiguo (una clase de dos períodos
+    no puede empezar a última hora del día). Sin esto habría que codificar el
+    dominio con una booleana por valor, multiplicando el tamaño del modelo.
+    """
+
+    values: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if not self.values:
+            raise DslError("un dominio enumerado necesita al menos un valor")
+        if list(self.values) != sorted(set(self.values)):
+            raise DslError("los valores del dominio deben ir ordenados y sin repetir")

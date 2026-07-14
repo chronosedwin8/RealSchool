@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..dsl.domain import BoolDomain, Domain, IntDomain
+from ..dsl.domain import BoolDomain, Domain, EnumDomain, IntDomain
 from .nodes import (
     CirAllDifferent,
     CirBoolOr,
@@ -11,6 +11,7 @@ from .nodes import (
     CirLinear,
     CirLiteral,
     CirModel,
+    CirNoOverlap,
 )
 
 
@@ -35,6 +36,8 @@ def _domain_text(domain: Domain) -> str:
         return "bool"
     if isinstance(domain, IntDomain):
         return f"int[{domain.lo},{domain.hi}]"
+    if isinstance(domain, EnumDomain):
+        return f"int{{{','.join(str(v) for v in domain.values)}}}"
     return repr(domain)  # pragma: no cover
 
 
@@ -59,4 +62,12 @@ def _constraint_text(constraint: CirConstraint) -> str:
         return (
             f"IMPL {_literal_text(constraint.antecedent)} -> {_literal_text(constraint.consequent)}"
         )
+    if isinstance(constraint, CirNoOverlap):
+        piezas = []
+        for spec in constraint.intervals:
+            texto = f"[{spec.start_key}, +{spec.size})"
+            if spec.presence is not None:
+                texto += f" if {_literal_text(spec.presence)}"
+            piezas.append(texto)
+        return f"NOOVERLAP {'; '.join(piezas)}"
     raise TypeError(f"nodo CIR no serializable: {constraint!r}")  # pragma: no cover

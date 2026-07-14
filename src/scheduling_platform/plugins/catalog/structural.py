@@ -9,7 +9,13 @@ from ...core.resource import Resource
 from ...core.task import Task
 from ...dsl.domain import BoolDomain
 from ...dsl.expressions import LinearExpr, Var
-from ...dsl.logic import LinearConstraint
+from ...dsl.logic import (
+    DslConstraint,
+    DslLiteral,
+    IntervalSpec,
+    LinearConstraint,
+    NoOverlapConstraint,
+)
 from ..base import Contribution, SchedulingPlugin
 from ..context import SchedulingModelContext
 
@@ -34,20 +40,15 @@ class ResourceNoOverlapPlugin(SchedulingPlugin):
     name: ClassVar[str] = "resource_no_overlap"
 
     def contribute(self, context: SchedulingModelContext) -> Contribution:
-        problem = context.problem
         constraints: list[LinearConstraint] = []
-        for resource in problem.resources:
+        for resource in context.problem.resources:
             if resource.capacity != 1:
                 continue
-            candidates = [t for t in problem.tasks if self._eligible(t, resource)]
+            candidates = list(context.tasks_for_resource(int(resource.id)))
             if len(candidates) < 2:
                 continue
             self._add_no_overlap(context, resource, candidates, constraints)
         return Contribution(constraints=tuple(constraints))
-
-    @staticmethod
-    def _eligible(task: Task, resource: Resource) -> bool:
-        return any(req.tag in resource.tags for req in task.requirements)
 
     def _add_no_overlap(
         self,
@@ -84,6 +85,55 @@ class ResourceNoOverlapPlugin(SchedulingPlugin):
         return tuple(s for s in context.valid_starts(tid) if s <= slot < s + task.duration)
 
 
+class IntervalNoOverlapPlugin(SchedulingPlugin):
+    """No-solape en formulación **compacta**, con intervalos opcionales.
+
+    Equivalente a :class:`ResourceNoOverlapPlugin`, pero en vez de una variable
+    de ocupación por (tarea, recurso, período), crea **un intervalo por
+    (tarea, recurso elegible)**, presente solo si la tarea usa ese recurso, y
+    delega el no-solape en la restricción global del solver.
+
+    El tamaño del modelo deja de depender del horizonte: pasa de
+    O(tareas x recursos x períodos) a O(tareas x recursos). Es la formulación
+    que hace viable la escala objetivo (ADR-015).
+    """
+
+    name: ClassVar[str] = "interval_no_overlap"
+
+    def contribute(self, context: SchedulingModelContext) -> Contribution:
+        problem = context.problem
+        constraints: list[DslConstraint] = []
+
+        # Enlace start (booleanas) <-> tstart (entera). En modo compacto no hay
+        # booleanas que enlazar: 'tstart' ya lleva los inicios válidos en su dominio.
+        if context.boolean_starts:
+            for task in problem.tasks:
+                if context.valid_starts(int(task.id)):
+                    constraints.append(context.start_channeling(int(task.id)))
+
+        for resource in problem.resources:
+            if resource.capacity != 1:
+                continue
+            rid = int(resource.id)
+            intervals = tuple(
+                IntervalSpec(
+                    start=context.task_start_var(int(task.id)),
+                    size=task.duration,
+                    presence=DslLiteral(context.assign_var(int(task.id), rid)),
+                )
+                for task in context.tasks_for_resource(rid)
+                if context.valid_starts(int(task.id))
+            )
+            if len(intervals) >= 2:
+                constraints.append(NoOverlapConstraint(intervals))
+
+        return Contribution(constraints=tuple(constraints))
+
+
 def default_structural_plugins() -> tuple[SchedulingPlugin, ...]:
-    """Plugins que conviene activar siempre para producir horarios correctos."""
-    return (ResourceNoOverlapPlugin(),)
+    """Plugins que conviene activar siempre para producir horarios correctos.
+
+    Se usa la formulación compacta con intervalos: misma semántica que la
+    booleana pero con un modelo mucho más pequeño.
+    """
+    return (IntervalNoOverlapPlugin(),)

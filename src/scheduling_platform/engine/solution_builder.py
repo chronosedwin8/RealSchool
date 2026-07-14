@@ -59,9 +59,15 @@ class SolutionBuilder:
     def _chosen_start(
         context: SchedulingModelContext, values: Mapping[str, int], task_id: int
     ) -> int:
-        for slot in context.valid_starts(task_id):
-            if values.get(context.start_var(task_id, slot).key) == 1:
-                return slot
+        # La entera 'tstart' ya es el período elegido; existe siempre que el
+        # modelo use intervalos. Si no está, se reconstruye desde las booleanas.
+        tstart = values.get(context.task_start_var(task_id).key)
+        if tstart is not None:
+            return tstart
+        if context.boolean_starts:
+            for slot in context.valid_starts(task_id):
+                if values.get(context.start_var(task_id, slot).key) == 1:
+                    return slot
         raise SolutionExtractionError(
             f"la tarea {task_id} no tiene ningún inicio activo en la solución"
         )

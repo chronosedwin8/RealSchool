@@ -156,7 +156,12 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** round-trip de serialización (exportar → importar → modelo idéntico) property-based; compatibilidad de versiones del schema; reoptimización con 90% congelado no altera lo congelado (invariante duro) y mejora o mantiene el score del resto; métricas verificadas contra cálculo manual en instancias pequeñas.
 - **Criterio de salida:** un `.proschedule` reproduce el mismo horario en una ejecución limpia.
 
-### FASE 11 — Benchmarks de escala y endurecimiento *(cierre, mejora propuesta)*
+### FASE 11 — Benchmarks de escala y endurecimiento  ✅ COMPLETADA (2026-07-14)
+
+> **Objetivo de escalabilidad CUMPLIDO.** DS-XL (500 docentes / 300 aulas / 1500 grupos, 7.500 clases): horario **óptimo y válido en 32s con 75 MB**. Antes de esta fase: 342s **sin encontrar solución**.
+>
+> Entregado: extensión de la SAL con intervalos opcionales + `NoOverlap` (propagada por DSL/CIR sin tocar el dominio), `IntervalNoOverlapPlugin` (modelo independiente del horizonte), `EnumDomain` y **modo compacto** (booleanas de inicio opcionales), Dataset Provider (S/M/L/XL factibles por construcción), `BenchmarkRunner` con telemetría y `scripts/benchmark.py`. Cuellos de botella eliminados por perfilado: `DetectContradictions` cuadrático (143s→1,8s), doble consulta a plugins y sumas lineales O(k²). 228 tests, incluido el **differential** que prueba que ambas formulaciones dan el mismo óptimo; ADR-015 (salda la deuda de ADR-011).
+
 - **Entregables:** suite de datasets sintéticos parametrizables (S / M / L / XL hasta el objetivo 500-300-1500); presupuestos de rendimiento (tiempo de compilación del CIR, memoria, tiempo a primera solución factible, gap a los N minutos); perfilado y optimización de cuellos de botella; documentación final de la API pública.
 - **Pruebas de rigor:** benchmarks reproducibles con `pytest-benchmark` y registro histórico; prueba de estrés XL con límite de tiempo (debe emitir la mejor solución factible encontrada, nunca colgarse); prueba de memoria acotada en construcción del modelo.
 - **Criterio de salida:** el objetivo de escalabilidad de Prompt3 §4 se cumple o queda documentado el gap con plan de acción.

@@ -16,7 +16,9 @@ from ..dsl.logic import (
     DslConstraint,
     DslLiteral,
     ImplicationConstraint,
+    IntervalSpec,
     LinearConstraint,
+    NoOverlapConstraint,
 )
 from ..dsl.model import DslModel
 from ..sal.interface import RelOp
@@ -26,9 +28,11 @@ from .nodes import (
     CirBoolOr,
     CirConstraint,
     CirImplication,
+    CirIntervalSpec,
     CirLinear,
     CirLiteral,
     CirModel,
+    CirNoOverlap,
     CirObjective,
 )
 
@@ -63,6 +67,8 @@ def _lower_constraint(constraint: DslConstraint) -> CirConstraint:
         return CirImplication(
             _lower_literal(constraint.antecedent), _lower_literal(constraint.consequent)
         )
+    if isinstance(constraint, NoOverlapConstraint):
+        return CirNoOverlap(tuple(_lower_interval(i) for i in constraint.intervals))
     raise CirError(
         f"restricción DSL no soportada por el lowering: {constraint!r}"
     )  # pragma: no cover
@@ -70,6 +76,14 @@ def _lower_constraint(constraint: DslConstraint) -> CirConstraint:
 
 def _lower_literal(literal: DslLiteral) -> CirLiteral:
     return CirLiteral(literal.var.key, literal.positive)
+
+
+def _lower_interval(interval: IntervalSpec) -> CirIntervalSpec:
+    return CirIntervalSpec(
+        start_key=interval.start.key,
+        size=interval.size,
+        presence=None if interval.presence is None else _lower_literal(interval.presence),
+    )
 
 
 def _lower_relation(relation: Relation) -> CirLinear:

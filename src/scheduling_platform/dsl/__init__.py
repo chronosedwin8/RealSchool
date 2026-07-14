@@ -18,7 +18,9 @@ from .logic import (
     DslConstraint,
     DslLiteral,
     ImplicationConstraint,
+    IntervalSpec,
     LinearConstraint,
+    NoOverlapConstraint,
 )
 from .model import DslModel, Objective
 
@@ -35,8 +37,10 @@ __all__ = [
     "DslToSolverCompiler",
     "ImplicationConstraint",
     "IntDomain",
+    "IntervalSpec",
     "LinearConstraint",
     "LinearExpr",
+    "NoOverlapConstraint",
     "Objective",
     "Relation",
     "UnsupportedConstraintError",

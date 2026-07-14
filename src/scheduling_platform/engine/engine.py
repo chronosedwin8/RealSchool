@@ -72,11 +72,17 @@ class SchedulingEngine:
     pipeline: OptimizationPipeline = field(default_factory=OptimizationPipeline)
     builder: SolutionBuilder = field(default_factory=SolutionBuilder)
     validator: ValidationEngine = field(default_factory=ValidationEngine)
+    boolean_starts: bool = True
+    """Codificación booleana de los inicios.
+
+    Necesaria para las reglas que razonan período a período (preferencias,
+    almuerzo, carga diaria). Si ninguna regla activa la usa, ponerlo a ``False``
+    reduce drásticamente el modelo en instituciones grandes.
+    """
 
     def solve(self, problem: SchedulingProblem, config: SolverConfig | None = None) -> EngineResult:
-        context = SchedulingModelContext.build(problem)
-        model = self.registry.build_model(context)
-        penalties = self.registry.collect_penalties(context)
+        context = SchedulingModelContext.build(problem, boolean_starts=self.boolean_starts)
+        model, penalties = self.registry.build(context)  # una sola consulta a los plugins
 
         solver = self.solver_factory()
         result = self.pipeline.run(problem, model, solver, config)

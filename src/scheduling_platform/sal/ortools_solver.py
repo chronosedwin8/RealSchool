@@ -11,10 +11,19 @@ ve tipos de OR-Tools. Se importa explícitamente
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from ortools.sat.python import cp_model
 
-from .interface import ISolver, Literal, RelOp, SolverConfig, SolverStatus, SolverVar
+from .interface import (
+    ISolver,
+    Literal,
+    RelOp,
+    SolverConfig,
+    SolverInterval,
+    SolverStatus,
+    SolverVar,
+)
 
 _STATUS_MAP = {
     cp_model.OPTIMAL: SolverStatus.OPTIMAL,
@@ -32,6 +41,7 @@ class ORToolsSolver(ISolver):
         self._model = cp_model.CpModel()
         self._solver = cp_model.CpSolver()
         self._vars: list[cp_model.IntVar] = []
+        self._intervals: list[Any] = []
         self._has_objective = False
 
     def new_bool_var(self, name: str) -> SolverVar:
@@ -42,6 +52,12 @@ class ORToolsSolver(ISolver):
     def new_int_var(self, lo: int, hi: int, name: str) -> SolverVar:
         handle = len(self._vars)
         self._vars.append(self._model.new_int_var(lo, hi, name))
+        return SolverVar(handle)
+
+    def new_int_var_from_values(self, values: Sequence[int], name: str) -> SolverVar:
+        handle = len(self._vars)
+        domain = cp_model.Domain.from_values(list(values))
+        self._vars.append(self._model.new_int_var_from_domain(domain, name))
         return SolverVar(handle)
 
     def add_linear(self, terms: Sequence[tuple[SolverVar, int]], op: RelOp, rhs: int) -> None:
@@ -66,6 +82,28 @@ class ORToolsSolver(ISolver):
 
     def add_implication(self, antecedent: Literal, consequent: Literal) -> None:
         self._model.add_implication(self._literal(antecedent), self._literal(consequent))
+
+    def new_interval(self, start: SolverVar, size: int, name: str) -> SolverInterval:
+        var = self._vars[start]
+        interval = self._model.new_fixed_size_interval_var(var, size, name)
+        return self._record_interval(interval)
+
+    def new_optional_interval(
+        self, start: SolverVar, size: int, presence: Literal, name: str
+    ) -> SolverInterval:
+        var = self._vars[start]
+        interval = self._model.new_optional_interval_var(
+            var, size, var + size, self._literal(presence), name
+        )
+        return self._record_interval(interval)
+
+    def _record_interval(self, interval: Any) -> SolverInterval:
+        handle = SolverInterval(len(self._intervals))
+        self._intervals.append(interval)
+        return handle
+
+    def add_no_overlap(self, intervals: Sequence[SolverInterval]) -> None:
+        self._model.add_no_overlap([self._intervals[handle] for handle in intervals])
 
     def minimize(self, terms: Sequence[tuple[SolverVar, int]], constant: int = 0) -> None:
         expr = sum(coef * self._vars[handle] for handle, coef in terms) + constant

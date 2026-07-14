@@ -82,6 +82,33 @@ class CirImplication(CirConstraint):
 
 
 @dataclass(frozen=True, slots=True)
+class CirIntervalSpec:
+    """Intervalo ``[start, start + size)`` con presencia opcional."""
+
+    start_key: str
+    size: int
+    presence: CirLiteral | None = None
+
+    def variables(self) -> frozenset[str]:
+        if self.presence is None:
+            return frozenset({self.start_key})
+        return frozenset({self.start_key, self.presence.key})
+
+
+@dataclass(frozen=True, slots=True)
+class CirNoOverlap(CirConstraint):
+    """Los intervalos presentes no se solapan (formulación compacta)."""
+
+    intervals: tuple[CirIntervalSpec, ...]
+
+    def variables(self) -> frozenset[str]:
+        result: set[str] = set()
+        for interval in self.intervals:
+            result |= interval.variables()
+        return frozenset(result)
+
+
+@dataclass(frozen=True, slots=True)
 class CirObjective:
     """Función objetivo lineal a minimizar."""
 

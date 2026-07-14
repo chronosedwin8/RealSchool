@@ -58,7 +58,7 @@ class MaxDailyLoadPlugin(SchedulingPlugin):
         constraints: list[DslConstraint],
     ) -> None:
         rid = int(resource.id)
-        candidates = [t for t in context.problem.tasks if _eligible(t, resource)]
+        candidates = list(context.tasks_for_resource(rid))
         for segment in context.problem.grid.segments:
             occ_vars: list[Var] = []
             for task in candidates:
@@ -101,7 +101,7 @@ class MaxConsecutivePlugin(SchedulingPlugin):
         constraints: list[DslConstraint],
     ) -> None:
         rid = int(resource.id)
-        candidates = [t for t in context.problem.tasks if _eligible(t, resource)]
+        candidates = list(context.tasks_for_resource(rid))
         window = max_run + 1
         for segment in context.problem.grid.segments:
             start, end = int(segment.start), int(segment.end)

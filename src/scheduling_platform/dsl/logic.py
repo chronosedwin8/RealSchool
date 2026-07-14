@@ -84,3 +84,47 @@ class ImplicationConstraint(DslConstraint):
 
     def variables(self) -> frozenset[Var]:
         return frozenset({self.antecedent.var, self.consequent.var})
+
+
+@dataclass(frozen=True, slots=True)
+class IntervalSpec:
+    """Un intervalo ``[start, start + size)``, opcionalmente condicionado.
+
+    ``presence`` es el literal que decide si el intervalo existe (p. ej. "la
+    tarea usa este recurso"); ``None`` significa siempre presente.
+    """
+
+    start: Var
+    size: int
+    presence: DslLiteral | None = None
+
+    def __post_init__(self) -> None:
+        if self.size < 1:
+            raise DslError(f"tamaño de intervalo < 1: {self.size}")
+
+    def variables(self) -> frozenset[Var]:
+        if self.presence is None:
+            return frozenset({self.start})
+        return frozenset({self.start, self.presence.var})
+
+
+@dataclass(frozen=True, slots=True)
+class NoOverlapConstraint(DslConstraint):
+    """Los intervalos presentes no pueden solaparse en el tiempo.
+
+    Es la formulación compacta del "un recurso, una tarea a la vez": en vez de
+    una variable de ocupación por período, basta un intervalo por par
+    (tarea, recurso).
+    """
+
+    intervals: tuple[IntervalSpec, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.intervals) < 2:
+            raise DslError("no_overlap requiere >= 2 intervalos")
+
+    def variables(self) -> frozenset[Var]:
+        result: set[Var] = set()
+        for interval in self.intervals:
+            result |= interval.variables()
+        return frozenset(result)

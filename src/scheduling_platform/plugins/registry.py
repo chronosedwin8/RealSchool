@@ -53,8 +53,13 @@ class PluginRegistry:
     def enabled_plugins(self) -> tuple[SchedulingPlugin, ...]:
         return tuple(self._plugins[name] for name in sorted(self._enabled))
 
-    def build_model(self, context: SchedulingModelContext) -> DslModel:
-        """Ensambla el modelo: estructurales + reglas duras + objetivo ponderado."""
+    def build(self, context: SchedulingModelContext) -> tuple[DslModel, tuple[PenaltyTerm, ...]]:
+        """Ensambla el modelo y sus penalizaciones en **una sola pasada**.
+
+        Consultar a los plugins es caro en instituciones grandes, así que se les
+        pregunta una única vez (antes se les llamaba dos: una para el modelo y
+        otra para las penalizaciones).
+        """
         constraints: list[DslConstraint] = list(context.structural_constraints())
         penalties: list[PenaltyTerm] = []
         for plugin in self.enabled_plugins():
@@ -62,14 +67,15 @@ class PluginRegistry:
             constraints.extend(contribution.constraints)
             penalties.extend(contribution.penalties)
         objective = self._scoring.build_objective(penalties)
-        return DslModel(tuple(constraints), objective)
+        return DslModel(tuple(constraints), objective), tuple(penalties)
+
+    def build_model(self, context: SchedulingModelContext) -> DslModel:
+        """Solo el modelo (atajo sobre :meth:`build`)."""
+        return self.build(context)[0]
 
     def collect_penalties(self, context: SchedulingModelContext) -> tuple[PenaltyTerm, ...]:
-        """Penalizaciones aportadas por los plugins activos (para telemetría)."""
-        penalties: list[PenaltyTerm] = []
-        for plugin in self.enabled_plugins():
-            penalties.extend(plugin.contribute(context).penalties)
-        return tuple(penalties)
+        """Solo las penalizaciones (atajo sobre :meth:`build`)."""
+        return self.build(context)[1]
 
     def _require_known(self, name: str) -> None:
         if name not in self._plugins:

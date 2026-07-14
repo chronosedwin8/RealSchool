@@ -9,6 +9,7 @@ de preservación semántica (Fase 4) y una herramienta para el Validation Engine
 from __future__ import annotations
 
 from collections.abc import Mapping
+from itertools import pairwise
 
 from ..sal.interface import RelOp
 from .nodes import (
@@ -19,6 +20,7 @@ from .nodes import (
     CirLinear,
     CirLiteral,
     CirModel,
+    CirNoOverlap,
 )
 
 
@@ -39,6 +41,16 @@ def constraint_holds(constraint: CirConstraint, assignment: Mapping[str, int]) -
     if isinstance(constraint, CirImplication):
         return (not _literal_true(constraint.antecedent, assignment)) or _literal_true(
             constraint.consequent, assignment
+        )
+    if isinstance(constraint, CirNoOverlap):
+        presentes = [
+            (assignment[spec.start_key], assignment[spec.start_key] + spec.size)
+            for spec in constraint.intervals
+            if spec.presence is None or _literal_true(spec.presence, assignment)
+        ]
+        presentes.sort()
+        return all(
+            actual_end <= next_start for (_, actual_end), (next_start, _) in pairwise(presentes)
         )
     raise TypeError(f"nodo CIR no evaluable: {constraint!r}")  # pragma: no cover
 

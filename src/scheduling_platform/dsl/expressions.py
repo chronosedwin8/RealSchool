@@ -110,6 +110,16 @@ class LinearExpr:
             return cls(((value, 1),), 0)
         return cls((), value)
 
+    @classmethod
+    def from_terms(cls, pairs: Iterable[tuple[Var, int]], constant: int = 0) -> LinearExpr:
+        """Construye una expresión en una sola pasada.
+
+        Sumar variable a variable con ``+`` re-normaliza en cada paso (O(k^2)
+        para k términos); esta vía normaliza una única vez. Marca la diferencia
+        al construir modelos grandes.
+        """
+        return cls._make(pairs, constant)
+
     def __add__(self, other: ExprLike) -> LinearExpr:
         rhs = LinearExpr.of(other)
         return LinearExpr._make([*self.coeffs, *rhs.coeffs], self.constant + rhs.constant)

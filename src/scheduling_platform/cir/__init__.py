@@ -18,9 +18,11 @@ from .nodes import (
     CirBoolOr,
     CirConstraint,
     CirImplication,
+    CirIntervalSpec,
     CirLinear,
     CirLiteral,
     CirModel,
+    CirNoOverlap,
     CirObjective,
 )
 from .passes import (
@@ -41,9 +43,11 @@ __all__ = [
     "CirConstraint",
     "CirError",
     "CirImplication",
+    "CirIntervalSpec",
     "CirLinear",
     "CirLiteral",
     "CirModel",
+    "CirNoOverlap",
     "CirObjective",
     "CirPass",
     "CirToSolverCompiler",

@@ -20,6 +20,9 @@ from typing import NewType
 SolverVar = NewType("SolverVar", int)
 """Handle opaco de una variable del solver (índice entero)."""
 
+SolverInterval = NewType("SolverInterval", int)
+"""Handle opaco de un intervalo del solver (espacio de nombres propio)."""
+
 
 class RelOp(Enum):
     """Operadores relacionales canónicos que el solver entiende directamente."""
@@ -89,6 +92,33 @@ class ISolver(ABC):
     @abstractmethod
     def add_implication(self, antecedent: Literal, consequent: Literal) -> None:
         """Publica ``antecedent -> consequent``."""
+
+    @abstractmethod
+    def new_int_var_from_values(self, values: Sequence[int], name: str) -> SolverVar:
+        """Crea una variable entera cuyo dominio son *exactamente* esos valores.
+
+        A diferencia de ``new_int_var`` (rango contiguo), admite huecos: es la
+        forma compacta de decir "esta clase solo puede empezar en estos períodos".
+        """
+
+    @abstractmethod
+    def new_interval(self, start: SolverVar, size: int, name: str) -> SolverInterval:
+        """Crea un intervalo que ocupa ``[start, start + size)``, siempre presente."""
+
+    @abstractmethod
+    def new_optional_interval(
+        self, start: SolverVar, size: int, presence: Literal, name: str
+    ) -> SolverInterval:
+        """Crea un intervalo que solo existe si ``presence`` es verdadero.
+
+        Es la pieza clave del modelado eficiente de scheduling: un intervalo por
+        cada par (tarea, recurso elegible), presente solo si la tarea usa ese
+        recurso.
+        """
+
+    @abstractmethod
+    def add_no_overlap(self, intervals: Sequence[SolverInterval]) -> None:
+        """Publica que los intervalos presentes no pueden solaparse en el tiempo."""
 
     @abstractmethod
     def minimize(self, terms: Sequence[tuple[SolverVar, int]], constant: int = 0) -> None:

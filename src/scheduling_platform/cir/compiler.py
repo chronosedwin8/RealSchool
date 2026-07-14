@@ -7,17 +7,19 @@ SAL. No conoce ningún solver en particular: habla solo con ``ISolver``.
 
 from __future__ import annotations
 
-from ..dsl.domain import BoolDomain, IntDomain
-from ..sal.interface import ISolver, Literal, SolverVar
+from ..dsl.domain import BoolDomain, EnumDomain, IntDomain
+from ..sal.interface import ISolver, Literal, SolverInterval, SolverVar
 from .exceptions import CirError
 from .nodes import (
     CirAllDifferent,
     CirBoolOr,
     CirConstraint,
     CirImplication,
+    CirIntervalSpec,
     CirLinear,
     CirLiteral,
     CirModel,
+    CirNoOverlap,
 )
 
 
@@ -31,6 +33,8 @@ class CirToSolverCompiler:
                 var_map[key] = solver.new_bool_var(key)
             elif isinstance(domain, IntDomain):
                 var_map[key] = solver.new_int_var(domain.lo, domain.hi, key)
+            elif isinstance(domain, EnumDomain):
+                var_map[key] = solver.new_int_var_from_values(domain.values, key)
             else:  # pragma: no cover - dominio desconocido
                 raise CirError(f"dominio no soportado: {domain!r}")
 
@@ -57,9 +61,30 @@ class CirToSolverCompiler:
                 self._literal(constraint.antecedent, var_map),
                 self._literal(constraint.consequent, var_map),
             )
+        elif isinstance(constraint, CirNoOverlap):
+            handles = [
+                self._interval(spec, index, solver, var_map)
+                for index, spec in enumerate(constraint.intervals)
+            ]
+            solver.add_no_overlap(handles)
         else:  # pragma: no cover - nodo desconocido
             raise CirError(f"nodo CIR no soportado: {constraint!r}")
 
     @staticmethod
     def _literal(literal: CirLiteral, var_map: dict[str, SolverVar]) -> Literal:
         return Literal(var_map[literal.key], literal.positive)
+
+    def _interval(
+        self,
+        spec: CirIntervalSpec,
+        index: int,
+        solver: ISolver,
+        var_map: dict[str, SolverVar],
+    ) -> SolverInterval:
+        start = var_map[spec.start_key]
+        name = f"iv#{spec.start_key}#{index}"
+        if spec.presence is None:
+            return solver.new_interval(start, spec.size, name)
+        return solver.new_optional_interval(
+            start, spec.size, self._literal(spec.presence, var_map), name
+        )
