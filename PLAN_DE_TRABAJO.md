@@ -148,7 +148,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** integración end-to-end (académico → solución validada); el Validation Engine ejecutado sobre soluciones **corrompidas a propósito** detecta el 100% de las violaciones sembradas; reproducibilidad total con semilla fija; el Informe de Penalizaciones cuadra exactamente con el valor de la función objetivo.
 - **Criterio de salida:** demo completa del mini-colegio y de un colegio mediano (30 docentes, 15 grupos) con informe de calidad.
 
-### FASE 10 — Metrics Engine, ReOptimization Engine y Serialización
+### FASE 10 — Metrics Engine, ReOptimization Engine y Serialización  ✅ COMPLETADA (2026-07-14)
+
+> Entregado: `MetricsEngine` (uso de aulas, huecos intercalados, balance de carga, violaciones duras, `quality_score` 0-100 + comparador), `ReOptimizationEngine` (congelar = un plugin más, `FrozenSchedulePlugin`), `SimulationEngine` (what-if sandbox sin estado) y serialización en tres capas (`codec` ↔ JSON/YAML/`.proschedule` versionado con gzip). 210 tests: KPIs verificados a mano, **invariante de congelado** (lo congelado no se mueve), round-trip property-based, y un `.proschedule` reproduce el mismo horario en ejecución limpia; cobertura engine+serialization 98%; ADR-014.
+
 - **Entregables:** KPIs (uso de aulas %, huecos docentes/estudiantes, balance de carga, cambios de edificio, score global) y comparador de dos horarios; **ReOptimization:** congelar asignaciones (variables fijadas vía hints/igualdades) y reoptimizar solo el subconjunto en conflicto; **Simulation (sandbox):** escenarios what-if con comparación de métricas contra línea base; serialización import/export JSON, YAML y formato propio `.proschedule` (contenedor versionado con schema).
 - **Pruebas de rigor:** round-trip de serialización (exportar → importar → modelo idéntico) property-based; compatibilidad de versiones del schema; reoptimización con 90% congelado no altera lo congelado (invariante duro) y mejora o mantiene el score del resto; métricas verificadas contra cálculo manual en instancias pequeñas.
 - **Criterio de salida:** un `.proschedule` reproduce el mismo horario en una ejecución limpia.
