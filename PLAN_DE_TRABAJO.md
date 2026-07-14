@@ -124,7 +124,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** test de contrato que todo plugin debe pasar (arnés reutilizable del SDK); prueba de que activar/desactivar un plugin cambia el CIR resultante y nada más; prueba de que un plugin de terceros (carpeta externa) se registra sin modificar el núcleo.
 - **Criterio de salida:** `TeacherLunchPlugin` de ejemplo funciona end-to-end sin que el core lo conozca por nombre.
 
-### FASE 7 — Modelo matemático CP-SAT
+### FASE 7 — Modelo matemático CP-SAT  ✅ COMPLETADA (2026-07-13)
+
+> Entregado: `ORToolsSolver` (implementa `ISolver` sobre CP-SAT; único módulo que importa `ortools`, no reexportado en `sal/__init__`), estrategia de variables booleana `start`/`assign` justificada (ADR-011), `ResourceNoOverlapPlugin` (no-solape por linealización de ocupación), y `SolverConfig` con `random_seed`/`num_search_workers`/`max_time_in_seconds`. 157 tests: contrato ISolver sobre solver real, **oráculo con óptimo calculado a mano**, **determinismo** con semilla fija, **metamórficas** (permutar entrada ⇒ mismo óptimo); cobertura sal+catalog 98%; ADR-011. Pipeline `check.py` en verde. Deuda: reformulación por intervalos para escala (Fase 11).
+
 - **Entregables:** `ORToolsSolver` (implementación del SAL); estrategia de variables documentada y justificada por tipo de restricción — previsiblemente: `OptionalIntervalVar` + `NoOverlap` para exclusión mutua de recursos, `BoolVar` de asignación para compatibilidades, `Cumulative` para capacidades, enteros solo para holguras/contadores; documento "Modelo Matemático" con la justificación exigida por §2.1.1; todas las variables instanciadas antes de `Solve()` (sin lógica condicional dinámica).
 - **Pruebas de rigor:** instancias mínimas con **óptimo conocido calculado a mano** (oráculos); metamórficas (permutar el orden de entrada de entidades no cambia el valor óptimo); pruebas de determinismo con `random_seed` fijo; micro-benchmarks comparando formulaciones alternativas cuando se use `AddElement`/`AddAllowedAssignments` (justificación por análisis de rendimiento, §2.5).
 - **Criterio de salida:** el mini-colegio de la Fase 2 obtiene horario óptimo verificado a mano.
