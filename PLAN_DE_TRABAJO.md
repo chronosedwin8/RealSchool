@@ -116,7 +116,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** batería de **instancias inviables diseñadas** (una por categoría de conflicto) donde se verifica que (a) el grafo detecta las estructurales sin invocar solver, y (b) la explicación menciona las entidades correctas; pruebas del escalador de pesos (ningún criterio blando puede dominar numéricamente a otro por error de escala).
 - **Criterio de salida:** 100% de las instancias inviables del catálogo producen explicación accionable, nunca un "INFEASIBLE" mudo.
 
-### FASE 6 — Sistema de Plugins (SDK)
+### FASE 6 — Sistema de Plugins (SDK)  ✅ COMPLETADA (2026-07-13)
+
+> Entregado: `SchedulingModelContext` (vocabulario simbólico de variables `start`/`assign` + restricciones estructurales base), `SchedulingPlugin`/`Contribution` (plugins puros que solo emiten DSL), `PluginRegistry` (registro, activación dinámica, `build_model`, `discover_plugins`), y catálogo de ejemplo (`TeacherLunchPlugin`, `ForbiddenStartsPlugin`). 146 tests: arnés de contrato de plugin, activación/desactivación cambia el modelo, discovery, plugin de tercero sin tocar el núcleo, y `TeacherLunchPlugin` end-to-end por el pipeline con FakeSolver; cobertura plugins 98%; ADR-010. Pipeline `check.py` en verde.
+
 - **Entregables:** interfaz de plugin (declara restricciones vía DSL, nunca ejecuta código sobre variables del solver); descubrimiento/registro automático; activación/desactivación dinámica por configuración; catálogo inicial organizado (`teacher/`, `student/`, `room/`, `subject/`, `institution/`); documentación del SDK con plugin de ejemplo.
 - **Pruebas de rigor:** test de contrato que todo plugin debe pasar (arnés reutilizable del SDK); prueba de que activar/desactivar un plugin cambia el CIR resultante y nada más; prueba de que un plugin de terceros (carpeta externa) se registra sin modificar el núcleo.
 - **Criterio de salida:** `TeacherLunchPlugin` de ejemplo funciona end-to-end sin que el core lo conozca por nombre.
