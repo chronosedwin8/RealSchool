@@ -81,7 +81,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** unitarias de invariantes (un `TimeSlot` no puede tener fin ≤ inicio; `Task` exige duración > 0); property-based (Hypothesis) sobre operaciones de la rejilla temporal (unión/intersección/contención de rangos).
 - **Criterio de salida:** el core importa sin `ortools` instalado (prueba automática de aislamiento de dependencias).
 
-### FASE 2 — Academic Module y Adaptador al Modelo Canónico
+### FASE 2 — Academic Module y Adaptador al Modelo Canónico  ✅ COMPLETADA (2026-07-13)
+
+> Entregado: entidades académicas (TimeFrame, Room, Teacher+disponibilidad, StudentGroup, Subject, TeachingAssignment), agregado AcademicProblem, y `AcademicToCanonicalAdapter` con traducción por tags (docente/grupo fijos, aula elegible) + reconstrucción inversa a AcademicSchedule. 74 tests (round-trip, property-based, aislamiento core+academic sin ortools); cobertura 99%; ADR-006. Pipeline `check.py` en verde.
+
 - **Entregables:** entidades académicas (Infraestructura: Institución, Sede, Campus, Edificio, Piso, Aula, Laboratorio, Capacidad, Equipamiento · Temporal: Calendario, Período, Año Lectivo, Jornada, Marco Horario, Bloque, Receso, Almuerzo · Académico: Docente, Disponibilidad, Materia, Carga, Asignación, Curso, Grupo, Nivel, Sección, Estudiante · Operacional: Horario, Clase, Evento, Restricción, Preferencia, Conflicto, Resultado); `AcademicToCanonicalAdapter` con mapeo bidireccional de IDs.
 - **Pruebas de rigor:** round-trip del adaptador (académico → canónico → académico preserva la información); property-based sobre generadores aleatorios de instituciones válidas; test de que el módulo académico no importa nada del solver.
 - **Criterio de salida:** una institución de juguete ("mini-colegio": 3 docentes, 2 grupos, 4 materias) se traduce a modelo canónico verificable a mano.
