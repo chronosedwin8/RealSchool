@@ -72,7 +72,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** pipeline de calidad ejecuta en limpio; smoke test de import de `ortools` en Python 3.13.
 - **Criterio de salida:** `check` (lint + types + tests) pasa en verde en un repositorio git inicializado.
 
-### FASE 1 — Arquitectura del Core y Modelo Canónico
+### FASE 1 — Arquitectura del Core y Modelo Canónico  ✅ COMPLETADA (2026-07-13)
+
+> Entregado: 10 módulos en `core/` (ids, time_grid, requirement, resource, task, constraint, assignment, problem, solution, exceptions); 53 tests (unitarios + property-based + aislamiento dinámico sin ortools); cobertura 99%; ADR-004/005. Pipeline `check.py` en verde.
+
 - **Entregables:** entidades canónicas `Resource`, `Task`, `TimeSlot`, `Constraint`, `Assignment` como objetos inmutables puros; value objects temporales (rejilla de slots discreta); interfaces del core; documento de arquitectura + ADRs (granularidad del slot, identidad de entidades, inmutabilidad).
 - **Decisión clave a justificar:** representación del tiempo (rejilla discreta uniforme vs. intervalos continuos). Recomendación: rejilla discreta de slots — CP-SAT trabaja con enteros y los marcos horarios escolares son discretos por naturaleza.
 - **Pruebas de rigor:** unitarias de invariantes (un `TimeSlot` no puede tener fin ≤ inicio; `Task` exige duración > 0); property-based (Hypothesis) sobre operaciones de la rejilla temporal (unión/intersección/contención de rangos).
