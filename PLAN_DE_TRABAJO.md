@@ -89,7 +89,10 @@ Solution Builder → Validation → Metrics → Schedule
 - **Pruebas de rigor:** round-trip del adaptador (académico → canónico → académico preserva la información); property-based sobre generadores aleatorios de instituciones válidas; test de que el módulo académico no importa nada del solver.
 - **Criterio de salida:** una institución de juguete ("mini-colegio": 3 docentes, 2 grupos, 4 materias) se traduce a modelo canónico verificable a mano.
 
-### FASE 3 — Solver Abstraction Layer (SAL) y Constraint DSL
+### FASE 3 — Solver Abstraction Layer (SAL) y Constraint DSL  ✅ COMPLETADA (2026-07-13)
+
+> Entregado: SAL (`ISolver` con handles opacos, `SolverConfig`, `Literal`, `FakeSolver`), DSL (`Var`/`LinearExpr`/`Relation` con operadores, `LinearConstraint`/`AllDifferent`/`BoolOr`/`Implication`, `Objective`, `DslModel`) y `DslToSolverCompiler` (seam del Solver Compiler). 101 tests (álgebra DSL, bajada a FakeSolver, contrato ISolver reutilizable); cobertura dsl+sal 98%; ADR-007. Pipeline `check.py` en verde.
+
 - **Entregables:** interfaz `ISolver` (`add_constraint()`, `add_objective()`, `solve()`, `get_assignment()`); DSL declarativo de restricciones (expresiones algebraicas componibles: `all_different`, `no_overlap`, `implies`, `sum(...) <= k`, cardinalidad, consecutividad); `FakeSolver` de pruebas que registra llamadas.
 - **Pruebas de rigor:** el DSL construye árboles de expresión correctos (unitarias); contrato de `ISolver` verificado contra `FakeSolver`; ninguna clase fuera del SAL importa `ortools` (test de arquitectura con `grep`/import-linter automatizado).
 - **Criterio de salida:** una restricción de juguete expresada en DSL llega al `FakeSolver` sin que el core toque `model.Add(...)`.
