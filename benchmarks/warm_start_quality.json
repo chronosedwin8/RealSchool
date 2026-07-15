@@ -1,0 +1,70 @@
+[
+  {
+    "year": "2023-2024",
+    "solved": true,
+    "untis": {
+      "room_pairs": 311,
+      "avg_rooms": 3.5,
+      "max_rooms": 11
+    },
+    "engine": {
+      "room_pairs": 223,
+      "avg_rooms": 2.5,
+      "max_rooms": 6
+    },
+    "reduction_pct": 28.3,
+    "kept_sessions": 1718,
+    "total_sessions": 1822
+  },
+  {
+    "year": "2024-2025",
+    "solved": true,
+    "untis": {
+      "room_pairs": 313,
+      "avg_rooms": 3.5,
+      "max_rooms": 13
+    },
+    "engine": {
+      "room_pairs": 252,
+      "avg_rooms": 2.8,
+      "max_rooms": 7
+    },
+    "reduction_pct": 19.5,
+    "kept_sessions": 1795,
+    "total_sessions": 1889
+  },
+  {
+    "year": "2025-2026",
+    "solved": true,
+    "untis": {
+      "room_pairs": 316,
+      "avg_rooms": 3.4,
+      "max_rooms": 10
+    },
+    "engine": {
+      "room_pairs": 255,
+      "avg_rooms": 2.8,
+      "max_rooms": 7
+    },
+    "reduction_pct": 19.3,
+    "kept_sessions": 1718,
+    "total_sessions": 1835
+  },
+  {
+    "year": "2026-2027",
+    "solved": true,
+    "untis": {
+      "room_pairs": 370,
+      "avg_rooms": 3.1,
+      "max_rooms": 18
+    },
+    "engine": {
+      "room_pairs": 295,
+      "avg_rooms": 2.5,
+      "max_rooms": 8
+    },
+    "reduction_pct": 20.3,
+    "kept_sessions": 1869,
+    "total_sessions": 1930
+  }
+]
