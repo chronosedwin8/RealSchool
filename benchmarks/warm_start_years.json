@@ -1,0 +1,78 @@
+[
+  {
+    "year": "2023-2024",
+    "tasks": 1822,
+    "cold": {
+      "status": "unknown",
+      "solved": false,
+      "quality": null,
+      "kept_from_untis": 0,
+      "seconds": 37.1
+    },
+    "warm": {
+      "status": "optimal",
+      "solved": true,
+      "quality": 0.0,
+      "kept_from_untis": 1718,
+      "seconds": 17.2
+    },
+    "untis_sessions": 1822
+  },
+  {
+    "year": "2024-2025",
+    "tasks": 1889,
+    "cold": {
+      "status": "unknown",
+      "solved": false,
+      "quality": null,
+      "kept_from_untis": 0,
+      "seconds": 35.2
+    },
+    "warm": {
+      "status": "optimal",
+      "solved": true,
+      "quality": 0.0,
+      "kept_from_untis": 1795,
+      "seconds": 34.7
+    },
+    "untis_sessions": 1889
+  },
+  {
+    "year": "2025-2026",
+    "tasks": 1835,
+    "cold": {
+      "status": "unknown",
+      "solved": false,
+      "quality": null,
+      "kept_from_untis": 0,
+      "seconds": 37.3
+    },
+    "warm": {
+      "status": "optimal",
+      "solved": true,
+      "quality": 0.0,
+      "kept_from_untis": 1718,
+      "seconds": 23.5
+    },
+    "untis_sessions": 1835
+  },
+  {
+    "year": "2026-2027",
+    "tasks": 1930,
+    "cold": {
+      "status": "unknown",
+      "solved": false,
+      "quality": null,
+      "kept_from_untis": 0,
+      "seconds": 37.3
+    },
+    "warm": {
+      "status": "optimal",
+      "solved": true,
+      "quality": 0.0,
+      "kept_from_untis": 1869,
+      "seconds": 19.0
+    },
+    "untis_sessions": 1930
+  }
+]

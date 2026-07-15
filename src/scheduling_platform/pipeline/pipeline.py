@@ -72,6 +72,7 @@ class OptimizationPipeline:
         dsl_model: DslModel,
         solver: ISolver,
         config: SolverConfig | None = None,
+        hints: Mapping[str, int] | None = None,
     ) -> PipelineResult:
         total_start = time.perf_counter()
 
@@ -107,6 +108,11 @@ class OptimizationPipeline:
 
         stage = time.perf_counter()
         var_map = self.compiler.compile(cir, solver)
+        if hints:
+            for key, value in hints.items():
+                handle = var_map.get(key)
+                if handle is not None:
+                    solver.add_hint(handle, value)
         t_compile = _ms_since(stage)
 
         stage = time.perf_counter()

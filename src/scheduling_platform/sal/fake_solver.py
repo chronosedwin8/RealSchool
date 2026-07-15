@@ -60,6 +60,7 @@ class FakeSolver(ISolver):
     objective_terms: tuple[tuple[SolverVar, int], ...] = ()
     objective_constant: int = 0
     has_objective: bool = False
+    hints: dict[SolverVar, int] = field(default_factory=dict)
     configs_seen: list[SolverConfig | None] = field(default_factory=list)
     _next_handle: int = 0
     _status: SolverStatus = SolverStatus.UNKNOWN
@@ -124,6 +125,9 @@ class FakeSolver(ISolver):
         self.objective_terms = tuple(terms)
         self.objective_constant = constant
         self.has_objective = True
+
+    def add_hint(self, var: SolverVar, value: int) -> None:
+        self.hints[var] = value
 
     def set_result(
         self,

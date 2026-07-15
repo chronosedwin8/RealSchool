@@ -11,7 +11,7 @@ reoptimizar (``ReOptimizationEngine``) y evaluar escenarios what-if
 
 from __future__ import annotations
 
-from .engine import EngineResult, SchedulingEngine, SolverFactory
+from .engine import EngineResult, SchedulingEngine, SolverFactory, warm_start_hints
 from .exceptions import EngineError, SolutionExtractionError
 from .inspector import SolutionInspector, evaluate_linear
 from .metrics import MetricsComparison, MetricsEngine, ScheduleMetrics
@@ -40,4 +40,5 @@ __all__ = [
     "ValidationReport",
     "evaluate_linear",
     "freeze_all_except",
+    "warm_start_hints",
 ]

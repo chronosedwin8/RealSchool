@@ -125,6 +125,15 @@ class ISolver(ABC):
         """Fija la función objetivo a minimizar: ``sum(coef_i * var_i) + constant``."""
 
     @abstractmethod
+    def add_hint(self, var: SolverVar, value: int) -> None:
+        """Sugiere un valor inicial para una variable (*warm start*).
+
+        No es una restricción: el solver es libre de ignorarlo. Sembrar la
+        búsqueda con una solución conocida (p. ej. el horario del año anterior)
+        permite al motor **mejorarla** en vez de reencontrarla desde cero.
+        """
+
+    @abstractmethod
     def solve(self, config: SolverConfig | None = None) -> SolverStatus:
         """Ejecuta la optimización y devuelve el estado."""
 

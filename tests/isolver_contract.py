@@ -30,6 +30,7 @@ def assert_isolver_contract(make_solver: SolverFactory) -> None:
     solver.add_bool_or([Literal(a), Literal(b, positive=False)])
     solver.add_implication(Literal(a), Literal(b))
     solver.minimize([(x, 1)], constant=0)
+    solver.add_hint(x, 0)  # warm start: sugerencia, no restricción
 
     # 3. Intervalos: fijos, opcionales y no-solape.
     y = solver.new_int_var(0, 10, "y")

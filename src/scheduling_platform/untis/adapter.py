@@ -173,15 +173,19 @@ class UntisToCanonicalAdapter:
         for coupling in couplings:
             base = [ResourceRequirement(teacher_tag(t)) for t in coupling.teachers]
             base += [ResourceRequirement(group_tag(c)) for c in coupling.courses if c in declared]
-            duracion = self._coupling_duration(export, coupling)
-            permitidos = inicios.get((coupling.timegrid, duracion), ())
-            if not base or not permitidos:
+            if not base:
                 continue
-            slots = frozenset(
-                TimeSlotIndex(self._slot(export, day, minuto)) for day, minuto in permitidos
-            )
             nombre = f"{coupling.subject or '?'} · {'/'.join(coupling.courses)}"
             for index in range(coupling.periods):
+                # Cada sesión puede durar distinto (una clase de 45 y una de 20
+                # en el mismo acople), y su dominio temporal depende de su duración.
+                duracion = self._session_duration(export, coupling, index)
+                permitidos = inicios.get((coupling.timegrid, duracion), ())
+                if not permitidos:
+                    continue
+                slots = frozenset(
+                    TimeSlotIndex(self._slot(export, day, minuto)) for day, minuto in permitidos
+                )
                 requirements = list(base)
                 aulas = self._rooms_at(coupling, index)
                 if aulas and room_pools.get(coupling.subject):
@@ -387,7 +391,14 @@ class UntisToCanonicalAdapter:
         return {k: tuple(sorted(v)) for k, v in index.items()}
 
     @staticmethod
-    def _coupling_duration(export: UntisExport, coupling: Coupling) -> int:
+    def _session_duration(export: UntisExport, coupling: Coupling, index: int) -> int:
+        """Duración real (minutos) de la sesión ``index`` del acople."""
+        if index < len(coupling.placements):
+            day, period, _ = coupling.placements[index]
+            p = export.period_at(coupling.timegrid, day, period)
+            if p is not None:
+                return p.duration
+        # sesión que Untis no ubicó: duración dominante del acople
         for day, period, _ in coupling.placements:
             p = export.period_at(coupling.timegrid, day, period)
             if p is not None:

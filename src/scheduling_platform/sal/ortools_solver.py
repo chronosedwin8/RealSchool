@@ -110,6 +110,9 @@ class ORToolsSolver(ISolver):
         self._model.minimize(expr)
         self._has_objective = True
 
+    def add_hint(self, var: SolverVar, value: int) -> None:
+        self._model.add_hint(self._vars[var], value)
+
     def solve(self, config: SolverConfig | None = None) -> SolverStatus:
         if config is not None:
             self._apply_config(config)

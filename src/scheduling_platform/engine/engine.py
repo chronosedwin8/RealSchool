@@ -30,6 +30,26 @@ SolverFactory = Callable[[], ISolver]
 _SOLVED = (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
 
 
+def warm_start_hints(context: SchedulingModelContext, solution: Solution) -> dict[str, int]:
+    """Traduce una solución conocida a valores iniciales de las variables.
+
+    Siembra el inicio de cada tarea (``tstart``) y los recursos que usó
+    (``assign``). Es un *hint* parcial: el solver lo completa y es libre de
+    apartarse, pero arranca desde un horario ya válido.
+    """
+    hints: dict[str, int] = {}
+    for assignment in solution.assignments:
+        tid = int(assignment.task_id)
+        start = int(assignment.start)
+        hints[context.task_start_var(tid).key] = start
+        if context.boolean_starts:
+            for slot in context.valid_starts(tid):
+                hints[context.start_var(tid, slot).key] = 1 if slot == start else 0
+        for rid in assignment.resource_ids:
+            hints[context.assign_var(tid, int(rid)).key] = 1
+    return hints
+
+
 @dataclass(frozen=True, slots=True)
 class EngineResult:
     """Resultado completo de una corrida del motor."""
@@ -80,12 +100,20 @@ class SchedulingEngine:
     reduce drásticamente el modelo en instituciones grandes.
     """
 
-    def solve(self, problem: SchedulingProblem, config: SolverConfig | None = None) -> EngineResult:
+    def solve(
+        self,
+        problem: SchedulingProblem,
+        config: SolverConfig | None = None,
+        warm_start: Solution | None = None,
+    ) -> EngineResult:
+        """Genera un horario. Si se da ``warm_start`` (p. ej. el del año anterior),
+        se siembra la búsqueda con él para que el motor lo **mejore**."""
         context = SchedulingModelContext.build(problem, boolean_starts=self.boolean_starts)
         model, penalties = self.registry.build(context)  # una sola consulta a los plugins
+        hints = warm_start_hints(context, warm_start) if warm_start is not None else None
 
         solver = self.solver_factory()
-        result = self.pipeline.run(problem, model, solver, config)
+        result = self.pipeline.run(problem, model, solver, config, hints=hints)
 
         if result.status not in _SOLVED or result.var_map is None:
             return EngineResult(
