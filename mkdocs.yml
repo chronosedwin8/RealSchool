@@ -50,7 +50,11 @@ plugins:
             separate_signature: true
             members_order: source
             docstring_section_style: table
-  - mermaid2
+
+# Mermaid vendorizado localmente (offline) + init con re-render claro/oscuro.
+extra_javascript:
+  - assets/js/mermaid.min.js
+  - assets/js/mermaid-init.js
 
 markdown_extensions:
   - admonition
@@ -61,7 +65,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:mermaid2.fence_mermaid_custom
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -73,3 +77,24 @@ markdown_extensions:
 
 nav:
   - Inicio: index.md
+  - Arquitectura:
+      - Visión general: architecture/overview.md
+      - El pipeline: architecture/pipeline.md
+      - Restricciones y Tiers: architecture/scoring_tiers.md
+      - Formato .bjs: architecture/bjs_format.md
+      - Decisiones (ADR): architecture/decisions.md
+  - Guías del SDK:
+      - Restricciones: sdk_guide/constraints.md
+      - Objetivos: sdk_guide/objectives.md
+      - Importadores: sdk_guide/importers.md
+      - Exportadores: sdk_guide/exporters.md
+      - Solvers: sdk_guide/solvers.md
+      - Telemetría y eventos: sdk_guide/telemetry.md
+  - Referencia de API:
+      - Core: reference/core.md
+      - SAL: reference/sal.md
+      - Plugins: reference/plugins.md
+      - Engine: reference/engine.md
+      - Application: reference/application.md
+      - Serialization: reference/serialization.md
+      - CLI: reference/cli.md
