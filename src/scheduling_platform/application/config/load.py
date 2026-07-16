@@ -39,12 +39,8 @@ def _opt_int(item: dict[str, Any], key: str) -> int | None:
     return None if item.get(key) is None else _as_int(item[key], key)
 
 
-def load_engine_config(text: str) -> EngineConfig:
-    """Parsea el texto de ``engine.yaml`` a un :class:`EngineConfig` validado."""
-    data = _parse_yaml(text)
-    if not isinstance(data, dict):
-        raise ConfigError("engine.yaml debe ser un mapa")
-    section = data.get("engine", data)
+def engine_config_from_mapping(section: dict[str, Any]) -> EngineConfig:
+    """Construye un :class:`EngineConfig` validado desde un mapa ya parseado."""
     if not isinstance(section, dict):
         raise ConfigError("la sección 'engine' debe ser un mapa")
     config = EngineConfig(
@@ -60,10 +56,8 @@ def load_engine_config(text: str) -> EngineConfig:
     return config
 
 
-def load_plugins_config(text: str) -> PluginsConfig:
-    """Parsea el texto de ``plugins.yaml`` a un :class:`PluginsConfig` validado."""
-    data = _parse_yaml(text)
-    items = data.get("plugins", []) if isinstance(data, dict) else data
+def plugins_config_from_list(items: list[Any]) -> PluginsConfig:
+    """Construye un :class:`PluginsConfig` validado desde una lista ya parseada."""
     if not isinstance(items, list):
         raise ConfigError("'plugins' debe ser una lista")
     settings: list[PluginSetting] = []
@@ -87,6 +81,21 @@ def load_plugins_config(text: str) -> PluginsConfig:
     config = PluginsConfig(tuple(settings))
     config.validate()
     return config
+
+
+def load_engine_config(text: str) -> EngineConfig:
+    """Parsea el texto de ``engine.yaml`` a un :class:`EngineConfig` validado."""
+    data = _parse_yaml(text)
+    if not isinstance(data, dict):
+        raise ConfigError("engine.yaml debe ser un mapa")
+    return engine_config_from_mapping(data.get("engine", data))
+
+
+def load_plugins_config(text: str) -> PluginsConfig:
+    """Parsea el texto de ``plugins.yaml`` a un :class:`PluginsConfig` validado."""
+    data = _parse_yaml(text)
+    items = data.get("plugins", []) if isinstance(data, dict) else data
+    return plugins_config_from_list(items)
 
 
 def load_engine_config_file(path: str | Path) -> EngineConfig:

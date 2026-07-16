@@ -11,6 +11,9 @@ from __future__ import annotations
 
 from .commands.base import Command, CommandResult
 from .commands.config_validate import ConfigValidateCommand
+from .commands.convert import ConvertCommand
+from .commands.inspect_project import ExplainCommand, ValidateCommand
+from .commands.solve import GenerateCommand, OptimizeCommand
 from .config import (
     EngineConfig,
     PluginsConfig,
@@ -41,13 +44,18 @@ __all__ = [
     "CommandResult",
     "ConfigError",
     "ConfigValidateCommand",
+    "ConvertCommand",
     "EngineConfig",
+    "ExplainCommand",
+    "GenerateCommand",
     "InfeasibleError",
     "InternalError",
+    "OptimizeCommand",
     "PluginSetting",
     "PluginsConfig",
     "ScheduleProject",
     "SolveTimeoutError",
+    "ValidateCommand",
     "load_engine_config",
     "load_plugins_config",
     "new_project",

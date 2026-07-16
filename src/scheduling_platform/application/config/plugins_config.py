@@ -22,6 +22,24 @@ from ...plugins import (
 )
 from ..errors import ConfigError
 
+# Plugins que razonan período-a-período: exigen la codificación booleana de
+# inicios (``boolean_starts=True``). El resto funciona en el modelo compacto.
+_PERIOD_PLUGINS: frozenset[str] = frozenset(
+    {
+        "teacher_gaps",
+        "task_continuity",
+        "weekly_balance",
+        "daily_span",
+        "soft_max_consecutive",
+        "prefer_early_slots",
+        "avoid_slots",
+        "max_daily_load",
+        "max_consecutive",
+        "teacher_lunch",
+        "forbidden_starts",
+    }
+)
+
 
 def _instantiable() -> dict[str, str]:
     """Nombre de plugin -> ID de restricción, solo los que tienen factory."""
@@ -48,6 +66,10 @@ class PluginsConfig:
     """Conjunto de restricciones activas y sus pesos/tiers configurados."""
 
     plugins: tuple[PluginSetting, ...]
+
+    def requires_boolean_starts(self) -> bool:
+        """``True`` si algún plugin activo razona período-a-período."""
+        return any(s.enabled and s.id in _PERIOD_PLUGINS for s in self.plugins)
 
     def validate(self) -> None:
         valid = _instantiable()
