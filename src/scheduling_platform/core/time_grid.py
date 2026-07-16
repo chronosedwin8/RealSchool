@@ -15,9 +15,33 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import cache
 
 from .exceptions import InvalidTimeGrid, require
 from .ids import TimeSlotIndex
+
+
+@cache
+def _valid_starts(
+    segments: tuple[Segment, ...], horizon: int, duration: int, same_segment: bool
+) -> frozenset[TimeSlotIndex]:
+    """Inicios válidos memoizados por (rejilla, duración, same_segment).
+
+    ``context.build`` pide esto una vez por tarea y casi todas comparten
+    ``(duration, same_segment)``; recalcularlo dominaba la construcción del modelo
+    en instituciones grandes (perfilado en O10). La rejilla es inmutable y
+    hashable, así que memoizar es seguro.
+    """
+    starts: set[TimeSlotIndex] = set()
+    if same_segment:
+        for seg in segments:
+            last = seg.end - duration
+            for i in range(seg.start, last + 1):
+                starts.add(TimeSlotIndex(i))
+    else:
+        for i in range(horizon - duration + 1):
+            starts.add(TimeSlotIndex(i))
+    return frozenset(starts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,13 +148,4 @@ class TimeGrid:
         contiguo del horizonte. Reutilizado por el modelo CP-SAT (Fase 7).
         """
         require(duration >= 1, InvalidTimeGrid, f"duración < 1: {duration}")
-        starts: set[TimeSlotIndex] = set()
-        if same_segment:
-            for seg in self.segments:
-                last = seg.end - duration  # último inicio válido dentro del segmento
-                for i in range(seg.start, last + 1):
-                    starts.add(TimeSlotIndex(i))
-        else:
-            for i in range(self.horizon - duration + 1):
-                starts.add(TimeSlotIndex(i))
-        return frozenset(starts)
+        return _valid_starts(self.segments, self.horizon, duration, same_segment)
