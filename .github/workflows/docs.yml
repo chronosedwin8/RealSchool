@@ -1,0 +1,43 @@
+name: Docs
+
+# Valida la documentación en cada push/PR:
+#  - mkdocs build --strict (falla ante warnings, enlaces rotos o docstrings rotos)
+#  - los bloques de código de los tutoriales se ejecutan (no pueden pudrirse)
+#  - los ejemplos construyen y resuelven
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Instalar (motor + CLI + docs)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[cli,docs]"
+
+      - name: Construir el sitio (estricto)
+        run: mkdocs build --strict
+
+      - name: Ejecutar los bloques de los tutoriales
+        run: pytest --markdown-docs docs/tutorials -q
+
+      - name: Ejecutar los ejemplos
+        run: pytest tests/test_examples.py -q
+
+      - name: Publicar el sitio como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site/

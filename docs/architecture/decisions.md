@@ -45,3 +45,7 @@ del diseño. Aquí están ordenados por fase.
 
 - [ADR-028 — Formato .bjs](../adr/ADR-028-formato-bjs.md)
 - [ADR-029 — Distribución como binario nativo](../adr/ADR-029-distribucion-binario-nativo.md)
+
+## Documentación (Fase 4)
+
+- [ADR-030 — Documentación del SDK con MkDocs Material](../adr/ADR-030-documentacion-mkdocs.md)
