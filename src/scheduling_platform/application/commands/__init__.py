@@ -7,6 +7,12 @@ from .config_validate import ConfigValidateCommand
 from .convert import ConvertCommand
 from .doctor import DoctorCommand
 from .inspect_project import ExplainCommand, ValidateCommand
+from .project_ops import (
+    ProjectExtractCommand,
+    ProjectInfoCommand,
+    ProjectPackCommand,
+    ProjectValidateCommand,
+)
 from .solve import GenerateCommand, OptimizeCommand
 
 __all__ = [
@@ -18,5 +24,9 @@ __all__ = [
     "ExplainCommand",
     "GenerateCommand",
     "OptimizeCommand",
+    "ProjectExtractCommand",
+    "ProjectInfoCommand",
+    "ProjectPackCommand",
+    "ProjectValidateCommand",
     "ValidateCommand",
 ]

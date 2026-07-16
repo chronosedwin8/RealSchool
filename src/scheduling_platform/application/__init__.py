@@ -14,6 +14,12 @@ from .commands.config_validate import ConfigValidateCommand
 from .commands.convert import ConvertCommand
 from .commands.doctor import DoctorCommand
 from .commands.inspect_project import ExplainCommand, ValidateCommand
+from .commands.project_ops import (
+    ProjectExtractCommand,
+    ProjectInfoCommand,
+    ProjectPackCommand,
+    ProjectValidateCommand,
+)
 from .commands.solve import GenerateCommand, OptimizeCommand
 from .config import (
     EngineConfig,
@@ -56,6 +62,10 @@ __all__ = [
     "OptimizeCommand",
     "PluginSetting",
     "PluginsConfig",
+    "ProjectExtractCommand",
+    "ProjectInfoCommand",
+    "ProjectPackCommand",
+    "ProjectValidateCommand",
     "SolveTimeoutError",
     "ValidateCommand",
     "load_engine_config",

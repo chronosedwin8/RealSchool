@@ -24,6 +24,10 @@ from ..application import (
     ExplainCommand,
     GenerateCommand,
     OptimizeCommand,
+    ProjectExtractCommand,
+    ProjectInfoCommand,
+    ProjectPackCommand,
+    ProjectValidateCommand,
     ValidateCommand,
 )
 
@@ -34,6 +38,8 @@ app = typer.Typer(
 )
 config_app = typer.Typer(no_args_is_help=True, help="Gestión de configuración.")
 app.add_typer(config_app, name="config")
+project_app = typer.Typer(no_args_is_help=True, help="Operaciones del contenedor .bjs.")
+app.add_typer(project_app, name="project")
 
 _FORMAT = typer.Option("json", "--format", "-f", help="Formato de salida: json | yaml | markdown.")
 
@@ -141,6 +147,34 @@ def config_validate(
 ) -> None:
     """Valida engine.yaml / plugins.yaml contra el catálogo."""
     _run(ConfigValidateCommand(engine, plugins), output_format)
+
+
+@project_app.command("info")
+def project_info(project: str, output_format: str = _FORMAT) -> None:
+    """Metadatos del contenedor .bjs y estado de la solución."""
+    _run(ProjectInfoCommand(project), output_format)
+
+
+@project_app.command("validate")
+def project_validate(
+    project: str,
+    strict: bool = typer.Option(False, "--strict", help="Los avisos se vuelven error."),
+    output_format: str = _FORMAT,
+) -> None:
+    """Valida el contrato de datos: estructura + integridad + referencias."""
+    _run(ProjectValidateCommand(project, strict=strict), output_format)
+
+
+@project_app.command("extract")
+def project_extract(project: str, out: str = typer.Option(..., help="Directorio destino.")) -> None:
+    """Descomprime el .bjs a JSONs git-friendly."""
+    _run(ProjectExtractCommand(project, out), "json")
+
+
+@project_app.command("pack")
+def project_pack(src: str, out: str = typer.Option(..., help="Archivo .bjs destino.")) -> None:
+    """Re-empaqueta un directorio a .bjs de forma atómica y lo valida."""
+    _run(ProjectPackCommand(src, out), "json")
 
 
 if __name__ == "__main__":

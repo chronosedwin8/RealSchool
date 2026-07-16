@@ -21,15 +21,17 @@ from typing import Any
 from ..benchmarks import Provenance
 from ..core.problem import SchedulingProblem
 from ..core.solution import Solution
-from ..serialization.bjs import build_manifest, pack, read
+from ..serialization.bjs import build_manifest, extract, pack, pack_dir, read
 from ..serialization.codec import (
     problem_from_dict,
     problem_to_dict,
     solution_from_dict,
     solution_to_dict,
 )
+from ..serialization.exceptions import SerializationError
 from .config import EngineConfig, PluginsConfig
 from .config.load import engine_config_from_mapping, plugins_config_from_list
+from .errors import ConfigError
 
 _CALENDAR = "calendar.json"
 _RESOURCES = "resources.json"
@@ -122,10 +124,17 @@ def save_project(path: str | Path, project: BjsProject) -> None:
 
 
 def open_project(path: str | Path) -> BjsProject:
-    """Lee un ``.bjs`` (verifica integridad + estructura) y reconstruye el proyecto tipado."""
+    """Lee un ``.bjs`` (verifica integridad + estructura) y reconstruye el proyecto tipado.
+
+    Cualquier problema de contenedor (ZIP inválido, checksum, versión) se traduce
+    a ``ConfigError`` para que la CLI salga con código 1 (no 4), con detalle.
+    """
     from .bjs_validation import check_structure
 
-    manifest, entries = read(path)
+    try:
+        manifest, entries = read(path)
+    except SerializationError as exc:
+        raise ConfigError(str(exc)) from exc
     check_structure(entries)  # fase estructural: errores claros por archivo/campo
     problem = _merge_problem(entries)
     constraints = plugins_config_from_list(entries.get(_CONSTRAINTS, {}).get("plugins", []))
@@ -156,3 +165,20 @@ def new_project(
     project = BjsProject.create(name, problem, constraints=constraints, solver_config=solver_config)
     save_project(path, project)
     return project
+
+
+def extract_project(path: str | Path, out_dir: str | Path) -> list[Path]:
+    """Descomprime un ``.bjs`` a JSONs git-friendly (errores -> ConfigError)."""
+    try:
+        return extract(path, out_dir)
+    except SerializationError as exc:
+        raise ConfigError(str(exc)) from exc
+
+
+def pack_project(src_dir: str | Path, path: str | Path) -> BjsProject:
+    """Re-empaqueta un directorio a ``.bjs`` y **valida** el resultado. Devuelve el proyecto."""
+    try:
+        pack_dir(src_dir, path)
+    except SerializationError as exc:
+        raise ConfigError(str(exc)) from exc
+    return open_project(path)  # valida estructura + integridad + referencial
