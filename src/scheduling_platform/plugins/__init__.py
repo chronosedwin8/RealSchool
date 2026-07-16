@@ -11,18 +11,34 @@ importa ``ortools`` aquí.
 from __future__ import annotations
 
 from .base import Contribution, PenaltyTerm, SchedulingPlugin
+from .constraint_catalog import (
+    CONSTRAINT_CATALOG,
+    ConstraintDefinition,
+    ConstraintKind,
+    catalog_by_id,
+    plugin_names_in_catalog,
+    registry_from_catalog,
+    render_catalog_table,
+)
 from .context import SchedulingModelContext
 from .registry import PluginRegistry, discover_plugins, registry_with
 from .scoring import ScoringEngine, normalize_weights
 
 __all__ = [
+    "CONSTRAINT_CATALOG",
+    "ConstraintDefinition",
+    "ConstraintKind",
     "Contribution",
     "PenaltyTerm",
     "PluginRegistry",
     "SchedulingModelContext",
     "SchedulingPlugin",
     "ScoringEngine",
+    "catalog_by_id",
     "discover_plugins",
     "normalize_weights",
+    "plugin_names_in_catalog",
+    "registry_from_catalog",
     "registry_with",
+    "render_catalog_table",
 ]

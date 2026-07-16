@@ -25,8 +25,22 @@ def assert_plugin_contract(plugin: SchedulingPlugin, context: SchedulingModelCon
         assert penalty.weight > 0, "toda penalización debe tener peso positivo"
 
     # Un plugin solo puede referenciar variables del contexto o variables
-    # auxiliares propias con un prefijo reconocible (ocupación, ocupación de aula).
-    aux_prefixes = ("occ#", "uses#")
+    # auxiliares propias con un prefijo reconocible (ocupación, ocupación de aula,
+    # y las holguras de las reglas de estructura diaria).
+    aux_prefixes = (
+        "occ#",
+        "uses#",
+        "busy#",
+        "before#",
+        "after#",
+        "gap#",
+        "blk#",
+        "bal#",
+        "span#",
+        "spanb#",
+        "spana#",
+        "slack#",
+    )
     known = context.all_variable_keys()
     for constraint in first.constraints:
         for variable in constraint.variables():
