@@ -22,7 +22,7 @@ import json
 import os
 import uuid as uuidlib
 import zipfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -31,8 +31,13 @@ from .codec import Doc
 from .exceptions import SerializationError, UnsupportedSchemaVersion
 
 FORMAT_VERSION = "1.0.0"
-SUPPORTED_VERSIONS: frozenset[str] = frozenset({"1.0.0"})
 MANIFEST = "manifest.json"
+
+#: Una migración transforma ``(manifest, entries)`` de una versión a la siguiente.
+Migration = Callable[[Doc, dict[str, Doc]], tuple[Doc, dict[str, Doc]]]
+
+#: Registro de migraciones ``(desde, hasta) -> transform``. Vacío en v1 (no-op).
+_MIGRATIONS: dict[tuple[str, str], Migration] = {}
 
 
 class BjsError(SerializationError):
@@ -76,12 +81,40 @@ def build_manifest(
     }
 
 
-def _require_supported_version(manifest: Mapping[str, Any]) -> None:
+def register_migration(from_version: str, to_version: str, transform: Migration) -> None:
+    """Registra una migración de esquema ``from_version -> to_version`` (upcast)."""
+    _MIGRATIONS[(from_version, to_version)] = transform
+
+
+def migrate(
+    manifest: Doc,
+    entries: dict[str, Doc],
+    *,
+    migrations: Mapping[tuple[str, str], Migration] | None = None,
+) -> tuple[Doc, dict[str, Doc]]:
+    """Lleva ``(manifest, entries)`` a :data:`FORMAT_VERSION` aplicando migraciones en cadena.
+
+    Si la versión ya es la actual, es un no-op. Si no hay ruta de migración, falla
+    con un mensaje claro (formato durará décadas: el mecanismo queda listo aunque
+    v1 no tenga aún ninguna migración registrada).
+    """
+    registry = migrations if migrations is not None else _MIGRATIONS
     version = str(manifest.get("format_version", ""))
-    if version not in SUPPORTED_VERSIONS:
-        raise UnsupportedSchemaVersion(
-            f"versión .bjs no soportada: {version!r} (soportadas: {sorted(SUPPORTED_VERSIONS)})"
-        )
+    seen: set[str] = set()
+    while version != FORMAT_VERSION:
+        if version in seen:  # pragma: no cover - registro mal formado
+            raise BjsError(f"ciclo de migración detectado en la versión {version!r}")
+        seen.add(version)
+        target = next((t for (frm, t) in registry if frm == version), None)
+        if target is None:
+            raise UnsupportedSchemaVersion(
+                f"versión .bjs no soportada: {version!r} "
+                f"(sin ruta de migración hasta {FORMAT_VERSION})"
+            )
+        manifest, entries = registry[(version, target)](manifest, entries)
+        manifest = {**manifest, "format_version": target}
+        version = target
+    return manifest, entries
 
 
 def _atomic_write(target: Path, data: bytes) -> None:
@@ -128,7 +161,6 @@ def read(path: str | Path) -> tuple[Doc, dict[str, Doc]]:
             if MANIFEST not in names:
                 raise BjsError(f"{target} no es un .bjs válido (falta {MANIFEST})")
             manifest = json.loads(archive.read(MANIFEST))
-            _require_supported_version(manifest)
             checksums = manifest.get("checksums", {})
             entries: dict[str, Doc] = {}
             for name in sorted(names):
@@ -145,7 +177,8 @@ def read(path: str | Path) -> tuple[Doc, dict[str, Doc]]:
         raise BjsError(f"{target} no es un archivo .bjs válido: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise BjsError(f"JSON inválido dentro de {target}: {exc}") from exc
-    return manifest, entries
+    # Upcast en memoria a la versión actual (no-op si ya lo está).
+    return migrate(manifest, entries)
 
 
 def extract(path: str | Path, out_dir: str | Path) -> list[Path]:
