@@ -12,6 +12,7 @@ from __future__ import annotations
 from .commands.base import Command, CommandResult
 from .commands.config_validate import ConfigValidateCommand
 from .commands.convert import ConvertCommand
+from .commands.doctor import DoctorCommand
 from .commands.inspect_project import ExplainCommand, ValidateCommand
 from .commands.solve import GenerateCommand, OptimizeCommand
 from .config import (
@@ -45,6 +46,7 @@ __all__ = [
     "ConfigError",
     "ConfigValidateCommand",
     "ConvertCommand",
+    "DoctorCommand",
     "EngineConfig",
     "ExplainCommand",
     "GenerateCommand",
