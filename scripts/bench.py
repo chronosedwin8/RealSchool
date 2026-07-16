@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from functools import partial
 from pathlib import Path
 
 from scheduling_platform.benchmarks import (
@@ -22,10 +23,26 @@ from scheduling_platform.benchmarks import (
     ScenarioSpec,
     run_scenario,
 )
+from scheduling_platform.engine import SolverFactory
+from scheduling_platform.plugins.catalog.structural import ResourceNoOverlapPlugin
 from scheduling_platform.sal.interface import SolverConfig
+from scheduling_platform.sal.mip_solver import MipSolver
+from scheduling_platform.sal.ortools_solver import ORToolsSolver
 
 _QUICK = ("small", "medium")
 _FULL = ("small", "medium", "large", "xl")
+_MIP_BACKENDS = ("CBC", "SCIP", "HiGHS")
+
+
+def _available_solvers() -> list[tuple[str, SolverFactory]]:
+    """(nombre, factory) de los solvers disponibles: CP-SAT + backends MILP."""
+    from ortools.linear_solver import pywraplp
+
+    factories: list[tuple[str, SolverFactory]] = [("CP-SAT", ORToolsSolver)]
+    for backend in _MIP_BACKENDS:
+        if pywraplp.Solver.CreateSolver(backend) is not None:
+            factories.append((backend, partial(MipSolver, backend)))
+    return factories
 
 
 def _config(args: argparse.Namespace) -> SolverConfig:
@@ -68,6 +85,35 @@ def _cmd_suite(presets: tuple[str, ...], args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_solvers(args: argparse.Namespace) -> int:
+    if args.preset not in PRESETS:
+        print(f"preset desconocido: {args.preset} (opciones: {', '.join(PRESETS)})")
+        return 1
+    spec = PRESETS[args.preset]
+    config = _config(args)
+    out = Path(args.out)
+    reps = args.reps if args.reps is not None else 3  # MILP es lento: pocas repeticiones
+    print(f"Comparación multi-solver sobre {spec.name} (formulación booleana):\n")
+    print(f"{'Solver':<10} {'t_total (ms)':>14} {'score':>8} {'RAM (MB)':>10} {'estado':>10}")
+    print("-" * 56)
+    for name, factory in _available_solvers():
+        scenario = ScenarioSpec(
+            dataset=spec, reps=reps, warmup=1, solver_name=name, boolean_starts=True
+        )
+        record = run_scenario(
+            scenario, config, solver_factory=factory, plugins=[ResourceNoOverlapPlugin()]
+        )
+        record.save(out)
+        agg = record.aggregates
+        t = agg.get("t_total_ms", {}).get("mean", 0.0)
+        score = agg.get("quality_score", {}).get("mean", 0.0)
+        ram = agg.get("ram_peak_mb", {}).get("mean", 0.0)
+        estado = "válido" if all(r.get("solved") for r in record.runs) else "parcial"
+        print(f"{name:<10} {t:>14.0f} {score:>8.1f} {ram:>10.0f} {estado:>10}")
+    print(f"\nRegistros en: {out}")
+    return 0
+
+
 def _cmd_compare(args: argparse.Namespace) -> int:
     a = BenchmarkRecord.from_dict(json.loads(Path(args.a).read_text(encoding="utf-8")))
     b = BenchmarkRecord.from_dict(json.loads(Path(args.b).read_text(encoding="utf-8")))
@@ -103,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("preset", help=f"uno de: {', '.join(PRESETS)}")
     sub.add_parser("quick", parents=[common], help="suite rápida (gate): small + medium")
     sub.add_parser("full", parents=[common], help="suite completa: todos los presets")
+    p_sol = sub.add_parser("solvers", parents=[common], help="compara CP-SAT vs CBC/SCIP/HiGHS")
+    p_sol.add_argument("preset", help=f"uno de: {', '.join(PRESETS)}")
     p_cmp = sub.add_parser("compare", help="compara dos registros JSON")
     p_cmp.add_argument("a")
     p_cmp.add_argument("b")
@@ -114,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_suite(_QUICK, args)
     if args.cmd == "full":
         return _cmd_suite(_FULL, args)
+    if args.cmd == "solvers":
+        return _cmd_solvers(args)
     if args.cmd == "compare":
         return _cmd_compare(args)
     return 1

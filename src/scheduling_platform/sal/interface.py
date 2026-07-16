@@ -24,6 +24,10 @@ SolverInterval = NewType("SolverInterval", int)
 """Handle opaco de un intervalo del solver (espacio de nombres propio)."""
 
 
+class UnsupportedOperation(NotImplementedError):
+    """El backend no soporta esta operación (p. ej. intervalos nativos en un MIP)."""
+
+
 class RelOp(Enum):
     """Operadores relacionales canónicos que el solver entiende directamente."""
 
