@@ -17,3 +17,6 @@ dist/
 
 # Resultados de benchmarking (generados por scripts/bench.py)
 benchmarks/results/
+benchmarks/regression_report.md
+benchmarks/dashboard.html
+benchmarks/ladder.json

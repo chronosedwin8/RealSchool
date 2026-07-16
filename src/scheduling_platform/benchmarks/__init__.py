@@ -23,6 +23,7 @@ from .datasets import (
     ladder_specs,
 )
 from .record import DEFAULT_RESULTS_DIR, BenchmarkRecord, Provenance
+from .regression import Thresholds, Violation, compare, render_report
 from .resource_monitor import ResourceMonitor
 from .runner import BenchmarkRun, BenchmarkRunner
 from .stats import Stats, summarize, summarize_runs
@@ -48,13 +49,17 @@ __all__ = [
     "ResourceMonitor",
     "ScenarioSpec",
     "Stats",
+    "Thresholds",
+    "Violation",
     "analyze_scaling",
     "build_academic",
     "build_dashboard_html",
+    "compare",
     "fit_power_law",
     "ladder_spec",
     "ladder_specs",
     "load_records",
+    "render_report",
     "run_scenario",
     "summarize",
     "summarize_runs",
