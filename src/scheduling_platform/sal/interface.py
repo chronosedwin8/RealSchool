@@ -144,3 +144,11 @@ class ISolver(ABC):
     @abstractmethod
     def objective_value(self) -> int:
         """Valor de la función objetivo en la última solución."""
+
+    def get_stats(self) -> dict[str, int]:
+        """Estadísticas de la última búsqueda (ramas, conflictos...).
+
+        Opcional y agnóstico: cada backend expone lo que sepa. Por defecto vacío;
+        el pipeline lo copia a la telemetría sin depender de ningún solver.
+        """
+        return {}

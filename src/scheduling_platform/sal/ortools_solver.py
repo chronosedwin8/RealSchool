@@ -125,6 +125,16 @@ class ORToolsSolver(ISolver):
     def objective_value(self) -> int:
         return int(self._solver.objective_value) if self._has_objective else 0
 
+    def get_stats(self) -> dict[str, int]:
+        """Ramas exploradas y conflictos aprendidos en la última búsqueda."""
+        try:
+            return {
+                "num_branches": int(self._solver.num_branches),
+                "num_conflicts": int(self._solver.num_conflicts),
+            }
+        except AttributeError, RuntimeError:  # pragma: no cover - antes de solve
+            return {}
+
     # --- helpers ---
 
     def _literal(self, literal: Literal) -> cp_model.IntVar:
