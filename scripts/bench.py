@@ -18,9 +18,13 @@ from pathlib import Path
 from scheduling_platform.benchmarks import (
     DEFAULT_REPS,
     DEFAULT_RESULTS_DIR,
+    LADDER_TEACHERS,
     PRESETS,
     BenchmarkRecord,
+    BenchmarkRunner,
     ScenarioSpec,
+    analyze_scaling,
+    ladder_spec,
     run_scenario,
 )
 from scheduling_platform.engine import SolverFactory
@@ -114,6 +118,38 @@ def _cmd_solvers(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ladder(args: argparse.Namespace) -> int:
+    sizes = tuple(n for n in LADDER_TEACHERS if n <= args.max)
+    config = _config(args)
+    runner = BenchmarkRunner(solver_factory=ORToolsSolver)
+    print(f"Escalera de escalabilidad {sizes[0]}..{sizes[-1]} docentes:\n")
+    print(f"{'docentes':>9} {'clases':>7} {'variables':>10} {'t_total (ms)':>13}")
+    print("-" * 42)
+    runs: list[dict[str, float]] = []
+    for n in sizes:
+        spec = ladder_spec(n)
+        run = runner.run(spec, config)
+        row = run.to_dict()
+        row["teachers"] = n
+        runs.append(row)
+        print(f"{n:>9} {run.tasks:>7} {run.num_variables:>10} {run.t_total_ms:>13.0f}")
+    report = analyze_scaling(runs, variable="teachers")
+    print("\n" + report.render())
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "variable": "teachers",
+        "sizes": list(sizes),
+        "runs": runs,
+        "exponents": {m: law.exponent for m, law in report.fits.items()},
+        "worst_own_stage": report.worst_stage,
+    }
+    dest = out / "ladder.json"
+    dest.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"\n-> {dest}")
+    return 0
+
+
 def _cmd_compare(args: argparse.Namespace) -> int:
     a = BenchmarkRecord.from_dict(json.loads(Path(args.a).read_text(encoding="utf-8")))
     b = BenchmarkRecord.from_dict(json.loads(Path(args.b).read_text(encoding="utf-8")))
@@ -151,6 +187,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("full", parents=[common], help="suite completa: todos los presets")
     p_sol = sub.add_parser("solvers", parents=[common], help="compara CP-SAT vs CBC/SCIP/HiGHS")
     p_sol.add_argument("preset", help=f"uno de: {', '.join(PRESETS)}")
+    p_lad = sub.add_parser("ladder", parents=[common], help="escalabilidad 20..N docentes")
+    p_lad.add_argument("--max", type=int, default=100, help="mayor tamaño (docentes) a medir")
     p_cmp = sub.add_parser("compare", help="compara dos registros JSON")
     p_cmp.add_argument("a")
     p_cmp.add_argument("b")
@@ -164,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_suite(_FULL, args)
     if args.cmd == "solvers":
         return _cmd_solvers(args)
+    if args.cmd == "ladder":
+        return _cmd_ladder(args)
     if args.cmd == "compare":
         return _cmd_compare(args)
     return 1

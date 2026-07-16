@@ -7,7 +7,9 @@ medir el rendimiento del motor de forma reproducible y detectar regresiones.
 
 from __future__ import annotations
 
+from .complexity import ComplexityReport, PowerLaw, analyze_scaling, fit_power_law
 from .datasets import (
+    LADDER_TEACHERS,
     LARGE,
     MEDIUM,
     PRESETS,
@@ -16,6 +18,8 @@ from .datasets import (
     DatasetSpec,
     InfeasibleDataset,
     build_academic,
+    ladder_spec,
+    ladder_specs,
 )
 from .record import DEFAULT_RESULTS_DIR, BenchmarkRecord, Provenance
 from .resource_monitor import ResourceMonitor
@@ -26,6 +30,7 @@ from .suite import DEFAULT_REPS, ScenarioSpec, run_scenario
 __all__ = [
     "DEFAULT_REPS",
     "DEFAULT_RESULTS_DIR",
+    "LADDER_TEACHERS",
     "LARGE",
     "MEDIUM",
     "PRESETS",
@@ -34,13 +39,19 @@ __all__ = [
     "BenchmarkRecord",
     "BenchmarkRun",
     "BenchmarkRunner",
+    "ComplexityReport",
     "DatasetSpec",
     "InfeasibleDataset",
+    "PowerLaw",
     "Provenance",
     "ResourceMonitor",
     "ScenarioSpec",
     "Stats",
+    "analyze_scaling",
     "build_academic",
+    "fit_power_law",
+    "ladder_spec",
+    "ladder_specs",
     "run_scenario",
     "summarize",
     "summarize_runs",

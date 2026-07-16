@@ -168,3 +168,32 @@ PRESETS: dict[str, DatasetSpec] = {
     "large": LARGE,
     "xl": XL,
 }
+
+# Escalera de validación de escalabilidad (Actividad 9): datasets sintéticos
+# crecientes con la misma topología, para medir la complejidad observada.
+LADDER_TEACHERS: tuple[int, ...] = (20, 40, 60, 80, 100, 150, 200, 250, 300, 400, 500)
+
+
+def ladder_spec(teachers: int) -> DatasetSpec:
+    """Un peldaño de la escalera: institución de ``teachers`` docentes, factible.
+
+    Aulas y grupos crecen en proporción (0,75x), de modo que la topología se
+    mantiene y solo cambia la escala. ``load_factor`` bajo para no convertir el
+    problema en un empaquetado perfecto (irreal y brutalmente difícil).
+    """
+    scaled = max(2, round(teachers * 0.75))
+    spec = DatasetSpec(
+        name=f"ladder-{teachers:03d}",
+        teachers=teachers,
+        rooms=scaled,
+        groups=scaled,
+        subjects=min(20, 6 + teachers // 40),
+        load_factor=0.5,
+    )
+    spec.validate()
+    return spec
+
+
+def ladder_specs(sizes: tuple[int, ...] = LADDER_TEACHERS) -> tuple[DatasetSpec, ...]:
+    """La escalera completa de datasets sintéticos crecientes."""
+    return tuple(ladder_spec(n) for n in sizes)
