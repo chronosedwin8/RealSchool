@@ -1,0 +1,51 @@
+name: Build binaries
+
+# Compila el binario nativo 'schedule-engine' para las tres plataformas y lo
+# publica como artifact. La validación en entorno LIMPIO sin Python se hace
+# además con el Dockerfile del repo (etapa runtime debian-slim); ver ADR-029.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: schedule-engine-linux-x64
+          - os: windows-latest
+            artifact: schedule-engine-windows-x64
+          - os: macos-latest
+            artifact: schedule-engine-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Instalar dependencias y PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[cli]" pyinstaller
+
+      - name: Compilar binario (--collect-all ortools por sus libs nativas)
+        run: pyinstaller --onefile --clean --name schedule-engine --collect-all ortools packaging/entry.py
+
+      - name: Smoke test (el binario arranca y ve los solvers)
+        shell: bash
+        run: |
+          BIN=$(ls dist/schedule-engine*)
+          "$BIN" doctor
+
+      - name: Publicar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/schedule-engine*

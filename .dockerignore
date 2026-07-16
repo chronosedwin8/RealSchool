@@ -1,0 +1,17 @@
+.venv/
+.git/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+build/
+dist/
+*.spec
+benchmarks/results/
+benchmarks/*.html
+benchmarks/*.json
+FasesPosteriores/
+docs/
+tests/
