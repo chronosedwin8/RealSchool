@@ -67,6 +67,7 @@ class GenerateCommand(Command):
             solver_factory=ctx.solver_factory,
             solver_config=solver_config,
             boolean_starts=boolean,
+            on_event=ctx.emit_progress,
         )
         save_project(self._path, replace(project, solution=result.solution))
         return CommandResult(
@@ -113,6 +114,7 @@ class OptimizeCommand(Command):
             solver_factory=factory,
             solver_config=solver_config,
             boolean_starts=boolean,
+            on_event=ctx.emit_progress,
         )
         save_project(self._path, replace(project, solution=result.solution))
         payload = solution_summary(project.problem, result)

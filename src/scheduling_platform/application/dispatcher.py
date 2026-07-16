@@ -26,6 +26,7 @@ from .errors import AppError, ConfigError, InternalError
 from .log import AppLogger
 
 _FORMATS = ("json", "yaml", "markdown")
+_EXIT_INTERRUPTED = 130  # convención POSIX para terminación por SIGINT (128 + 2)
 
 
 def _serialize(payload: Any, output_format: str) -> str:
@@ -74,6 +75,11 @@ class CommandDispatcher:
             payload_text = (
                 None if result.payload is None else _serialize(result.payload, output_format)
             )
+        except KeyboardInterrupt:
+            # Ctrl+C / SIGTERM: salida segura. La escritura de proyecto es atómica
+            # (H2), así que el .schedule original nunca queda corrupto.
+            logger.error("ejecución interrumpida por el usuario")
+            return _EXIT_INTERRUPTED
         except AppError as exc:
             logger.error(str(exc) or exc.__class__.__name__)
             return exc.exit_code
@@ -81,8 +87,12 @@ class CommandDispatcher:
             logger.error(f"error interno: {exc}")
             return InternalError.exit_code
 
-        if payload_text is not None:
-            out.write(payload_text + "\n")
+        if result.payload is not None:
+            if json_stream:
+                final = {"event": "completed", "result": result.payload}
+                out.write(json.dumps(final, ensure_ascii=False) + "\n")
+            elif payload_text is not None:
+                out.write(payload_text + "\n")
         for message in result.messages:
             logger.info(message)
         return result.exit_code

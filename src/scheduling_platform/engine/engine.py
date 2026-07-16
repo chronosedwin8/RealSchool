@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from ..core.problem import SchedulingProblem
 from ..core.solution import Solution
+from ..pipeline.events import ProgressCallback
 from ..pipeline.issues import ConflictReport
 from ..pipeline.pipeline import OptimizationPipeline
 from ..pipeline.telemetry import Telemetry
@@ -105,15 +106,17 @@ class SchedulingEngine:
         problem: SchedulingProblem,
         config: SolverConfig | None = None,
         warm_start: Solution | None = None,
+        on_event: ProgressCallback | None = None,
     ) -> EngineResult:
         """Genera un horario. Si se da ``warm_start`` (p. ej. el del año anterior),
-        se siembra la búsqueda con él para que el motor lo **mejore**."""
+        se siembra la búsqueda con él para que el motor lo **mejore**. ``on_event``
+        (opcional) recibe eventos de progreso en vivo."""
         context = SchedulingModelContext.build(problem, boolean_starts=self.boolean_starts)
         model, penalties = self.registry.build(context)  # una sola consulta a los plugins
         hints = warm_start_hints(context, warm_start) if warm_start is not None else None
 
         solver = self.solver_factory()
-        result = self.pipeline.run(problem, model, solver, config, hints=hints)
+        result = self.pipeline.run(problem, model, solver, config, hints=hints, on_event=on_event)
 
         if result.status not in _SOLVED or result.var_map is None:
             return EngineResult(

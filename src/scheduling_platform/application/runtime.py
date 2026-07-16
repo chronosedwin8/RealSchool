@@ -73,6 +73,7 @@ def run_engine(
     solver_config: object,
     boolean_starts: bool,
     warm_start: object = None,
+    on_event: object = None,
 ) -> EngineResult:
     """Ejecuta el motor y traduce el fracaso a un error de aplicación (exit code)."""
     engine = SchedulingEngine(
@@ -80,7 +81,12 @@ def run_engine(
         solver_factory=solver_factory,  # type: ignore[arg-type]
         boolean_starts=boolean_starts,
     )
-    result = engine.solve(problem, solver_config, warm_start=warm_start)  # type: ignore[arg-type]
+    result = engine.solve(
+        problem,
+        solver_config,  # type: ignore[arg-type]
+        warm_start=warm_start,  # type: ignore[arg-type]
+        on_event=on_event,  # type: ignore[arg-type]
+    )
     if result.solved:
         return result
     if result.report is not None and not result.report.feasible:

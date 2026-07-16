@@ -10,6 +10,7 @@ fases posteriores. No importa ``ortools``.
 from __future__ import annotations
 
 from .conflict_explanation import ConflictExplanationEngine
+from .events import ProgressCallback, ProgressEvent
 from .graph_builder import ConstraintGraphBuilder
 from .issues import ConflictReport, StructuralIssue
 from .pipeline import OptimizationPipeline, PipelineResult
@@ -21,6 +22,8 @@ __all__ = [
     "ConstraintGraphBuilder",
     "OptimizationPipeline",
     "PipelineResult",
+    "ProgressCallback",
+    "ProgressEvent",
     "StructuralIssue",
     "Telemetry",
 ]

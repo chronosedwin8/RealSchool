@@ -30,6 +30,7 @@ from ..dsl.domain import BoolDomain, EnumDomain, IntDomain
 from ..dsl.model import DslModel
 from ..sal.interface import ISolver, SolverConfig, SolverStatus, SolverVar
 from .conflict_explanation import ConflictExplanationEngine
+from .events import ProgressCallback, emit
 from .graph_builder import ConstraintGraphBuilder
 from .issues import ConflictReport
 from .telemetry import Telemetry
@@ -88,18 +89,22 @@ class OptimizationPipeline:
         solver: ISolver,
         config: SolverConfig | None = None,
         hints: Mapping[str, int] | None = None,
+        on_event: ProgressCallback | None = None,
     ) -> PipelineResult:
         total_start = time.perf_counter()
 
+        emit(on_event, "analysis_started", "analyze", 5)
         stage = time.perf_counter()
         report = self.analyze(problem)
         t_analyze = _ms_since(stage)
         if not report.feasible:
+            emit(on_event, "infeasible", "analyze", 100)
             return PipelineResult(
                 report=report,
                 telemetry=Telemetry(t_analyze_ms=t_analyze, t_total_ms=_ms_since(total_start)),
             )
 
+        emit(on_event, "compilation_started", "lower", 20)
         stage = time.perf_counter()
         cir = lower(dsl_model)
         t_lower = _ms_since(stage)
@@ -109,6 +114,7 @@ class OptimizationPipeline:
         try:
             cir = self.pass_manager.run(cir)
         except StructuralContradictionError as error:
+            emit(on_event, "infeasible", "passes", 100)
             return PipelineResult(
                 report=self.explainer.explain_contradiction(error),
                 telemetry=Telemetry(
@@ -121,6 +127,7 @@ class OptimizationPipeline:
             )
         t_passes = _ms_since(stage)
 
+        emit(on_event, "compilation_started", "compile", 45)
         stage = time.perf_counter()
         var_map = self.compiler.compile(cir, solver)
         if hints:
@@ -130,9 +137,11 @@ class OptimizationPipeline:
                     solver.add_hint(handle, value)
         t_compile = _ms_since(stage)
 
+        emit(on_event, "solver_searching", "search", 60, variables=len(cir.variables))
         stage = time.perf_counter()
         status = solver.solve(config)
         t_solve = _ms_since(stage)
+        emit(on_event, "search_finished", "metrics", 100, status=status.value)
 
         composition = _model_composition(cir)
         stats = solver.get_stats()
