@@ -30,7 +30,6 @@ from ..serialization.codec import (
 )
 from .config import EngineConfig, PluginsConfig
 from .config.load import engine_config_from_mapping, plugins_config_from_list
-from .errors import ConfigError
 
 _CALENDAR = "calendar.json"
 _RESOURCES = "resources.json"
@@ -68,9 +67,6 @@ def _split_problem(problem: SchedulingProblem) -> dict[str, Any]:
 
 
 def _merge_problem(entries: dict[str, Any]) -> SchedulingProblem:
-    for piece in (_CALENDAR, _RESOURCES, _TASKS):
-        if piece not in entries:
-            raise ConfigError(f"el .bjs no es un proyecto válido (falta {piece})")
     calendar, resources, tasks = entries[_CALENDAR], entries[_RESOURCES], entries[_TASKS]
     return problem_from_dict(
         {
@@ -126,8 +122,11 @@ def save_project(path: str | Path, project: BjsProject) -> None:
 
 
 def open_project(path: str | Path) -> BjsProject:
-    """Lee un ``.bjs`` (verifica integridad) y reconstruye el proyecto tipado."""
+    """Lee un ``.bjs`` (verifica integridad + estructura) y reconstruye el proyecto tipado."""
+    from .bjs_validation import check_structure
+
     manifest, entries = read(path)
+    check_structure(entries)  # fase estructural: errores claros por archivo/campo
     problem = _merge_problem(entries)
     constraints = plugins_config_from_list(entries.get(_CONSTRAINTS, {}).get("plugins", []))
     solver_config = engine_config_from_mapping(entries.get(_SOLVER, {}))
