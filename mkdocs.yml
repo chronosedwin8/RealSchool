@@ -83,6 +83,11 @@ nav:
       - Restricciones y Tiers: architecture/scoring_tiers.md
       - Formato .bjs: architecture/bjs_format.md
       - Decisiones (ADR): architecture/decisions.md
+  - Tutoriales:
+      - 1 · Hola, mundo: tutorials/01-hello-world.md
+      - 2 · Primera restricción: tutorials/02-first-constraint.md
+      - 3 · Primer importador: tutorials/03-first-importer.md
+      - 4 · Publicar plugins: tutorials/04-publishing-plugins.md
   - Guías del SDK:
       - Restricciones: sdk_guide/constraints.md
       - Objetivos: sdk_guide/objectives.md
