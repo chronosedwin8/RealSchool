@@ -17,17 +17,31 @@ from .datasets import (
     InfeasibleDataset,
     build_academic,
 )
+from .record import DEFAULT_RESULTS_DIR, BenchmarkRecord, Provenance
+from .resource_monitor import ResourceMonitor
 from .runner import BenchmarkRun, BenchmarkRunner
+from .stats import Stats, summarize, summarize_runs
+from .suite import DEFAULT_REPS, ScenarioSpec, run_scenario
 
 __all__ = [
+    "DEFAULT_REPS",
+    "DEFAULT_RESULTS_DIR",
     "LARGE",
     "MEDIUM",
     "PRESETS",
     "SMALL",
     "XL",
+    "BenchmarkRecord",
     "BenchmarkRun",
     "BenchmarkRunner",
     "DatasetSpec",
     "InfeasibleDataset",
+    "Provenance",
+    "ResourceMonitor",
+    "ScenarioSpec",
+    "Stats",
     "build_academic",
+    "run_scenario",
+    "summarize",
+    "summarize_runs",
 ]
