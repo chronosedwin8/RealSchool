@@ -122,7 +122,9 @@ class SchedulingEngine:
                 telemetry=result.telemetry,
             )
 
-        solution = self.builder.build(context, result.var_map, solver, penalties)
+        solution = self.builder.build(
+            context, result.var_map, solver, penalties, self.registry.scoring
+        )
         validation = self.validator.validate(problem, solution)
         return EngineResult(
             status=result.status,

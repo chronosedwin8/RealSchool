@@ -15,6 +15,7 @@ from ..core.ids import ResourceId, TaskId, TimeSlotIndex
 from ..core.solution import Penalty, Solution
 from ..plugins.base import PenaltyTerm
 from ..plugins.context import SchedulingModelContext
+from ..plugins.scoring import ScoringEngine
 from ..sal.interface import ISolver, SolverVar
 from .exceptions import SolutionExtractionError
 from .inspector import SolutionInspector
@@ -32,12 +33,13 @@ class SolutionBuilder:
         var_map: Mapping[str, SolverVar],
         solver: ISolver,
         penalties: tuple[PenaltyTerm, ...] = (),
+        scoring: ScoringEngine | None = None,
     ) -> Solution:
         values = {key: solver.value(handle) for key, handle in var_map.items()}
         assignments = tuple(
             self._assignment_for(context, values, int(task.id)) for task in context.problem.tasks
         )
-        report = self._inspector.penalty_report(penalties, values)
+        report = self._inspector.penalty_report(penalties, values, scoring)
         return Solution(
             assignments=assignments,
             objective_value=solver.objective_value(),

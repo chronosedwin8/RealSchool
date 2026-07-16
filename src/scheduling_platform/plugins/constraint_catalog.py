@@ -287,6 +287,15 @@ def registry_from_catalog(
     """
     index = catalog_by_id()
     weights = weight_overrides or {}
+    if scoring is None:
+        # Tiers operativos: cada criterio blando hereda el Tier de su definición,
+        # indexado por la etiqueta que emite el plugin (== plugin_name).
+        tier_by_label = {
+            d.plugin_name: d.tier
+            for d in CONSTRAINT_CATALOG
+            if d.kind is ConstraintKind.SOFT and d.plugin_name is not None and d.tier is not None
+        }
+        scoring = ScoringEngine(tier_by_label=tier_by_label)
     registry = PluginRegistry(scoring=scoring)
     seen: set[str] = set()
     for cid in ids:

@@ -29,6 +29,11 @@ class PluginRegistry:
         self._enabled: set[str] = set()
         self._scoring = scoring if scoring is not None else ScoringEngine()
 
+    @property
+    def scoring(self) -> ScoringEngine:
+        """El Scoring Engine con el que se construye la función objetivo."""
+        return self._scoring
+
     def register(self, plugin: SchedulingPlugin, *, enabled: bool = True) -> None:
         if plugin.name in self._plugins:
             raise ValueError(f"plugin ya registrado: {plugin.name}")
