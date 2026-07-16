@@ -54,6 +54,29 @@ class ScheduleMetrics:
 
 
 @dataclass(frozen=True, slots=True)
+class GapDistribution:
+    """Distribución de huecos por recurso (Actividad 10).
+
+    ``per_resource`` mapea cada recurso a su número de huecos intercalados;
+    ``histogram`` cuenta cuántos recursos tienen 0, 1, 2... huecos. Permite
+    comparar con Untis no solo el total de huecos sino su reparto (¿unos pocos
+    docentes concentran los huecos, o están repartidos?).
+    """
+
+    per_resource: dict[int, int]
+    mean: float
+    maximum: int
+    variance: float
+    histogram: dict[int, int]
+
+    def render(self) -> str:
+        return (
+            f"huecos/recurso: media {self.mean:.2f}, máx {self.maximum}, "
+            f"varianza {self.variance:.2f}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class MetricsComparison:
     """Diferencia entre dos horarios (``candidate`` frente a ``baseline``)."""
 
@@ -110,6 +133,29 @@ class MetricsEngine:
             objective_value=solution.objective_value,
             hard_violations=violations,
             quality_score=quality,
+        )
+
+    def gap_distribution(
+        self, problem: SchedulingProblem, solution: Solution, tag: str = TEACHER_TAG
+    ) -> GapDistribution:
+        """Reparto de huecos entre los recursos del tipo ``tag`` (Actividad 10)."""
+        occupancy = self._occupancy(problem, solution)
+        resources = self._resources_with(problem, tag)
+        per_resource = {rid: self._gaps(problem, occupancy, rid) for rid in resources}
+        counts = list(per_resource.values())
+        if not counts:
+            return GapDistribution({}, 0.0, 0, 0.0, {})
+        mean = sum(counts) / len(counts)
+        variance = sum((c - mean) ** 2 for c in counts) / len(counts)
+        histogram: dict[int, int] = {}
+        for c in counts:
+            histogram[c] = histogram.get(c, 0) + 1
+        return GapDistribution(
+            per_resource=per_resource,
+            mean=mean,
+            maximum=max(counts),
+            variance=variance,
+            histogram=dict(sorted(histogram.items())),
         )
 
     def compare(
@@ -173,4 +219,4 @@ class MetricsEngine:
         return 100.0 * (1.0 - (mayor - min(cargas)) / mayor)
 
 
-__all__ = ["MetricsComparison", "MetricsEngine", "ScheduleMetrics"]
+__all__ = ["GapDistribution", "MetricsComparison", "MetricsEngine", "ScheduleMetrics"]

@@ -37,6 +37,7 @@ class Telemetry:
     threads: int = 0
     num_branches: int = 0
     num_conflicts: int = 0
+    t_first_solution_ms: int = 0  # tiempo a la primera solución factible (Actividad 10)
 
     @property
     def constraints_eliminated(self) -> int:

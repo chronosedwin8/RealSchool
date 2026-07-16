@@ -43,6 +43,7 @@ class ORToolsSolver(ISolver):
         self._vars: list[cp_model.IntVar] = []
         self._intervals: list[Any] = []
         self._has_objective = False
+        self._first_solution_ms = -1.0
 
     def new_bool_var(self, name: str) -> SolverVar:
         handle = len(self._vars)
@@ -116,7 +117,9 @@ class ORToolsSolver(ISolver):
     def solve(self, config: SolverConfig | None = None) -> SolverStatus:
         if config is not None:
             self._apply_config(config)
-        status = self._solver.solve(self._model)
+        recorder = _FirstSolutionTimer()
+        status = self._solver.solve(self._model, recorder)
+        self._first_solution_ms = recorder.first_ms
         return _STATUS_MAP.get(status, SolverStatus.UNKNOWN)
 
     def value(self, var: SolverVar) -> int:
@@ -126,14 +129,17 @@ class ORToolsSolver(ISolver):
         return int(self._solver.objective_value) if self._has_objective else 0
 
     def get_stats(self) -> dict[str, int]:
-        """Ramas exploradas y conflictos aprendidos en la última búsqueda."""
+        """Ramas, conflictos y tiempo a la primera solución factible (ms)."""
         try:
-            return {
+            stats = {
                 "num_branches": int(self._solver.num_branches),
                 "num_conflicts": int(self._solver.num_conflicts),
             }
         except AttributeError, RuntimeError:  # pragma: no cover - antes de solve
             return {}
+        if self._first_solution_ms >= 0:
+            stats["first_solution_ms"] = int(self._first_solution_ms)
+        return stats
 
     # --- helpers ---
 
@@ -149,6 +155,18 @@ class ORToolsSolver(ISolver):
             params.num_search_workers = config.num_search_workers
         if config.random_seed is not None:
             params.random_seed = config.random_seed
+
+
+class _FirstSolutionTimer(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
+    """Registra el tiempo (ms) de la primera solución factible (Actividad 10)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.first_ms = -1.0
+
+    def on_solution_callback(self) -> None:
+        if self.first_ms < 0:
+            self.first_ms = self.wall_time * 1000.0
 
 
 def _const_holds(op: RelOp, rhs: int) -> bool:

@@ -152,5 +152,6 @@ class OptimizationPipeline:
             threads=config.num_search_workers if config and config.num_search_workers else 0,
             num_branches=stats.get("num_branches", 0),
             num_conflicts=stats.get("num_conflicts", 0),
+            t_first_solution_ms=stats.get("first_solution_ms", 0),
         )
         return PipelineResult(report=report, status=status, var_map=var_map, telemetry=telemetry)
