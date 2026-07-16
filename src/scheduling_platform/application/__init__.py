@@ -10,6 +10,14 @@ nunca importa esta capa (verificado por ``tests/test_architecture.py``).
 from __future__ import annotations
 
 from .commands.base import Command, CommandResult
+from .commands.config_validate import ConfigValidateCommand
+from .config import (
+    EngineConfig,
+    PluginsConfig,
+    PluginSetting,
+    load_engine_config,
+    load_plugins_config,
+)
 from .context import AppContext
 from .dispatcher import CommandDispatcher
 from .errors import (
@@ -21,8 +29,10 @@ from .errors import (
 )
 from .log import AppLogger
 from .project import ScheduleProject, new_project, open_project, save_project
+from .solvers import SOLVER_NAMES, solver_factory_for
 
 __all__ = [
+    "SOLVER_NAMES",
     "AppContext",
     "AppError",
     "AppLogger",
@@ -30,11 +40,18 @@ __all__ = [
     "CommandDispatcher",
     "CommandResult",
     "ConfigError",
+    "ConfigValidateCommand",
+    "EngineConfig",
     "InfeasibleError",
     "InternalError",
+    "PluginSetting",
+    "PluginsConfig",
     "ScheduleProject",
     "SolveTimeoutError",
+    "load_engine_config",
+    "load_plugins_config",
     "new_project",
     "open_project",
     "save_project",
+    "solver_factory_for",
 ]

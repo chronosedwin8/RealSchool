@@ -1,0 +1,23 @@
+# Restricciones activas, pesos y tiers (H3). El 'id' es el nombre del plugin del
+# catálogo canónico (scripts/catalog.py lista todos). Validado contra el catálogo.
+plugins:
+  - id: teacher_gaps            # SC-02 (vital)
+    enabled: true
+    tier: 1
+    weight: 150
+    params:
+      min_gap_duration_minutes: 30
+  - id: teacher_room_stability  # SC-06 (operativa)
+    enabled: true
+    tier: 2
+    weight: 100
+  - id: weekly_balance          # SC-05 (operativa)
+    enabled: true
+    tier: 2
+    weight: 80
+  - id: prefer_early_slots      # SC-01 (preferencial)
+    enabled: true
+    tier: 3
+    weight: 20
+  - id: daily_span              # SC-07 (preferencial)
+    enabled: false

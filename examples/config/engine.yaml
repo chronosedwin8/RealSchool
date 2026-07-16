@@ -1,0 +1,7 @@
+# Configuración global del motor (H3). Validada por: schedule-engine config validate
+engine:
+  version: "1.0.0"
+  default_solver: ortools_cpsat   # ortools_cpsat | cbc | scip | highs
+  threads: 8
+  max_time_seconds: 600
+  random_seed: 42
