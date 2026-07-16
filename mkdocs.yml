@@ -95,6 +95,11 @@ nav:
       - Exportadores: sdk_guide/exporters.md
       - Solvers: sdk_guide/solvers.md
       - Telemetría y eventos: sdk_guide/telemetry.md
+  - Ejemplos:
+      - Visión general: examples/index.md
+      - Básico: examples/basic/README.md
+      - Intermedio: examples/intermediate/README.md
+      - Avanzado: examples/advanced/README.md
   - Referencia de API:
       - Core: reference/core.md
       - SAL: reference/sal.md
