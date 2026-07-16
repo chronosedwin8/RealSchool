@@ -9,6 +9,7 @@ blandas configuradas y permite elegir el backend.
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from ...core.problem import SchedulingProblem
@@ -116,7 +117,17 @@ class OptimizeCommand(Command):
             boolean_starts=boolean,
             on_event=ctx.emit_progress,
         )
-        save_project(self._path, replace(project, solution=result.solution))
         payload = solution_summary(project.problem, result)
         payload["solver"] = solver_name
+        # persiste el horario + métricas + anexa al historial (metrics.json / history.json)
+        run_record = {"timestamp": datetime.now(UTC).isoformat(timespec="seconds"), **payload}
+        save_project(
+            self._path,
+            replace(
+                project,
+                solution=result.solution,
+                metrics=payload,
+                history=(*project.history, run_record),
+            ),
+        )
         return CommandResult(payload=payload, messages=(f"optimizado con {solver_name}",))

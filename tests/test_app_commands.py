@@ -7,14 +7,18 @@ import json
 from pathlib import Path
 
 from scheduling_platform.application import (
+    BjsProject,
     ConvertCommand,
     ExplainCommand,
     GenerateCommand,
     OptimizeCommand,
-    ScheduleProject,
     ValidateCommand,
     open_project,
     save_project,
+)
+from scheduling_platform.application.config.load import (
+    engine_config_from_mapping,
+    plugins_config_from_list,
 )
 from scheduling_platform.application.dispatcher import CommandDispatcher
 from scheduling_platform.core import (
@@ -65,7 +69,15 @@ def _infeasible() -> SchedulingProblem:
 
 
 def _make(path: Path, problem: SchedulingProblem, config: dict[str, object] | None = None) -> None:
-    save_project(path, ScheduleProject.create("Demo", problem, config=config or {}))
+    config = config or {}
+    engine = config.get("engine")
+    plugins = config.get("plugins")
+    solver_config = engine_config_from_mapping(engine) if isinstance(engine, dict) else None
+    constraints = plugins_config_from_list(plugins) if isinstance(plugins, list) else None
+    save_project(
+        path,
+        BjsProject.create("Demo", problem, constraints=constraints, solver_config=solver_config),
+    )
 
 
 def _run(command: object, **kw: object) -> tuple[int, str, str]:
@@ -78,7 +90,7 @@ def _run(command: object, **kw: object) -> tuple[int, str, str]:
 
 
 def test_generate_produce_y_guarda_horario(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
+    path = tmp_path / "p.bjs"
     _make(path, _feasible())
     code, out, _ = _run(GenerateCommand(str(path), quick=True))
     assert code == 0
@@ -87,7 +99,7 @@ def test_generate_produce_y_guarda_horario(tmp_path: Path) -> None:
 
 
 def test_optimize_con_cpsat(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
+    path = tmp_path / "p.bjs"
     _make(
         path,
         _feasible(),
@@ -106,7 +118,7 @@ def test_optimize_con_cpsat(tmp_path: Path) -> None:
 
 
 def test_generate_infactible_es_exit_2(tmp_path: Path) -> None:
-    path = tmp_path / "bad.schedule"
+    path = tmp_path / "bad.bjs"
     _make(path, _infeasible())
     code, out, err = _run(GenerateCommand(str(path)))
     assert code == 2
@@ -118,7 +130,7 @@ def test_generate_infactible_es_exit_2(tmp_path: Path) -> None:
 
 
 def test_validate_factible_sin_solucion(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
+    path = tmp_path / "p.bjs"
     _make(path, _feasible())
     code, out, _ = _run(ValidateCommand(str(path)))
     assert code == 0
@@ -128,7 +140,7 @@ def test_validate_factible_sin_solucion(tmp_path: Path) -> None:
 
 
 def test_validate_con_solucion_incluye_metricas(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
+    path = tmp_path / "p.bjs"
     _make(path, _feasible())
     _run(GenerateCommand(str(path)))  # genera y guarda una solución
     code, out, _ = _run(ValidateCommand(str(path)))
@@ -137,7 +149,7 @@ def test_validate_con_solucion_incluye_metricas(tmp_path: Path) -> None:
 
 
 def test_validate_infactible_es_exit_2(tmp_path: Path) -> None:
-    path = tmp_path / "bad.schedule"
+    path = tmp_path / "bad.bjs"
     _make(path, _infeasible())
     code, out, err = _run(ValidateCommand(str(path)))
     assert code == 2
@@ -146,7 +158,7 @@ def test_validate_infactible_es_exit_2(tmp_path: Path) -> None:
 
 
 def test_explain_factible_sin_conflictos(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
+    path = tmp_path / "p.bjs"
     _make(path, _feasible())
     code, out, _ = _run(ExplainCommand(str(path)))
     assert code == 0
@@ -154,7 +166,7 @@ def test_explain_factible_sin_conflictos(tmp_path: Path) -> None:
 
 
 def test_explain_infactible_devuelve_mapa(tmp_path: Path) -> None:
-    path = tmp_path / "bad.schedule"
+    path = tmp_path / "bad.bjs"
     _make(path, _infeasible())
     code, out, _ = _run(ExplainCommand(str(path)))
     assert code == 2  # infactible
@@ -168,7 +180,7 @@ def test_explain_infactible_devuelve_mapa(tmp_path: Path) -> None:
 
 
 def test_convert_origen_inexistente_es_exit_1(tmp_path: Path) -> None:
-    code, _out, err = _run(ConvertCommand(str(tmp_path / "no.xml"), str(tmp_path / "o.schedule")))
+    code, _out, err = _run(ConvertCommand(str(tmp_path / "no.xml"), str(tmp_path / "o.bjs")))
     assert code == 1
     assert "no existe" in err
 
@@ -176,6 +188,6 @@ def test_convert_origen_inexistente_es_exit_1(tmp_path: Path) -> None:
 def test_convert_formato_no_soportado_es_exit_1(tmp_path: Path) -> None:
     src = tmp_path / "x.csv"
     src.write_text("a,b,c", encoding="utf-8")
-    code, _out, err = _run(ConvertCommand(str(src), str(tmp_path / "o.schedule")))
+    code, _out, err = _run(ConvertCommand(str(src), str(tmp_path / "o.bjs")))
     assert code == 1
     assert "no soportado" in err

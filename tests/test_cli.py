@@ -6,7 +6,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from scheduling_platform.application import ScheduleProject, save_project
+from scheduling_platform.application import BjsProject, save_project
 from scheduling_platform.cli.main import app
 from scheduling_platform.core import (
     Resource,
@@ -49,21 +49,21 @@ def test_doctor_reporta_solvers() -> None:
 
 
 def test_convert_origen_inexistente_exit_1(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["convert", str(tmp_path / "no.xml"), str(tmp_path / "o.schedule")])
+    result = runner.invoke(app, ["convert", str(tmp_path / "no.xml"), str(tmp_path / "o.bjs")])
     assert result.exit_code == 1
 
 
 def test_validate_proyecto_factible(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
-    save_project(path, ScheduleProject.create("t", _problem()))
+    path = tmp_path / "p.bjs"
+    save_project(path, BjsProject.create("t", _problem()))
     result = runner.invoke(app, ["validate", str(path)])
     assert result.exit_code == 0
     assert "feasible" in result.stdout
 
 
 def test_generate_desde_cli(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
-    save_project(path, ScheduleProject.create("t", _problem()))
+    path = tmp_path / "p.bjs"
+    save_project(path, BjsProject.create("t", _problem()))
     result = runner.invoke(app, ["generate", str(path), "--quick"])
     assert result.exit_code == 0
     assert "quality_score" in result.stdout

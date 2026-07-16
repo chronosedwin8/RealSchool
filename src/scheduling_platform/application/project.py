@@ -1,51 +1,45 @@
-"""Formato de proyecto unificado ``.schedule`` (Fase 2, H2).
+"""Proyecto tipado ``.bjs`` (Fase 3, B2): interpreta el contenedor crudo.
 
-Un ``.schedule`` es un **archivo ZIP** (al estilo de los documentos ofimáticos
-modernos) que empaqueta todo el conocimiento de un proyecto escolar sin
-fragmentación:
+Sobre el contenedor de ``serialization/bjs.py`` (dicts crudos, Core-safe), esta
+capa reconstruye el proyecto **tipado**: el problema canónico (partido en
+``calendar``/``resources``/``tasks`` para diffs de Git limpios), la config de
+restricciones (``PluginsConfig``) y de solver (``EngineConfig``), la solución, las
+métricas y el historial. Aquí sí se conoce la config, por eso vive en
+``application`` y no en ``serialization`` (frontera de arquitectura).
 
-    project.json     metadatos (UUID, nombre, fecha, versión del motor)
-    problem.json     problema del dominio canónico serializado
-    config.yaml      pesos/solvers/flags (tipado fuerte en H3)
-    solution.json    último horario generado (si existe)
-    benchmarks/*.json  trazas históricas de telemetría local
-
-Reutiliza los codecs de dominio ya existentes (``serialization/codec.py``): no se
-reimplementa la serialización del problema ni de la solución. La escritura es
-**atómica** (archivo temporal + ``os.replace``): un corte de energía no puede
-corromper el proyecto original.
+Supersede al formato ``.schedule`` de la Fase 2: mismo patrón (escritura atómica,
+apertura en memoria) heredado del contenedor.
 """
 
 from __future__ import annotations
 
-import io
-import json
-import os
-import uuid
-import zipfile
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from dataclasses import asdict, dataclass, field
 from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from ..benchmarks import Provenance
 from ..core.problem import SchedulingProblem
 from ..core.solution import Solution
+from ..serialization.bjs import build_manifest, pack, read
 from ..serialization.codec import (
     problem_from_dict,
     problem_to_dict,
     solution_from_dict,
     solution_to_dict,
 )
-from .errors import ConfigError, InternalError
+from .config import EngineConfig, PluginsConfig
+from .config.load import engine_config_from_mapping, plugins_config_from_list
+from .errors import ConfigError
 
-_PROJECT = "project.json"
-_PROBLEM = "problem.json"
-_CONFIG = "config.yaml"
+_CALENDAR = "calendar.json"
+_RESOURCES = "resources.json"
+_TASKS = "tasks.json"
+_CONSTRAINTS = "constraints.json"
+_SOLVER = "solver_config.json"
 _SOLUTION = "solution.json"
-_BENCH_PREFIX = "benchmarks/"
+_METRICS = "metrics.json"
+_HISTORY = "history.json"
 
 
 def engine_version() -> str:
@@ -55,15 +49,50 @@ def engine_version() -> str:
         return "0.0.0"
 
 
-@dataclass(frozen=True, slots=True)
-class ScheduleProject:
-    """Proyecto completo contenido en un ``.schedule``."""
+def _signature() -> dict[str, Any]:
+    prov = Provenance.capture()
+    return {
+        "engine_version": engine_version(),
+        "git_commit": prov.git_commit,
+        "build_environment": f"{prov.os}-Python{prov.python_version}",
+    }
 
-    metadata: dict[str, Any]
+
+def _split_problem(problem: SchedulingProblem) -> dict[str, Any]:
+    doc = problem_to_dict(problem)
+    return {
+        _CALENDAR: {"grid": doc["grid"], "constraints": doc.get("constraints", [])},
+        _RESOURCES: {"resources": doc["resources"]},
+        _TASKS: {"tasks": doc["tasks"]},
+    }
+
+
+def _merge_problem(entries: dict[str, Any]) -> SchedulingProblem:
+    for piece in (_CALENDAR, _RESOURCES, _TASKS):
+        if piece not in entries:
+            raise ConfigError(f"el .bjs no es un proyecto válido (falta {piece})")
+    calendar, resources, tasks = entries[_CALENDAR], entries[_RESOURCES], entries[_TASKS]
+    return problem_from_dict(
+        {
+            "grid": calendar["grid"],
+            "constraints": calendar.get("constraints", []),
+            "resources": resources["resources"],
+            "tasks": tasks["tasks"],
+        }
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class BjsProject:
+    """Proyecto completo contenido en un ``.bjs`` (núcleo canónico)."""
+
+    manifest: dict[str, Any]
     problem: SchedulingProblem
-    config: dict[str, Any] = field(default_factory=dict)
+    constraints: PluginsConfig = field(default_factory=lambda: PluginsConfig(()))
+    solver_config: EngineConfig = field(default_factory=EngineConfig)
     solution: Solution | None = None
-    benchmarks: tuple[dict[str, Any], ...] = ()
+    metrics: dict[str, Any] | None = None
+    history: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def create(
@@ -71,87 +100,48 @@ class ScheduleProject:
         name: str,
         problem: SchedulingProblem,
         *,
-        config: dict[str, Any] | None = None,
-    ) -> ScheduleProject:
-        """Crea un proyecto nuevo con metadatos frescos (UUID, fecha, versión)."""
-        meta = {
-            "uuid": str(uuid.uuid4()),
-            "name": name,
-            "created": datetime.now(UTC).isoformat(timespec="seconds"),
-            "engine_version": engine_version(),
-        }
-        return cls(metadata=meta, problem=problem, config=config or {})
-
-
-def _dumps(payload: Any) -> str:
-    return json.dumps(payload, ensure_ascii=False, indent=2)
-
-
-def _to_zip_bytes(project: ScheduleProject) -> bytes:
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(_PROJECT, _dumps(project.metadata))
-        archive.writestr(_PROBLEM, _dumps(problem_to_dict(project.problem)))
-        archive.writestr(
-            _CONFIG, yaml.safe_dump(project.config, sort_keys=False, allow_unicode=True)
+        constraints: PluginsConfig | None = None,
+        solver_config: EngineConfig | None = None,
+    ) -> BjsProject:
+        return cls(
+            manifest=build_manifest(project_name=name, engine_signature=_signature()),
+            problem=problem,
+            constraints=constraints or PluginsConfig(()),
+            solver_config=solver_config or EngineConfig(),
         )
-        if project.solution is not None:
-            archive.writestr(_SOLUTION, _dumps(solution_to_dict(project.solution)))
-        for i, trace in enumerate(project.benchmarks):
-            archive.writestr(f"{_BENCH_PREFIX}{i:03d}.json", _dumps(trace))
-    return buffer.getvalue()
 
 
-def save_project(path: str | Path, project: ScheduleProject) -> None:
-    """Escribe el proyecto como ``.schedule`` de forma **atómica**.
-
-    Se serializa a un temporal en el mismo directorio y se renombra con
-    ``os.replace`` (atómico dentro del mismo volumen), de modo que el archivo
-    original nunca queda a medio escribir ante un fallo.
-    """
-    target = Path(path)
-    data = _to_zip_bytes(project)
-    tmp = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        tmp.write_bytes(data)
-        os.replace(tmp, target)
-    except OSError as exc:  # pragma: no cover - E/S del sistema
-        tmp.unlink(missing_ok=True)
-        raise InternalError(f"no se pudo escribir {target}: {exc}") from exc
+def save_project(path: str | Path, project: BjsProject) -> None:
+    """Empaqueta el proyecto como ``.bjs`` de forma atómica (vía el contenedor)."""
+    entries = _split_problem(project.problem)
+    entries[_CONSTRAINTS] = {"plugins": [asdict(s) for s in project.constraints.plugins]}
+    entries[_SOLVER] = asdict(project.solver_config)
+    if project.solution is not None:
+        entries[_SOLUTION] = solution_to_dict(project.solution)
+    if project.metrics is not None:
+        entries[_METRICS] = project.metrics
+    if project.history:
+        entries[_HISTORY] = {"runs": list(project.history)}
+    pack(path, entries, project.manifest)
 
 
-def open_project(path: str | Path) -> ScheduleProject:
-    """Abre un ``.schedule`` **en memoria** y lo deserializa al modelo canónico."""
-    target = Path(path)
-    if not target.exists():
-        raise ConfigError(f"no existe el proyecto: {target}")
-    try:
-        data = target.read_bytes()
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            names = set(archive.namelist())
-            if _PROJECT not in names or _PROBLEM not in names:
-                raise ConfigError(f"{target} no es un .schedule válido (faltan piezas)")
-            meta = json.loads(archive.read(_PROJECT))
-            problem = problem_from_dict(json.loads(archive.read(_PROBLEM)))
-            config = yaml.safe_load(archive.read(_CONFIG)) if _CONFIG in names else {}
-            solution = (
-                solution_from_dict(json.loads(archive.read(_SOLUTION)))
-                if _SOLUTION in names
-                else None
-            )
-            benchmarks = tuple(
-                json.loads(archive.read(n))
-                for n in sorted(names)
-                if n.startswith(_BENCH_PREFIX) and n.endswith(".json")
-            )
-    except zipfile.BadZipFile as exc:
-        raise ConfigError(f"{target} no es un archivo .schedule válido: {exc}") from exc
-    return ScheduleProject(
-        metadata=meta,
+def open_project(path: str | Path) -> BjsProject:
+    """Lee un ``.bjs`` (verifica integridad) y reconstruye el proyecto tipado."""
+    manifest, entries = read(path)
+    problem = _merge_problem(entries)
+    constraints = plugins_config_from_list(entries.get(_CONSTRAINTS, {}).get("plugins", []))
+    solver_config = engine_config_from_mapping(entries.get(_SOLVER, {}))
+    solution = solution_from_dict(entries[_SOLUTION]) if _SOLUTION in entries else None
+    metrics = entries.get(_METRICS)
+    history = tuple(entries.get(_HISTORY, {}).get("runs", []))
+    return BjsProject(
+        manifest=manifest,
         problem=problem,
-        config=config or {},
+        constraints=constraints,
+        solver_config=solver_config,
         solution=solution,
-        benchmarks=benchmarks,
+        metrics=metrics,
+        history=history,
     )
 
 
@@ -160,9 +150,10 @@ def new_project(
     name: str,
     problem: SchedulingProblem,
     *,
-    config: dict[str, Any] | None = None,
-) -> ScheduleProject:
-    """Crea y persiste un proyecto ``.schedule`` nuevo. Devuelve el proyecto."""
-    project = ScheduleProject.create(name, problem, config=config)
+    constraints: PluginsConfig | None = None,
+    solver_config: EngineConfig | None = None,
+) -> BjsProject:
+    """Crea y persiste un ``.bjs`` nuevo. Devuelve el proyecto."""
+    project = BjsProject.create(name, problem, constraints=constraints, solver_config=solver_config)
     save_project(path, project)
     return project

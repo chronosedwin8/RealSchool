@@ -32,7 +32,7 @@ from .errors import (
     SolveTimeoutError,
 )
 from .log import AppLogger
-from .project import ScheduleProject, new_project, open_project, save_project
+from .project import BjsProject, new_project, open_project, save_project
 from .solvers import SOLVER_NAMES, solver_factory_for
 
 __all__ = [
@@ -40,6 +40,7 @@ __all__ = [
     "AppContext",
     "AppError",
     "AppLogger",
+    "BjsProject",
     "Command",
     "CommandDispatcher",
     "CommandResult",
@@ -55,7 +56,6 @@ __all__ = [
     "OptimizeCommand",
     "PluginSetting",
     "PluginsConfig",
-    "ScheduleProject",
     "SolveTimeoutError",
     "ValidateCommand",
     "load_engine_config",

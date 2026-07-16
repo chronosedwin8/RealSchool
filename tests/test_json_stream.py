@@ -7,11 +7,11 @@ import json
 from pathlib import Path
 
 from scheduling_platform.application import (
+    BjsProject,
     Command,
     CommandDispatcher,
     CommandResult,
     GenerateCommand,
-    ScheduleProject,
     save_project,
 )
 from scheduling_platform.application.context import AppContext
@@ -116,8 +116,8 @@ def test_emit_progress_normal_va_a_stderr() -> None:
 
 
 def test_dispatch_stream_emite_jsonl_y_evento_final(tmp_path: Path) -> None:
-    path = tmp_path / "p.schedule"
-    save_project(path, ScheduleProject.create("t", _problem()))
+    path = tmp_path / "p.bjs"
+    save_project(path, BjsProject.create("t", _problem()))
     out, err = io.StringIO(), io.StringIO()
     code = CommandDispatcher().dispatch(
         GenerateCommand(str(path), quick=True), out=out, err=err, json_stream=True

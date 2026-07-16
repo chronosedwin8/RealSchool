@@ -17,23 +17,20 @@ from ..plugins import PluginRegistry, registry_with
 from ..plugins.catalog.structural import IntervalNoOverlapPlugin, ResourceNoOverlapPlugin
 from ..sal.interface import SolverStatus
 from .config import EngineConfig
-from .config.load import engine_config_from_mapping, plugins_config_from_list
 from .config.plugins_config import PluginsConfig
 from .errors import ConfigError, InfeasibleError, InternalError, SolveTimeoutError
-from .project import ScheduleProject
+from .project import BjsProject
 
 _INTERVAL = "interval_no_overlap"
 _RESOURCE = "resource_no_overlap"
 
 
-def engine_config_of(project: ScheduleProject) -> EngineConfig:
-    section = project.config.get("engine") if isinstance(project.config, dict) else None
-    return engine_config_from_mapping(section) if section else EngineConfig()
+def engine_config_of(project: BjsProject) -> EngineConfig:
+    return project.solver_config
 
 
-def plugins_config_of(project: ScheduleProject) -> PluginsConfig:
-    items = project.config.get("plugins") if isinstance(project.config, dict) else None
-    return plugins_config_from_list(items) if items else PluginsConfig(())
+def plugins_config_of(project: BjsProject) -> PluginsConfig:
+    return project.constraints
 
 
 def build_registry(
