@@ -8,6 +8,7 @@ medir el rendimiento del motor de forma reproducible y detectar regresiones.
 from __future__ import annotations
 
 from .complexity import ComplexityReport, PowerLaw, analyze_scaling, fit_power_law
+from .dashboard import build_dashboard_html, load_records
 from .datasets import (
     LADDER_TEACHERS,
     LARGE,
@@ -49,9 +50,11 @@ __all__ = [
     "Stats",
     "analyze_scaling",
     "build_academic",
+    "build_dashboard_html",
     "fit_power_law",
     "ladder_spec",
     "ladder_specs",
+    "load_records",
     "run_scenario",
     "summarize",
     "summarize_runs",
