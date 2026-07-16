@@ -21,3 +21,6 @@ benchmarks/regression_report.md
 benchmarks/dashboard.html
 benchmarks/ladder.json
 benchmarks/gap_analysis.json
+
+# Sitio de documentación generado (mkdocs)
+site/
