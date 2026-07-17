@@ -51,6 +51,7 @@ _HEADER_BG = QColor("#dbe4f0")
 _INK = QColor("#0f172a")
 _OK = QColor(34, 197, 94, 90)  # verde: destino disponible
 _NO = QColor(239, 68, 68, 70)  # rojo: destino no disponible
+_MW, _MH, _MHEAD, _MGAP = 22.0, 16.0, 20.0, 34.0  # mini-rejilla del mosaico
 
 
 def _cell_rect(day: int, period: int, duration: int = 1) -> QRectF:
@@ -132,6 +133,9 @@ class ScheduleEditorModule(QWidget):
         self._undo_btn.setEnabled(False)
         self._lunch_btn = QPushButton("Ventana de almuerzo…")
         self._lunch_btn.clicked.connect(self._edit_lunch_window)
+        self._mosaic_btn = QPushButton("Mosaico de grupos")
+        self._mosaic_btn.setCheckable(True)
+        self._mosaic_btn.toggled.connect(self._redraw)
         self._hint = QLabel("Arrastra para mover · clic derecho para bloquear/liberar una hora.")
         self._hint.setStyleSheet("color: #64748b;")
 
@@ -139,6 +143,7 @@ class ScheduleEditorModule(QWidget):
         top.addWidget(QLabel("Ver por:"))
         top.addWidget(self._focus, stretch=1)
         top.addWidget(self._hint)
+        top.addWidget(self._mosaic_btn)
         top.addWidget(self._lunch_btn)
         top.addWidget(self._undo_btn)
 
@@ -363,6 +368,12 @@ class ScheduleEditorModule(QWidget):
         if not self._bridge.has_session or self._focus.count() == 0:
             self._view_model = None
             return
+        mosaic = self._mosaic_btn.isChecked()
+        self._focus.setEnabled(not mosaic)
+        if mosaic:
+            self._view_model = None
+            self._draw_mosaic()
+            return
         focus_id = self._focus.currentData()
         if not isinstance(focus_id, int):
             return
@@ -372,6 +383,35 @@ class ScheduleEditorModule(QWidget):
         self._draw_reserved(focus_id, view)
         for cell in view.cells:
             self._draw_cell(view, cell)
+
+    def _draw_mosaic(self) -> None:
+        """Mini-horarios de todos los grupos a la vez (vista general estilo Untis)."""
+        groups = [o for o in self._bridge.focus_options() if o.kind == "group"]
+        per_row = 4
+        for i, option in enumerate(groups):
+            view = self._bridge.timetable(option.resource_id)
+            col, row = i % per_row, i // per_row
+            block_w = view.days * _MW
+            block_h = view.periods_per_day * _MH
+            bx = 12 + col * (block_w + _MGAP)
+            by = 12 + row * (block_h + _MHEAD + _MGAP)
+            title = self._scene.addText(option.name)
+            title.setDefaultTextColor(_INK)
+            title.setPos(bx, by)
+            gy = by + _MHEAD
+            for d in range(view.days):
+                for p in range(view.periods_per_day):
+                    self._scene.addRect(bx + d * _MW, gy + p * _MH, _MW, _MH, QPen(_GRID))
+            for cell in view.cells:
+                rect = QRectF(
+                    bx + cell.day * _MW + 1,
+                    gy + cell.period * _MH + 1,
+                    _MW - 2,
+                    cell.duration * _MH - 2,
+                )
+                self._scene.addRect(
+                    rect, QPen(Qt.PenStyle.NoPen), QBrush(subject_color(cell.subject))
+                )
 
     def _draw_reserved(self, focus_id: int, view: TimetableView) -> None:
         # Banda de la ventana de almuerzo (docentes): el motor deja >= 1 hora libre ahí.

@@ -339,6 +339,28 @@ def test_vista_enlazada_clic_a_aula(qapp: QApplication, tmp_path: Path) -> None:
     assert editor._focus.currentData() == cell.room_id
 
 
+def test_mosaico_de_grupos(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    SolveWorker(
+        bridge._service,
+        bridge.session,
+        solver="ortools_cpsat",
+        seed=42,
+        timeout=10.0,
+        structural_only=False,
+        cancel=bridge._cancel,
+    ).run()
+    editor = win._schedule
+    editor.refresh()
+    editor._mosaic_btn.setChecked(True)  # activa el mosaico
+    assert not editor._focus.isEnabled()  # el foco se desactiva en mosaico
+    assert len(editor._scene.items()) > 0  # dibuja los mini-horarios
+
+
 def test_bloquear_hora_desde_el_editor(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)
