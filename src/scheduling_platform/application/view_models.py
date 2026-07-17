@@ -87,8 +87,14 @@ def _subject_of(task_name: str) -> str:
     return task_name.split(_SUBJECT_SEP, 1)[0]
 
 
-def entity_tables(problem: SchedulingProblem) -> EntityTables:
-    """Reconstruye las tablas de docentes/aulas/grupos/materias desde el canónico."""
+def entity_tables(
+    problem: SchedulingProblem, registered_subjects: tuple[str, ...] = ()
+) -> EntityTables:
+    """Reconstruye las tablas de docentes/aulas/grupos/materias desde el canónico.
+
+    ``registered_subjects`` son las materias dadas de alta explícitamente (entidad
+    de primera clase); se muestran aunque aún no tengan clases asignadas.
+    """
     # Demanda por tag único: cuántas tareas requiere cada docente/grupo, y si su
     # dominio temporal está restringido (disponibilidad parcial).
     tasks_per_tag: dict[str, int] = defaultdict(int)
@@ -131,6 +137,8 @@ def entity_tables(problem: SchedulingProblem) -> EntityTables:
                 EntityRow(rid, (rid, res.name, str(size), str(tasks_per_tag.get(tag, 0))))
             )
 
+    for name in registered_subjects:
+        subjects.setdefault(name, (0, set()))  # materias sin clases aún
     subjects_rows = tuple(
         EntityRow(name, (name, str(count), str(len(teachers))))
         for name, (count, teachers) in sorted(subjects.items())

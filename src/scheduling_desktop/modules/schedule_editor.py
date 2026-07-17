@@ -24,14 +24,17 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
     QGraphicsItem,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QMenu,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -239,26 +242,44 @@ class ScheduleEditorModule(QWidget):
             return
         periods = self._view_model.periods_per_day
         current = self._bridge.lunch_window()
-        start, ok = QInputDialog.getInt(
-            self,
-            "Ventana de almuerzo",
-            "Desde el período (1 = primero):",
-            value=(current.start + 1) if current else 1,
-            minValue=1,
-            maxValue=periods,
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Ventana de almuerzo")
+        desde = QSpinBox()
+        desde.setRange(1, periods)
+        desde.setValue((current.start + 1) if current else 1)
+        hasta = QSpinBox()
+        hasta.setRange(1, periods)
+        hasta.setValue((current.end + 1) if current else min(periods, 4))
+        # 'Hasta' nunca antes que 'Desde'.
+        desde.valueChanged.connect(lambda v: hasta.setValue(max(hasta.value(), v)))
+        info = QLabel(
+            "El motor dejará al menos una hora libre en este rango cada día para almorzar."
         )
-        if not ok:
-            return
-        end, ok = QInputDialog.getInt(
-            self,
-            "Ventana de almuerzo",
-            "Hasta el período (inclusive):",
-            value=(current.end + 1) if current else min(start + 2, periods),
-            minValue=start,
-            maxValue=periods,
+        info.setWordWrap(True)
+        form = QFormLayout()
+        form.addRow("Desde el período:", desde)
+        form.addRow("Hasta el período:", hasta)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel
+            | QDialogButtonBox.StandardButton.Reset
         )
-        if ok:
-            self._bridge.set_lunch_window(start - 1, end - 1)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        reset = buttons.button(QDialogButtonBox.StandardButton.Reset)
+        reset.setText("Quitar almuerzo")
+
+        def _clear() -> None:
+            self._bridge.clear_lunch_window()
+            dialog.reject()
+
+        reset.clicked.connect(_clear)
+        box = QVBoxLayout(dialog)
+        box.addWidget(info)
+        box.addLayout(form)
+        box.addWidget(buttons)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._bridge.set_lunch_window(desde.value() - 1, hasta.value() - 1)
 
     # --- ciclo de arrastre (verde/rojo + flecha) ------------------------ #
     def _on_drag_started(self, task_id: int) -> None:
@@ -436,14 +457,18 @@ class ScheduleEditorModule(QWidget):
             }
             lunch = QBrush(QColor(251, 146, 60, 150))
             days = window.days or tuple(range(view.days))
+            hi = min(window.end + 1, view.periods_per_day)
             for day in days:
-                for period in range(window.start, min(window.end + 1, view.periods_per_day)):
-                    if day >= view.days or (day, period) in occupied:
-                        continue
-                    self._scene.addRect(_cell_rect(day, period), QPen(QColor("#ea580c")), lunch)
-                    tag = self._scene.addText("Almuerzo")
-                    tag.setDefaultTextColor(QColor("#7c2d12"))
-                    tag.setPos(_ROWHEAD + day * _CELL_W + 10, _HEAD + period * _CELL_H + 20)
+                if day >= view.days:
+                    continue
+                # Solo UNA hora de almuerzo por día: el primer período libre de la ventana.
+                free = next((p for p in range(window.start, hi) if (day, p) not in occupied), None)
+                if free is None:
+                    continue
+                self._scene.addRect(_cell_rect(day, free), QPen(QColor("#ea580c")), lunch)
+                tag = self._scene.addText("Almuerzo")
+                tag.setDefaultTextColor(QColor("#7c2d12"))
+                tag.setPos(_ROWHEAD + day * _CELL_W + 10, _HEAD + free * _CELL_H + 20)
         if not self._bridge.can_block(focus_id):
             return
         hatch = QBrush(QColor(100, 116, 139, 120), Qt.BrushStyle.BDiagPattern)

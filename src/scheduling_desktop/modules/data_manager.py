@@ -1,8 +1,10 @@
-"""Módulo 3 · Data Manager: los datos del proyecto como DataGrids tipo Excel.
+"""Módulo 3 · Data Manager: ingreso de datos del proyecto (tablas editables).
 
-Pestañas Docentes/Aulas/Grupos/Materias sobre ``QTableView``: ver, **edición**
-(renombrar, cupos, tamaño), **altas/bajas** (CRUD) y **carga horaria** (crear
-clases por grupo/docente). Todo se enruta a la Fachada; la UI no valida reglas.
+Pestañas Docentes/Aulas/Grupos/Materias como DataGrids: **Añadir** crea una fila
+nueva con un nombre por defecto lista para editar en la propia tabla (doble-clic),
+**Eliminar** quita la seleccionada, y las celdas se editan en sitio. La carga
+horaria (clases) se ingresa aparte, con estos datos ya cargados. Todo enruta a la
+Fachada; la UI no valida reglas.
 """
 
 from __future__ import annotations
@@ -14,7 +16,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -32,9 +33,10 @@ from scheduling_platform.application import ConfigError, EntityTable, EntityTabl
 from ..engine_bridge import EngineBridge
 from ..models import EntityTableModel
 
-_NAME_COL = 1
 _KINDS = ("teacher", "room", "group", "subject")
 _ID_ROLE = int(Qt.ItemDataRole.UserRole)
+# Columna del nombre y columnas editables adicionales, por tipo.
+_NAME_COL = {"teacher": 1, "room": 1, "group": 1, "subject": 0}
 
 
 class _LoadDialog(QDialog):
@@ -72,7 +74,7 @@ class _LoadDialog(QDialog):
         widget.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         widget.setMaximumHeight(120)
         for row in table.rows:
-            widget.addItem(row.cells[1])
+            widget.addItem(row.cells[1] if len(row.cells) > 1 else row.cells[0])
             widget.item(widget.count() - 1).setData(_ID_ROLE, int(row.key))
         return widget
 
@@ -91,7 +93,7 @@ class _LoadDialog(QDialog):
 
 
 class DataManagerModule(QWidget):
-    """Editor tabular de las entidades del proyecto con CRUD y carga horaria."""
+    """Ingreso y edición de las entidades del proyecto (docentes/aulas/grupos/materias)."""
 
     def __init__(self, bridge: EngineBridge) -> None:
         super().__init__()
@@ -100,21 +102,25 @@ class DataManagerModule(QWidget):
         self._tabs = QTabWidget()
         self._views: dict[str, QTableView] = {}
 
-        add_btn = QPushButton("Añadir")
-        add_btn.clicked.connect(self._on_add)
+        self._add_btn = QPushButton("+ Añadir")
+        self._add_btn.clicked.connect(self._on_add)
         del_btn = QPushButton("Eliminar")
         del_btn.clicked.connect(self._on_delete)
         load_btn = QPushButton("Añadir carga (clase)…")
         load_btn.clicked.connect(self._on_add_load)
+        self._hint = QLabel("Doble-clic en una celda para editar.")
+        self._hint.setStyleSheet("color: #64748b;")
         toolbar = QHBoxLayout()
-        toolbar.addWidget(add_btn)
+        toolbar.addWidget(self._add_btn)
         toolbar.addWidget(del_btn)
         toolbar.addWidget(load_btn)
+        toolbar.addWidget(self._hint)
         toolbar.addStretch(1)
 
         layout = QVBoxLayout(self)
         layout.addLayout(toolbar)
         layout.addWidget(self._tabs)
+        self._tabs.currentChanged.connect(self._update_add_label)
         bridge.session_changed.connect(self.refresh)
 
     def refresh(self) -> None:
@@ -136,46 +142,74 @@ class DataManagerModule(QWidget):
             self._views[table.kind] = view
         if 0 <= current < self._tabs.count():
             self._tabs.setCurrentIndex(current)
+        self._update_add_label()
 
     def _current_kind(self) -> str:
         index = self._tabs.currentIndex()
         return _KINDS[index] if 0 <= index < len(_KINDS) else "teacher"
 
+    def _update_add_label(self) -> None:
+        label = {
+            "teacher": "+ Añadir docente",
+            "room": "+ Añadir aula",
+            "group": "+ Añadir grupo",
+            "subject": "+ Añadir materia",
+        }
+        self._add_btn.setText(label.get(self._current_kind(), "+ Añadir"))
+
+    def _table_of(self, kind: str) -> EntityTable | None:
+        if self._tables is None:
+            return None
+        return {t.kind: t for t in self._tables.as_tuple()}.get(kind)
+
     def _selected_key(self) -> str | None:
         view = self._views.get(self._current_kind())
-        if view is None:
+        table = self._table_of(self._current_kind())
+        if view is None or table is None:
             return None
         rows = view.selectionModel().selectedRows()
-        if not rows or self._tables is None:
+        if not rows:
             return None
-        table = {t.kind: t for t in self._tables.as_tuple()}[self._current_kind()]
         row = rows[0].row()
         return table.rows[row].key if 0 <= row < len(table.rows) else None
 
-    # --- CRUD ----------------------------------------------------------- #
+    def _default_name(self, base: str) -> str:
+        existing = set()
+        table = self._table_of(self._current_kind())
+        if table is not None:
+            col = _NAME_COL[self._current_kind()]
+            existing = {r.cells[col] for r in table.rows}
+        n = 1
+        while f"{base} {n}" in existing:
+            n += 1
+        return f"{base} {n}"
+
+    # --- alta / baja ---------------------------------------------------- #
     def _on_add(self) -> None:
         kind = self._current_kind()
         try:
             if kind == "teacher":
-                name, ok = QInputDialog.getText(self, "Nuevo docente", "Nombre:")
-                if ok and name.strip():
-                    self._bridge.add_teacher(name)
-            elif kind == "group":
-                name, ok = QInputDialog.getText(self, "Nuevo grupo", "Nombre:")
-                if ok and name.strip():
-                    size, ok2 = QInputDialog.getInt(self, "Nuevo grupo", "Tamaño:", 30, 1, 300)
-                    if ok2:
-                        self._bridge.add_group(name, size)
+                self._bridge.add_teacher(self._default_name("Docente"))
             elif kind == "room":
-                name, ok = QInputDialog.getText(self, "Nueva aula", "Nombre:")
-                if ok and name.strip():
-                    seats, ok2 = QInputDialog.getInt(self, "Nueva aula", "Cupos:", 30, 1, 300)
-                    if ok2:
-                        self._bridge.add_room(name, seats)
+                self._bridge.add_room(self._default_name("Aula"), 30)
+            elif kind == "group":
+                self._bridge.add_group(self._default_name("Grupo"), 30)
             else:
-                self._on_add_load()  # las materias se crean con la carga
+                self._bridge.add_subject(self._default_name("Materia"))
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo añadir", str(exc))
+            return
+        self._edit_last_row(kind)
+
+    def _edit_last_row(self, kind: str) -> None:
+        view = self._views.get(kind)
+        model = view.model() if view is not None else None
+        if view is None or model is None or model.rowCount() == 0:
+            return
+        index = model.index(model.rowCount() - 1, _NAME_COL[kind])
+        view.setCurrentIndex(index)
+        view.scrollToBottom()
+        view.edit(index)
 
     def _on_delete(self) -> None:
         kind = self._current_kind()
@@ -218,46 +252,43 @@ class DataManagerModule(QWidget):
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo añadir la carga", str(exc))
 
-    # --- modelos / edición ---------------------------------------------- #
+    # --- modelos / edición en celda ------------------------------------- #
     def _model_for(self, table: EntityTable) -> EntityTableModel:
         if table.kind == "teacher":
-            return EntityTableModel(
-                table, editable=frozenset({_NAME_COL}), on_edit=self._edit_resource
-            )
+            return EntityTableModel(table, editable=frozenset({1}), on_edit=self._edit_resource)
         if table.kind == "group":
-            return EntityTableModel(
-                table, editable=frozenset({_NAME_COL, 2}), on_edit=self._edit_group
-            )
+            return EntityTableModel(table, editable=frozenset({1, 2}), on_edit=self._edit_group)
         if table.kind == "room":
-            return EntityTableModel(
-                table, editable=frozenset({_NAME_COL, 2}), on_edit=self._edit_room
-            )
-        return EntityTableModel(table)  # materias: solo lectura (se editan por carga)
+            return EntityTableModel(table, editable=frozenset({1, 2}), on_edit=self._edit_room)
+        return EntityTableModel(table, editable=frozenset({0}), on_edit=self._edit_subject)
 
     def _edit_resource(self, key: str, column: int, value: str) -> bool:
         value = value.strip()
-        if column == _NAME_COL and value:
-            return self._bridge.rename_resource(int(key), value)
-        return False
+        return bool(value) and self._bridge.rename_resource(int(key), value)
 
     def _edit_group(self, key: str, column: int, value: str) -> bool:
-        if column == _NAME_COL:
+        if column == 1:
             return self._edit_resource(key, column, value)
-        if column == 2:  # tamaño
-            try:
-                size = int(value)
-            except ValueError:
-                return False
-            return size >= 1 and self._bridge.set_group_size(int(key), size)
-        return False
+        try:
+            size = int(value)
+        except ValueError:
+            return False
+        return size >= 1 and self._bridge.set_group_size(int(key), size)
 
     def _edit_room(self, key: str, column: int, value: str) -> bool:
-        if column == _NAME_COL:
+        if column == 1:
             return self._edit_resource(key, column, value)
-        if column == 2:  # cupos
-            try:
-                seats = int(value)
-            except ValueError:
-                return False
-            return seats >= 1 and self._bridge.set_room_seats(int(key), seats)
-        return False
+        try:
+            seats = int(value)
+        except ValueError:
+            return False
+        return seats >= 1 and self._bridge.set_room_seats(int(key), seats)
+
+    def _edit_subject(self, key: str, column: int, value: str) -> bool:
+        value = value.strip()
+        if not value or value == key:
+            return False
+        try:
+            return self._bridge.rename_subject(key, value)
+        except ConfigError:
+            return False

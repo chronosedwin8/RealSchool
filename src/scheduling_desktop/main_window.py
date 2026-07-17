@@ -13,7 +13,6 @@ from pathlib import Path
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
-    QDockWidget,
     QFileDialog,
     QMainWindow,
     QStackedWidget,
@@ -41,7 +40,6 @@ from .modules import (
 from .modules.constraint_manager import ConstraintManagerModule
 from .modules.dashboard import DashboardModule
 from .modules.data_manager import DataManagerModule
-from .modules.explorer import ExplorerTree
 from .modules.help_center import HelpCenterModule
 from .modules.import_export import ImportExportModule
 from .modules.log_viewer import LogViewerModule
@@ -103,12 +101,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._stack)
 
         self._validation.navigate.connect(self.show_page)
-        self._explorer = ExplorerTree(self._bridge)
-        self._explorer.navigate.connect(self.show_page)
-        dock = QDockWidget("Explorador", self)
-        dock.setWidget(self._explorer)
-        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
 
         self._build_menu()
         self._build_toolbar()
@@ -232,7 +224,6 @@ class MainWindow(QMainWindow):
             self._optimize,
         ):
             module.refresh()
-        self._explorer.refresh()
         self.show_page(PAGE_DASHBOARD)
         self._update_title(dirty=False)
 

@@ -256,6 +256,16 @@ class EngineBridge(QObject):
         self._after_edit()
         self._announce("info", "Recurso eliminado")
 
+    def add_subject(self, name: str) -> None:
+        self._service.add_subject(self.session, name)
+        self._after_edit()
+        self._announce("success", f"Materia añadida: {name}")
+
+    def rename_subject(self, old: str, new: str) -> bool:
+        self._service.rename_subject(self.session, old, new)
+        self._after_edit()
+        return True
+
     def remove_subject(self, subject: str) -> None:
         self._service.remove_subject(self.session, subject)
         self._after_edit()

@@ -43,6 +43,7 @@ _METRICS = "metrics.json"
 _HISTORY = "history.json"
 _AVAILABILITY = "availability.json"
 _LUNCH = "lunch.json"
+_SUBJECTS = "subjects.json"
 
 #: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
 Availability = dict[int, tuple[tuple[int, int], ...]]
@@ -136,6 +137,7 @@ class BjsProject:
     history: tuple[dict[str, Any], ...] = ()
     availability: Availability = field(default_factory=dict)
     lunch_window: LunchWindow | None = None
+    subjects: tuple[str, ...] = ()  # materias registradas (entidad de primera clase)
 
     @classmethod
     def create(
@@ -172,6 +174,8 @@ def save_project(path: str | Path, project: BjsProject) -> None:
         entries[_LUNCH] = {
             "window": {"start": window.start, "end": window.end, "days": list(window.days)}
         }
+    if project.subjects:
+        entries[_SUBJECTS] = {"names": list(project.subjects)}
     pack(path, entries, project.manifest)
 
 
@@ -204,6 +208,7 @@ def open_project(path: str | Path) -> BjsProject:
         history=history,
         availability=_read_slots(entries, _AVAILABILITY),
         lunch_window=_read_lunch(entries),
+        subjects=tuple(str(n) for n in entries.get(_SUBJECTS, {}).get("names", ())),
     )
 
 

@@ -155,7 +155,7 @@ class EngineService:
 
     # --- consultas (modelos de vista) ----------------------------------- #
     def tables(self, session: Session) -> EntityTables:
-        return entity_tables(session.project.problem)
+        return entity_tables(session.project.problem, session.project.subjects)
 
     def focus_options(self, session: Session) -> tuple[FocusOption, ...]:
         return focus_options(session.project.problem)
@@ -755,23 +755,66 @@ class EngineService:
             )
             for s in range(sessions)
         ]
-        session.project = self._structural_change(
-            session.project, replace(problem, tasks=(*problem.tasks, *new_tasks))
+        subject_name = subject.strip()
+        subjects = session.project.subjects
+        if subject_name not in subjects:
+            subjects = (*subjects, subject_name)
+        session.project = replace(
+            self._structural_change(
+                session.project, replace(problem, tasks=(*problem.tasks, *new_tasks))
+            ),
+            subjects=subjects,
         )
         session.dirty = True
         return [base + s for s in range(sessions)]
 
+    # --- materias (entidad de primera clase, Fase 7 E4) ----------------- #
+    def add_subject(self, session: Session, name: str) -> None:
+        """Da de alta una materia (aunque aún no tenga clases)."""
+        name = name.strip()
+        if not name:
+            raise ConfigError("el nombre de la materia no puede estar vacío")
+        if name in session.project.subjects or name in self._derived_subjects(session):
+            raise ConfigError(f"la materia ya existe: {name}")
+        session.project = replace(session.project, subjects=(*session.project.subjects, name))
+        session.dirty = True
+
+    def rename_subject(self, session: Session, old: str, new: str) -> None:
+        """Renombra una materia (en la lista y en los nombres de sus clases)."""
+        new = new.strip()
+        if not new:
+            raise ConfigError("el nombre de la materia no puede estar vacío")
+        project = session.project
+        subjects = tuple(new if s == old else s for s in project.subjects)
+        if old not in project.subjects and old not in self._derived_subjects(session):
+            raise ConfigError(f"materia inexistente: {old}")
+        tasks = tuple(
+            replace(t, name=f"{new} · {t.name.split(' · ', 1)[1]}")
+            if t.name.split(" · ", 1)[0] == old and " · " in t.name
+            else t
+            for t in project.problem.tasks
+        )
+        session.project = replace(
+            self._structural_change(project, replace(project.problem, tasks=tasks)),
+            subjects=subjects if old in project.subjects else project.subjects,
+        )
+        session.dirty = True
+
     def remove_subject(self, session: Session, subject: str) -> None:
-        """Elimina una materia: borra todas sus clases."""
+        """Elimina una materia: la quita del alta y borra todas sus clases."""
         project = session.project
         problem = project.problem
         keep = tuple(t for t in problem.tasks if t.name.split(" · ", 1)[0] != subject)
         if not keep:
             raise ConfigError("no se puede eliminar: dejaría el proyecto sin clases")
-        if len(keep) == len(problem.tasks):
-            return
-        session.project = self._structural_change(project, replace(problem, tasks=keep))
+        subjects = tuple(s for s in project.subjects if s != subject)
+        session.project = replace(
+            self._structural_change(project, replace(problem, tasks=keep)), subjects=subjects
+        )
         session.dirty = True
+
+    def _derived_subjects(self, session: Session) -> set[str]:
+        return {t.name.split(" · ", 1)[0] for t in session.project.problem.tasks}
 
     @staticmethod
     def _structural_change(project: BjsProject, problem: SchedulingProblem) -> BjsProject:

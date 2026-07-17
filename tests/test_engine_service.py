@@ -187,6 +187,29 @@ def test_add_load_acoplada_varios_docentes_y_grupos(tmp_path: Path) -> None:
     assert f"teacher#{t1}" in tags and f"group#{g1}" in tags
 
 
+def test_materia_primera_clase(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+
+    # Alta de una materia sin clases todavía.
+    svc.add_subject(session, "Filosofía")
+    assert "Filosofía" in {r.cells[0] for r in svc.tables(session).subjects.rows}
+    with pytest.raises(ConfigError):
+        svc.add_subject(session, "Filosofía")  # duplicada
+
+    # Renombrar una materia con clases renombra también sus clases.
+    svc.rename_subject(session, "Matemáticas", "Cálculo")
+    subjects = {r.cells[0] for r in svc.tables(session).subjects.rows}
+    assert "Cálculo" in subjects and "Matemáticas" not in subjects
+    assert any(t.name.startswith("Cálculo · ") for t in session.project.problem.tasks)
+
+    # Persiste la lista de materias.
+    svc.save(session)
+    assert "Filosofía" in {r.cells[0] for r in svc.tables(svc.open(path)).subjects.rows}
+
+
 def test_add_load_rechaza_ids_invalidos(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)
