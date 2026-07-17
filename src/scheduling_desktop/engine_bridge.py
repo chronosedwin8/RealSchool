@@ -21,6 +21,7 @@ from scheduling_platform.application import (
     EngineService,
     EntityTables,
     FocusOption,
+    MoveTarget,
     ProgressEvent,
     ReportTable,
     Session,
@@ -128,6 +129,9 @@ class EngineBridge(QObject):
 
     def timetable(self, focus_id: int) -> TimetableView:
         return self._service.timetable(self.session, focus_id)
+
+    def move_targets(self, task_id: int) -> tuple[MoveTarget, ...]:
+        return self._service.move_targets(self.session, task_id)
 
     def dashboard(self) -> DashboardStats:
         return self._service.dashboard(self.session)

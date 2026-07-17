@@ -20,7 +20,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..core.ids import TaskId, TimeSlotIndex
+from ..core.problem import SchedulingProblem
 from ..core.resource import Resource
+from ..core.task import Task
 from ..engine import MetricsEngine, ReOptimizationEngine
 from ..pipeline.events import ProgressCallback
 from ..plugins import CONSTRAINT_CATALOG, ConstraintKind
@@ -37,6 +39,7 @@ from .view_models import (
     DashboardStats,
     EntityTables,
     FocusOption,
+    MoveTarget,
     ReportTable,
     SolveOutcome,
     TimetableView,
@@ -309,16 +312,72 @@ class EngineService:
         session.dirty = True
         return SolveOutcome(True, "solved", solver_name, f"optimizado con {solver_name}", summary)
 
-    # --- edición del horario (drag&drop + reoptimización) --------------- #
+    # --- edición del horario (drag&drop) -------------------------------- #
+    def move_targets(self, session: Session, task_id: int) -> tuple[MoveTarget, ...]:
+        """Celdas (día, período) donde la clase puede colocarse, con su factibilidad.
+
+        Verde (``feasible``) = cabe respetando las reglas duras con el resto del
+        horario fijo: su docente y su grupo están libres y hay un aula disponible.
+        Rojo = no cabe (ocupado o sin aula). Es un cálculo analítico (sin solver),
+        así que sirve para el resaltado en vivo mientras se arrastra.
+        """
+        project = session.project
+        if project.solution is None:
+            return ()
+        problem = project.problem
+        try:
+            task = problem.task_by_id(TaskId(task_id))
+        except Exception:
+            return ()
+
+        teacher_id = self._resource_of_tag(problem, task, "teacher#")
+        group_id = self._resource_of_tag(problem, task, "group#")
+        room_ids = {int(r.id) for r in problem.resources if "room" in r.tags}
+        total_rooms = len(room_ids) or 1
+
+        teacher_busy: set[int] = set()
+        group_busy: set[int] = set()
+        rooms_used: dict[int, set[int]] = defaultdict(set)
+        for assignment in project.solution.assignments:
+            if int(assignment.task_id) == task_id:
+                continue  # la propia clase no bloquea su destino
+            other = problem.task_by_id(assignment.task_id)
+            slots = range(int(assignment.start), int(assignment.start) + other.duration)
+            rids = {int(r) for r in assignment.resource_ids}
+            if teacher_id in rids:
+                teacher_busy.update(slots)
+            if group_id in rids:
+                group_busy.update(slots)
+            for room in rids & room_ids:
+                for slot in slots:
+                    rooms_used[slot].add(room)
+
+        valid = problem.grid.valid_starts(task.duration, task.same_segment)
+        targets: list[MoveTarget] = []
+        for day, seg in enumerate(problem.grid.segments):
+            for period in range(seg.length):
+                start = int(seg.start) + period
+                slots = range(start, start + task.duration)
+                if start not in valid:
+                    targets.append(MoveTarget(day, period, False, "no cabe en el día"))
+                elif any(s in teacher_busy for s in slots):
+                    targets.append(MoveTarget(day, period, False, "docente ocupado"))
+                elif any(s in group_busy for s in slots):
+                    targets.append(MoveTarget(day, period, False, "grupo ocupado"))
+                elif any(len(rooms_used[s]) >= total_rooms for s in slots):
+                    targets.append(MoveTarget(day, period, False, "sin aula libre"))
+                else:
+                    targets.append(MoveTarget(day, period, True, "disponible"))
+        return tuple(targets)
+
     def move_class(
         self, session: Session, task_id: int, day: int, period: int, *, timeout: float | None = 15.0
     ) -> SolveOutcome:
-        """Mueve una clase a (día, período) y reoptimiza el resto (reoptimización).
+        """Mueve una clase a (día, período) **sin tocar el resto** del horario.
 
-        Fija la clase en el destino y **congela el resto** del horario, dejando
-        libres solo las clases que chocarían con ella (mismo docente/grupo en ese
-        tramo), que el motor reubica. Si no cabe, devuelve un ``SolveOutcome`` no
-        resuelto y la sesión no cambia. Reutiliza ``ReOptimizationEngine``.
+        Fija la clase en el destino y congela todas las demás; el motor solo
+        reasigna el aula. Movimiento predecible: solo tiene éxito si el destino es
+        factible (ver :meth:`move_targets`), y entonces ninguna otra clase se mueve.
         """
         project = session.project
         if project.solution is None:
@@ -340,40 +399,36 @@ class EngineService:
         if target not in problem.grid.valid_starts(task.duration, task.same_segment):
             return SolveOutcome(False, "infeasible", "-", "la clase no cabe en ese período")
 
-        # Problema temporal con la clase fijada en el destino.
+        # Problema temporal con la clase fijada en el destino; el resto, congelado.
         fixed_task = replace(task, allowed_starts=frozenset({target}))
         modified = replace(
             problem, tasks=tuple(fixed_task if t.id == task.id else t for t in problem.tasks)
         )
-
-        # Se descongelan la clase movida y las que chocan con ella en ese tramo.
-        moved_tags = {r.tag for r in task.requirements if r.tag.startswith(("teacher#", "group#"))}
-        target_slots = set(range(int(target), int(target) + task.duration))
-        unfrozen: set[int] = {int(task.id)}
-        for assignment in project.solution.assignments:
-            if int(assignment.task_id) == int(task.id):
-                continue
-            other = problem.task_by_id(assignment.task_id)
-            other_slots = set(range(int(assignment.start), int(assignment.start) + other.duration))
-            if target_slots & other_slots and moved_tags & {r.tag for r in other.requirements}:
-                unfrozen.add(int(assignment.task_id))
-
         config = project.solver_config.to_solver_config()
         if timeout is not None:
             config = replace(config, max_time_in_seconds=timeout)
         engine = ReOptimizationEngine(
             plugins=[IntervalNoOverlapPlugin()], solver_factory=solver_factory_for(_CPSAT)
         )
-        result = engine.reoptimize(
-            modified, project.solution, [TaskId(t) for t in unfrozen], config
-        )
+        result = engine.reoptimize(modified, project.solution, [TaskId(task_id)], config)
         if not result.solved or result.solution is None:
-            return SolveOutcome(False, "infeasible", _CPSAT, "no cabe ahí sin romper el horario")
+            return SolveOutcome(False, "infeasible", _CPSAT, "no se puede mover ahí (ocupado)")
 
         # Se conserva el problema original (la clase no queda fijada para siempre).
         session.project = replace(project, solution=result.solution)
         session.dirty = True
-        return SolveOutcome(True, "solved", _CPSAT, "clase movida y horario reoptimizado")
+        return SolveOutcome(True, "solved", _CPSAT, "clase movida")
+
+    @staticmethod
+    def _resource_of_tag(problem: SchedulingProblem, task: Task, prefix: str) -> int:
+        """Id del recurso que porta el tag único (teacher#/group#) de la tarea."""
+        tag = next((r.tag for r in task.requirements if r.tag.startswith(prefix)), None)
+        if tag is None:
+            return -1
+        for resource in problem.resources:
+            if tag in resource.tags:
+                return int(resource.id)
+        return -1
 
     # --- edición básica -------------------------------------------------- #
     def rename_resource(self, session: Session, resource_id: int, name: str) -> None:

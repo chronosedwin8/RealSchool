@@ -198,6 +198,21 @@ class TimetableCell:
 
 
 @dataclass(frozen=True, slots=True)
+class MoveTarget:
+    """Una celda (día, período) como destino posible de una clase al arrastrarla.
+
+    ``feasible`` indica si la clase cabe ahí respetando las reglas duras
+    (docente/grupo libres, aula disponible, cabe en el día); ``reason`` explica el
+    motivo cuando no.
+    """
+
+    day: int
+    period: int
+    feasible: bool
+    reason: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class TimetableView:
     """Rejilla semanal dia x periodo reconstruida para un recurso en foco."""
 

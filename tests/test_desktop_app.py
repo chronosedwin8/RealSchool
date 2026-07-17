@@ -238,6 +238,38 @@ def test_mover_clase_y_deshacer(qapp: QApplication, tmp_path: Path) -> None:
     assert (back.day, back.period) == (cell.day, cell.period)
 
 
+def test_drag_feedback_verde_rojo(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    SolveWorker(
+        bridge._service,
+        bridge.session,
+        solver="ortools_cpsat",
+        seed=42,
+        timeout=10.0,
+        structural_only=False,
+        cancel=bridge._cancel,
+    ).run()
+
+    editor = win._schedule
+    editor.refresh()
+    focus = next(o for o in bridge.focus_options() if o.kind == "teacher")
+    cell = bridge.timetable(focus.resource_id).cells[0]
+
+    editor._on_drag_started(cell.task_id)
+    assert editor._overlays  # se pintan los overlays verde/rojo
+    assert editor._targets
+
+    red = next((d, p) for (d, p), t in editor._targets.items() if not t.feasible)
+    before = bridge.session.project.solution
+    editor._on_drag_dropped(*red)
+    assert bridge.session.project.solution is before  # soltar en rojo no mueve nada
+    assert not editor._overlays  # y limpia el estado del arrastre
+
+
 def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

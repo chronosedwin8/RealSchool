@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from scheduling_platform.application import ConstraintRow
 
+from ..constraint_help import constraint_help
 from ..engine_bridge import EngineBridge
 
 _ID_ROLE = int(Qt.ItemDataRole.UserRole)
@@ -48,9 +49,15 @@ class ConstraintManagerModule(QWidget):
 
         self._title = QLabel("—")
         self._title.setStyleSheet("font-size: 16px; font-weight: 700;")
+        self._help = QLabel("")
+        self._help.setWordWrap(True)
+        self._help.setStyleSheet(
+            "background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;"
+            " padding: 10px; color: #1e3a8a;"
+        )
         self._desc = QLabel("")
         self._desc.setWordWrap(True)
-        self._desc.setStyleSheet("color: palette(mid);")
+        self._desc.setStyleSheet("color: palette(mid); font-size: 11px;")
 
         self._enabled = QCheckBox("Restricción activa")
         self._enabled.toggled.connect(self._apply)
@@ -83,10 +90,14 @@ class ConstraintManagerModule(QWidget):
         form.addRow(self._weight_row_label, self._weight_widget)
         form.addRow(self._hard_note)
 
+        help_header = QLabel("¿Para qué sirve?")
+        help_header.setStyleSheet("font-weight: 700; color: #1d4ed8;")
         detail = QVBoxLayout()
         detail.addWidget(self._title)
-        detail.addWidget(self._desc)
+        detail.addWidget(help_header)
+        detail.addWidget(self._help)
         detail.addLayout(form)
+        detail.addWidget(self._desc)
         detail.addStretch(1)
         detail_widget = QWidget()
         detail_widget.setLayout(detail)
@@ -112,6 +123,7 @@ class ConstraintManagerModule(QWidget):
             estado = "●" if row.enabled else "○"
             item = QListWidgetItem(f"{estado} {badge} {row.name}")
             item.setData(_ID_ROLE, row.rule_id)
+            item.setToolTip(constraint_help(row.rule_id).summary)
             self._list.addItem(item)
         self._loading = False
         # Reseleccionar la restricción que estaba abierta.
@@ -138,8 +150,10 @@ class ConstraintManagerModule(QWidget):
     def _load(self, row: ConstraintRow) -> None:
         self._loading = True
         self._set_detail_enabled(True)
+        help_text = constraint_help(row.rule_id)
         self._title.setText(f"{row.catalog_id} · {row.name}")
-        self._desc.setText(row.description)
+        self._help.setText(help_text.detail)
+        self._desc.setText(f"Definición técnica: {row.description}")
         self._enabled.setChecked(row.enabled)
         tier_index = self._tier.findData(row.tier if row.tier in (1, 2, 3) else row.default_tier)
         self._tier.setCurrentIndex(tier_index if tier_index >= 0 else 0)

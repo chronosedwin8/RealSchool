@@ -9,10 +9,21 @@ calcula nada del horario: todo viene de ``TimetableView`` y ``move_class``.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QMouseEvent, QPainter, QPen
+import math
+
+from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QMouseEvent,
+    QPainter,
+    QPen,
+    QPolygonF,
+)
 from PySide6.QtWidgets import (
     QComboBox,
+    QGraphicsItem,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -22,7 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from scheduling_platform.application import TimetableCell, TimetableView
+from scheduling_platform.application import MoveTarget, TimetableCell, TimetableView
 
 from ..engine_bridge import EngineBridge
 from ..theme import day_name, subject_color
@@ -35,6 +46,16 @@ _CONFLICT = QColor("#ef4444")
 _GRID = QColor("#c7d2e0")
 _HEADER_BG = QColor("#dbe4f0")
 _INK = QColor("#0f172a")
+_OK = QColor(34, 197, 94, 90)  # verde: destino disponible
+_NO = QColor(239, 68, 68, 70)  # rojo: destino no disponible
+
+
+def _cell_rect(day: int, period: int, duration: int = 1) -> QRectF:
+    return QRectF(_ROWHEAD + day * _CELL_W, _HEAD + period * _CELL_H, _CELL_W, duration * _CELL_H)
+
+
+def _cell_center(day: int, period: int) -> QPointF:
+    return QPointF(_ROWHEAD + (day + 0.5) * _CELL_W, _HEAD + (period + 0.5) * _CELL_H)
 
 
 def _cell_at(x: float, y: float) -> tuple[int, int]:
@@ -43,35 +64,44 @@ def _cell_at(x: float, y: float) -> tuple[int, int]:
 
 
 class _TimetableView(QGraphicsView):
-    """Vista que traduce un arrastre de clase en una petición de mover."""
+    """Vista que emite el ciclo de un arrastre de clase (inicio/mover/soltar)."""
 
-    move_requested = Signal(int, int, int)  # task_id, día, período
+    drag_started = Signal(int)  # task_id
+    drag_moved = Signal(int, int)  # día, período
+    drag_dropped = Signal(int, int)  # día, período
 
     def __init__(self, scene: QGraphicsScene) -> None:
         super().__init__(scene)
-        self._drag_task: int | None = None
-        self._from: tuple[int, int] = (-1, -1)
+        self._dragging = False
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         pos = self.mapToScene(event.position().toPoint())
         scene = self.scene()
-        self._drag_task = None
+        task: int | None = None
         if scene is not None:
             for item in scene.items(pos):
                 data = item.data(0)
                 if isinstance(data, int):
-                    self._drag_task = data
-                    self._from = _cell_at(pos.x(), pos.y())
+                    task = data
                     break
+        if task is not None:
+            self._dragging = True
+            self.drag_started.emit(task)
         super().mousePressEvent(event)
 
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if self._drag_task is not None:
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._dragging:
             pos = self.mapToScene(event.position().toPoint())
             day, period = _cell_at(pos.x(), pos.y())
-            if day >= 0 and period >= 0 and (day, period) != self._from:
-                self.move_requested.emit(self._drag_task, day, period)
-            self._drag_task = None
+            self.drag_moved.emit(day, period)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._dragging:
+            self._dragging = False
+            pos = self.mapToScene(event.position().toPoint())
+            day, period = _cell_at(pos.x(), pos.y())
+            self.drag_dropped.emit(day, period)
         super().mouseReleaseEvent(event)
 
 
@@ -87,7 +117,7 @@ class ScheduleEditorModule(QWidget):
         self._undo_btn = QPushButton("Deshacer")
         self._undo_btn.clicked.connect(self._on_undo)
         self._undo_btn.setEnabled(False)
-        self._hint = QLabel("Arrastra una clase a otra celda para moverla.")
+        self._hint = QLabel("Arrastra una clase: verde = se puede, rojo = ocupado.")
         self._hint.setStyleSheet("color: #64748b;")
 
         top = QHBoxLayout()
@@ -99,11 +129,21 @@ class ScheduleEditorModule(QWidget):
         self._scene = QGraphicsScene()
         self._view = _TimetableView(self._scene)
         self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self._view.move_requested.connect(self._on_move)
+        self._view.drag_started.connect(self._on_drag_started)
+        self._view.drag_moved.connect(self._on_drag_moved)
+        self._view.drag_dropped.connect(self._on_drag_dropped)
 
         layout = QVBoxLayout(self)
         layout.addLayout(top)
         layout.addWidget(self._view, stretch=1)
+
+        # Estado del arrastre en curso.
+        self._view_model: TimetableView | None = None
+        self._drag_task: int | None = None
+        self._drag_source: tuple[int, int] = (-1, -1)
+        self._targets: dict[tuple[int, int], MoveTarget] = {}
+        self._overlays: list[QGraphicsItem] = []
+        self._arrow: list[QGraphicsItem] = []
 
         bridge.session_changed.connect(self.refresh)
 
@@ -124,20 +164,97 @@ class ScheduleEditorModule(QWidget):
         self._undo_btn.setEnabled(self._bridge.can_undo)
         self._redraw()
 
-    def _on_move(self, task_id: int, day: int, period: int) -> None:
-        self._bridge.move_class(task_id, day, period)  # el puente emite refresh
-
     def _on_undo(self) -> None:
         self._bridge.undo()
 
+    # --- ciclo de arrastre (verde/rojo + flecha) ------------------------ #
+    def _on_drag_started(self, task_id: int) -> None:
+        self._clear_drag()
+        self._drag_task = task_id
+        if self._view_model is not None:
+            match = next((c for c in self._view_model.cells if c.task_id == task_id), None)
+            self._drag_source = (match.day, match.period) if match is not None else (-1, -1)
+        self._targets = {(t.day, t.period): t for t in self._bridge.move_targets(task_id)}
+        for (day, period), target in self._targets.items():
+            if (day, period) == self._drag_source:
+                continue
+            overlay = self._scene.addRect(
+                _cell_rect(day, period),
+                QPen(Qt.PenStyle.NoPen),
+                QBrush(_OK if target.feasible else _NO),
+            )
+            overlay.setZValue(5)
+            self._overlays.append(overlay)
+
+    def _on_drag_moved(self, day: int, period: int) -> None:
+        for item in self._arrow:
+            self._scene.removeItem(item)
+        self._arrow.clear()
+        if self._drag_task is None or self._drag_source == (-1, -1):
+            return
+        if (day, period) == self._drag_source or (day, period) not in self._targets:
+            return
+        feasible = self._targets[(day, period)].feasible
+        self._draw_arrow(
+            _cell_center(*self._drag_source), _cell_center(day, period), _OK if feasible else _NO
+        )
+
+    def _on_drag_dropped(self, day: int, period: int) -> None:
+        task = self._drag_task
+        source = self._drag_source
+        target = self._targets.get((day, period))
+        self._clear_drag()
+        if task is None or (day, period) == source:
+            return
+        if target is not None and target.feasible:
+            self._bridge.move_class(task, day, period)  # el puente emite refresh
+        elif target is not None:
+            self._bridge.status_message.emit(f"No se puede mover ahí: {target.reason}")
+        else:
+            self._bridge.status_message.emit("Suelta la clase dentro de la rejilla")
+
+    def _clear_drag(self) -> None:
+        for item in (*self._overlays, *self._arrow):
+            self._scene.removeItem(item)
+        self._overlays.clear()
+        self._arrow.clear()
+        self._drag_task = None
+        self._drag_source = (-1, -1)
+        self._targets = {}
+
+    def _draw_arrow(self, start: QPointF, end: QPointF, color: QColor) -> None:
+        pen = QPen(color.darker(180))
+        pen.setWidth(4)
+        line = self._scene.addLine(QLineF(start, end), pen)
+        line.setZValue(6)
+        self._arrow.append(line)
+        angle = math.atan2(end.y() - start.y(), end.x() - start.x())
+        size = 16.0
+        left = QPointF(
+            end.x() - size * math.cos(angle - math.pi / 6),
+            end.y() - size * math.sin(angle - math.pi / 6),
+        )
+        right = QPointF(
+            end.x() - size * math.cos(angle + math.pi / 6),
+            end.y() - size * math.sin(angle + math.pi / 6),
+        )
+        head = self._scene.addPolygon(
+            QPolygonF([end, left, right]), QPen(Qt.PenStyle.NoPen), QBrush(color.darker(180))
+        )
+        head.setZValue(6)
+        self._arrow.append(head)
+
     def _redraw(self) -> None:
+        self._clear_drag()
         self._scene.clear()
         if not self._bridge.has_session or self._focus.count() == 0:
+            self._view_model = None
             return
         focus_id = self._focus.currentData()
         if not isinstance(focus_id, int):
             return
         view = self._bridge.timetable(focus_id)
+        self._view_model = view
         self._draw_grid(view)
         for cell in view.cells:
             self._draw_cell(view, cell)

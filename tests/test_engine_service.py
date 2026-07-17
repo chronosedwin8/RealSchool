@@ -200,6 +200,24 @@ def test_move_class_reubica_y_reoptimiza(tmp_path: Path) -> None:
     assert (moved.day, moved.period) == (1, 2)
 
 
+def test_move_targets_marca_verde_y_rojo(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    svc.optimize(session, timeout=10.0)
+
+    targets = svc.move_targets(session, 0)
+    assert len(targets) == 6  # rejilla 2x3
+    feasibles = {(t.day, t.period) for t in targets if t.feasible}
+    infeasibles = {(t.day, t.period): t.reason for t in targets if not t.feasible}
+    # Donde está la otra clase (mismo docente y grupo), la 0 no puede ir: rojo.
+    view = svc.timetable(session, next(o.resource_id for o in svc.focus_options(session)))
+    other = next(c for c in view.cells if c.task_id == 1)
+    assert (other.day, other.period) in infeasibles
+    assert feasibles  # y hay celdas verdes disponibles
+
+
 def test_move_class_a_periodo_invalido_no_cambia(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)
