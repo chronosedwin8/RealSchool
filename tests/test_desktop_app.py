@@ -291,6 +291,47 @@ def test_data_manager_crud_y_carga(qapp: QApplication, tmp_path: Path) -> None:
     assert sum(1 for r in coro.requirements if r.tag.startswith("group#")) == len(gids)
 
 
+def test_leccion_desde_fila_vacia_y_acople_untis(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    lm = win._lessons
+    lm.refresh()
+    qapp.processEvents()
+
+    # Fila vacía estilo Excel: el grupo actual viene precargado; con docentes
+    # elegidos, escribir la Materia en la celda CREA la lección.
+    assert lm._pending.groups  # grupo actual precargado
+    tid = int(bridge.tables().teachers.rows[0].key)
+    lm._pending.teachers = [tid]
+    blank = len(lm._display)
+    blank_item = lm._table.item(blank, 3)
+    assert blank_item is not None
+    blank_item.setText("Robótica")
+    qapp.processEvents()
+    assert any(d.lesson.subject == "Robótica" for d in lm._display)
+
+    # Acople mostrado como en Untis: ⊞ (nGrupos, nDocentes), colapsado por
+    # defecto; clic en la columna N.lec expande a sub-filas y vuelve a colapsar.
+    rob = next(d.lesson for d in lm._display if d.lesson.subject == "Robótica")
+    mate = next(d.lesson for d in lm._display if d.lesson.subject == "Mate")
+    bridge.couple_lessons([list(rob.task_ids), list(mate.task_ids)])
+    qapp.processEvents()
+    parent = next(d for d in lm._display if d.kind == "parent")
+    idx = lm._display.index(parent)
+    parent_item = lm._table.item(idx, 0)
+    assert parent_item is not None
+    text = parent_item.text()
+    assert "(" in text and "," in text  # conteo (nGrupos,nDocentes)
+    assert all(d.kind != "sub" for d in lm._display)  # colapsado
+    lm._on_cell_clicked(idx, 0)
+    assert any(d.kind == "sub" for d in lm._display)  # expandido
+    lm._on_cell_clicked(idx, 0)
+    assert all(d.kind != "sub" for d in lm._display)  # colapsado de nuevo
+
+
 def test_fila_vacia_crea_registro_estilo_excel(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)
@@ -365,16 +406,17 @@ def test_ventana_de_lecciones_y_mdi(qapp: QApplication, tmp_path: Path) -> None:
     win.show_page("schedule")
     assert len(win._mdi.subWindowList()) >= 3
 
-    # La ventana de lecciones lista la carga del grupo actual y el total de HHs.
+    # La ventana de lecciones lista la carga del grupo actual y el total de HHs
+    # (+1 fila: la fila vacía (*) de alta estilo Excel).
     lessons = win._lessons
     lessons.refresh()
     assert lessons._mode.currentData() == "group"
-    assert lessons._table.rowCount() == 2  # Matemáticas + Historia del demo
+    assert lessons._table.rowCount() == 3  # Matemáticas + Historia + fila (*)
     assert lessons._total.text() == "HHs: 2"
 
     # Cambiar a la vista por docente también puebla la tabla.
     lessons._mode.setCurrentIndex(1)
-    assert lessons._table.rowCount() == 2
+    assert lessons._table.rowCount() == 3
 
 
 def test_plataforma_m5(qapp: QApplication, tmp_path: Path) -> None:
