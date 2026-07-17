@@ -317,6 +317,41 @@ def test_fila_vacia_crea_registro_estilo_excel(qapp: QApplication, tmp_path: Pat
     assert "PROFX2" in {r.cells[0] for r in bridge.tables().teachers.rows}
 
 
+def test_cerrar_y_reabrir_subventana_no_queda_en_blanco(qapp: QApplication, tmp_path: Path) -> None:
+    # Regresión: cerrar una ventana hija ocultaba su widget interno y al
+    # reabrirla quedaba una ventana vacía ("la interfaz sin nada").
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    win.show()
+    bridge.open_path(path)
+
+    win.show_page("load")
+    qapp.processEvents()
+    sub = win._subwindows["load"]
+    assert win._lessons.isVisible()
+
+    sub.close()
+    qapp.processEvents()
+    assert win._lessons.isHidden()  # Qt oculta el widget interno al cerrar
+
+    win.show_page("load")
+    qapp.processEvents()
+    assert win._lessons.isVisible()  # y al reabrir debe volver a verse
+    # Y sigue funcionando al ingresar información.
+    tables = bridge.tables()
+    bridge.add_load(
+        [int(tables.groups.rows[0].key)],
+        "Química",
+        [int(tables.teachers.rows[0].key)],
+        1,
+    )
+    qapp.processEvents()
+    assert win._lessons.isVisible()
+    assert win._lessons._table.rowCount() >= 1
+
+
 def test_ventana_de_lecciones_y_mdi(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

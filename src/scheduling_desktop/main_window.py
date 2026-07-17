@@ -219,6 +219,9 @@ class MainWindow(QMainWindow):
             sub.resize(1080, 660)
             self._subwindows[page] = sub
         sub.show()
+        # Al cerrar una subventana, Qt oculta explícitamente su widget interno;
+        # al reabrirla hay que mostrarlo también o queda una ventana vacía.
+        widget.show()
         sub.raise_()
         self._mdi.setActiveSubWindow(sub)
 
