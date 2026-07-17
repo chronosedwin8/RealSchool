@@ -248,6 +248,7 @@ class LessonRow:
     rooms: tuple[str, ...]
     hours: int
     duration: int
+    coupling_id: int = -1  # id del acople (lecciones simultáneas); -1 = sin acoplar
 
 
 def lesson_rows(problem: SchedulingProblem) -> tuple[LessonRow, ...]:
@@ -263,14 +264,19 @@ def lesson_rows(problem: SchedulingProblem) -> tuple[LessonRow, ...]:
             if tag.startswith((_TEACHER_PREFIX, _GROUP_PREFIX, "room#")):
                 tag_owner[tag] = (int(res.id), res.name)
 
-    grouped: dict[tuple[str, tuple[str, ...], int], list[int]] = defaultdict(list)
+    grouped: dict[tuple[str, tuple[str, ...], int, int], list[int]] = defaultdict(list)
     for task in problem.tasks:
         subject = _subject_of(task.name)
-        signature = (subject, tuple(sorted(r.tag for r in task.requirements)), task.duration)
+        signature = (
+            subject,
+            tuple(sorted(r.tag for r in task.requirements)),
+            task.duration,
+            task.attribute("coupling", -1),
+        )
         grouped[signature].append(int(task.id))
 
     rows: list[LessonRow] = []
-    for (subject, tags, duration), task_ids in grouped.items():
+    for (subject, tags, duration, coupling_id), task_ids in grouped.items():
         teacher_ids: list[int] = []
         teachers: list[str] = []
         group_ids: list[int] = []
@@ -304,6 +310,7 @@ def lesson_rows(problem: SchedulingProblem) -> tuple[LessonRow, ...]:
                 rooms=tuple(rooms),
                 hours=len(ordered),
                 duration=duration,
+                coupling_id=coupling_id,
             )
         )
     rows.sort(key=lambda r: (r.groups, r.subject))

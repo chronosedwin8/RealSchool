@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .base import SchedulingPlugin
+from .catalog.coupling import CoupledLessonsPlugin
 from .catalog.daily_quality import (
     DailySpanPlugin,
     SoftMaxConsecutivePlugin,
@@ -185,6 +186,15 @@ CONSTRAINT_CATALOG: tuple[ConstraintDefinition, ...] = (
         ConstraintKind.HARD,
         plugin_name="lunch_window",
         note="Requiere parámetros start/end/days; la elige el solver (no es fija).",
+    ),
+    ConstraintDefinition(
+        "HC-14",
+        "Acoples de lecciones (simultaneidad)",
+        "Las Task que comparten (coupling, cseq) inician en el mismo TimeSlot (Kopplung).",
+        ConstraintKind.HARD,
+        plugin_name="coupled_lessons",
+        factory=CoupledLessonsPlugin,
+        note="Los ids de acople viajan como atributos de las Task; siempre activo.",
     ),
     # --- SOFT (penalizables), con Tier ---
     ConstraintDefinition(

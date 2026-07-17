@@ -29,6 +29,7 @@ from ..core.task import Task
 from ..engine import MetricsEngine, ReOptimizationEngine
 from ..pipeline.events import ProgressCallback
 from ..plugins import CONSTRAINT_CATALOG, ConstraintKind
+from ..plugins.catalog.coupling import CoupledLessonsPlugin
 from ..plugins.catalog.lunch import LunchWindowPlugin
 from ..plugins.catalog.structural import IntervalNoOverlapPlugin
 from .cancel import CancelToken
@@ -58,9 +59,9 @@ from .view_models import (
 
 _METRICS = MetricsEngine()
 _CPSAT = "ortools_cpsat"
-# El no-solape estructural es un invariante del motor (siempre activo vía
-# build_registry); no se ofrece como restricción editable en la GUI.
-_STRUCTURAL_NOOVERLAP = frozenset({"interval_no_overlap", "resource_no_overlap"})
+# Invariantes del motor (siempre activos): el no-solape estructural y la
+# simultaneidad de acoples. No se ofrecen como restricciones editables en la GUI.
+_STRUCTURAL_NOOVERLAP = frozenset({"interval_no_overlap", "resource_no_overlap", "coupled_lessons"})
 
 
 @dataclass(slots=True)
@@ -412,6 +413,8 @@ class EngineService:
                     LunchWindowPlugin(start=window.start, end=window.end, days=window.days)
                 )
                 boolean = True
+            # Acoples: clases simultáneas (invariante, no-op si no hay acoples).
+            registry.register(CoupledLessonsPlugin())
         except (ConfigError, ValueError) as exc:
             return SolveOutcome(False, "error", solver_name, str(exc))
 
@@ -563,10 +566,23 @@ class EngineService:
         config = project.solver_config.to_solver_config()
         if timeout is not None:
             config = replace(config, max_time_in_seconds=timeout)
+        # Si la clase está acoplada, sus compañeras de acople se mueven con ella.
+        unfrozen = {task_id}
+        cid = task.attribute("coupling", -1)
+        if cid >= 0:
+            seq = task.attribute("cseq", 0)
+            unfrozen |= {
+                int(t.id)
+                for t in problem.tasks
+                if t.attribute("coupling", -1) == cid and t.attribute("cseq", 0) == seq
+            }
         engine = ReOptimizationEngine(
-            plugins=[IntervalNoOverlapPlugin()], solver_factory=solver_factory_for(_CPSAT)
+            plugins=[IntervalNoOverlapPlugin(), CoupledLessonsPlugin()],
+            solver_factory=solver_factory_for(_CPSAT),
         )
-        result = engine.reoptimize(modified, project.solution, [TaskId(task_id)], config)
+        result = engine.reoptimize(
+            modified, project.solution, [TaskId(t) for t in unfrozen], config
+        )
         if not result.solved or result.solution is None:
             return SolveOutcome(False, "infeasible", _CPSAT, "no se puede mover ahí (ocupado)")
 
@@ -824,13 +840,38 @@ class EngineService:
     def lessons(
         self, session: Session, *, group_id: int | None = None, teacher_id: int | None = None
     ) -> tuple[LessonRow, ...]:
-        """Lecciones del proyecto, filtrables por grupo o por docente (como Untis)."""
-        rows = lesson_rows(session.project.problem)
+        """Lecciones del proyecto, filtrables por grupo o por docente (como Untis).
+
+        Las lecciones **acopladas** a una visible se incluyen inmediatamente
+        después (aunque sean de otro grupo/docente), como las sub-filas de la
+        vista de lecciones de Untis.
+        """
+        all_rows = lesson_rows(session.project.problem)
+        rows: tuple[LessonRow, ...] = all_rows
         if group_id is not None:
             rows = tuple(r for r in rows if group_id in r.group_ids)
         if teacher_id is not None:
             rows = tuple(r for r in rows if teacher_id in r.teacher_ids)
-        return rows
+        if group_id is None and teacher_id is None:
+            return rows
+
+        by_coupling: dict[int, list[LessonRow]] = defaultdict(list)
+        for row in all_rows:
+            if row.coupling_id >= 0:
+                by_coupling[row.coupling_id].append(row)
+        expanded: list[LessonRow] = []
+        seen: set[str] = set()
+        for row in rows:
+            if row.key in seen:
+                continue
+            expanded.append(row)
+            seen.add(row.key)
+            if row.coupling_id >= 0:
+                for partner in by_coupling.get(row.coupling_id, []):
+                    if partner.key not in seen:
+                        expanded.append(partner)
+                        seen.add(partner.key)
+        return tuple(expanded)
 
     def remove_lesson(self, session: Session, task_ids: list[int]) -> None:
         """Elimina una lección completa (todas sus sesiones)."""
@@ -897,6 +938,146 @@ class EngineService:
         if res is None or "room" not in res.tags:
             raise ConfigError(f"aula inexistente: {room_id}")
         return next(t for t in res.tags if t.startswith("room#"))
+
+    def set_lesson_subject(self, session: Session, task_ids: list[int], subject: str) -> None:
+        """Cambia la materia de una lección (edición en celda, como Excel)."""
+        subject = subject.strip()
+        if not subject:
+            raise ConfigError("la materia no puede estar vacía")
+        problem = session.project.problem
+        ids = set(task_ids)
+        if not any(int(t.id) in ids for t in problem.tasks):
+            raise ConfigError("lección inexistente")
+        tasks = tuple(
+            replace(t, name=f"{subject} · {t.name.split(' · ', 1)[1]}")
+            if int(t.id) in ids and " · " in t.name
+            else (replace(t, name=f"{subject} · x#{int(t.id)}") if int(t.id) in ids else t)
+            for t in problem.tasks
+        )
+        subjects = session.project.subjects
+        if subject not in subjects:
+            subjects = (*subjects, subject)
+        session.project = replace(
+            self._structural_change(session.project, replace(problem, tasks=tasks)),
+            subjects=subjects,
+        )
+        session.dirty = True
+
+    def set_lesson_teachers(
+        self, session: Session, task_ids: list[int], teacher_ids: list[int]
+    ) -> None:
+        """Cambia los docentes de una lección (uno o varios: co-docencia)."""
+        if not teacher_ids:
+            raise ConfigError("una lección necesita al menos un docente")
+        problem = session.project.problem
+        reqs = tuple(
+            ResourceRequirement(self._unique_tag_of(problem, t, "teacher")) for t in teacher_ids
+        )
+        self._rebuild_lesson_reqs(session, task_ids, keep=("group#",), extra=reqs)
+
+    def set_lesson_groups(
+        self, session: Session, task_ids: list[int], group_ids: list[int]
+    ) -> None:
+        """Cambia los grupos de una lección (uno o varios: clases combinadas)."""
+        if not group_ids:
+            raise ConfigError("una lección necesita al menos un grupo")
+        problem = session.project.problem
+        reqs = tuple(
+            ResourceRequirement(self._unique_tag_of(problem, g, "group")) for g in group_ids
+        )
+        self._rebuild_lesson_reqs(session, task_ids, keep=("teacher#",), extra=reqs)
+
+    def _rebuild_lesson_reqs(
+        self,
+        session: Session,
+        task_ids: list[int],
+        *,
+        keep: tuple[str, ...],
+        extra: tuple[ResourceRequirement, ...],
+    ) -> None:
+        problem = session.project.problem
+        ids = set(task_ids)
+        if not any(int(t.id) in ids for t in problem.tasks):
+            raise ConfigError("lección inexistente")
+
+        def rebuilt(task: Task) -> Task:
+            kept = tuple(r for r in task.requirements if r.tag.startswith(keep))
+            # "room", "room#N" y "roomtype#X" empiezan todos por "room".
+            rooms = tuple(r for r in task.requirements if r.tag.startswith("room"))
+            return replace(task, requirements=kept + extra + rooms)
+
+        tasks = tuple(rebuilt(t) if int(t.id) in ids else t for t in problem.tasks)
+        session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
+        session.dirty = True
+
+    @staticmethod
+    def _unique_tag_of(problem: SchedulingProblem, resource_id: int, kind: str) -> str:
+        res = next((r for r in problem.resources if int(r.id) == resource_id), None)
+        if res is None or kind not in res.tags:
+            raise ConfigError(f"{kind} inexistente: {resource_id}")
+        return next(t for t in res.tags if t.startswith(f"{kind}#"))
+
+    # --- acoples (clases simultáneas, la Kopplung de Untis) -------------- #
+    def couple_lessons(self, session: Session, lessons_task_ids: list[list[int]]) -> int:
+        """Acopla lecciones: sus sesiones ocurren **a la misma hora**.
+
+        Permite varios profesores en varios salones a la vez, con la misma
+        materia o materias distintas. Las lecciones deben tener las mismas HHs
+        (cada sesión i de una va con la sesión i de las demás). Devuelve el id
+        del acople.
+        """
+        if len(lessons_task_ids) < 2:
+            raise ConfigError("selecciona al menos dos lecciones para acoplar")
+        groups = [sorted(set(ids)) for ids in lessons_task_ids]
+        if len({len(g) for g in groups}) != 1:
+            raise ConfigError("las lecciones a acoplar deben tener las mismas HHs")
+        problem = session.project.problem
+        by_id = {int(t.id): t for t in problem.tasks}
+        for g in groups:
+            for tid in g:
+                if tid not in by_id:
+                    raise ConfigError("lección inexistente")
+        cid = max((t.attribute("coupling", -1) for t in problem.tasks), default=-1) + 1
+
+        stamped: dict[int, tuple[int, int]] = {}
+        for g in groups:
+            for seq, tid in enumerate(g):
+                stamped[tid] = (cid, seq)
+
+        def stamp(task: Task) -> Task:
+            mark = stamped.get(int(task.id))
+            if mark is None:
+                return task
+            attrs = dict(task.attributes)
+            attrs["coupling"], attrs["cseq"] = mark
+            return replace(task, attributes=tuple(attrs.items()))
+
+        tasks = tuple(stamp(t) for t in problem.tasks)
+        session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
+        session.dirty = True
+        return cid
+
+    def uncouple_lesson(self, session: Session, task_ids: list[int]) -> None:
+        """Deshace el acople completo al que pertenece la lección dada."""
+        problem = session.project.problem
+        ids = set(task_ids)
+        cids = {
+            t.attribute("coupling", -1)
+            for t in problem.tasks
+            if int(t.id) in ids and t.attribute("coupling", -1) >= 0
+        }
+        if not cids:
+            return
+
+        def clean(task: Task) -> Task:
+            if task.attribute("coupling", -1) not in cids:
+                return task
+            attrs = tuple((k, v) for k, v in task.attributes if k not in ("coupling", "cseq"))
+            return replace(task, attributes=attrs)
+
+        tasks = tuple(clean(t) for t in problem.tasks)
+        session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
+        session.dirty = True
 
     # --- materias (entidad de primera clase, Fase 7 E4) ----------------- #
     def add_subject(self, session: Session, name: str) -> None:

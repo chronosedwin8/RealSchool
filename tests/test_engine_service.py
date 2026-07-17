@@ -249,6 +249,99 @@ def test_lecciones_por_grupo_y_docente(tmp_path: Path) -> None:
     assert set(dep.task_ids) == set(ids)
 
 
+def test_acoples_distintas_materias_a_la_misma_hora(tmp_path: Path) -> None:
+    # El caso Untis "2502": en una misma hora, varios profesores en varios
+    # salones con materias DISTINTAS (BIO11 + GES11 simultáneas).
+    resources = (
+        Resource(ResourceId(0), "GOMEZC", frozenset({"teacher", "teacher#0"})),
+        Resource(ResourceId(1), "PORTILLOD", frozenset({"teacher", "teacher#1"})),
+        Resource(
+            ResourceId(2), "11GIB2", frozenset({"group", "group#2"}), attributes=(("size", 20),)
+        ),
+        Resource(
+            ResourceId(3), "11GIB1", frozenset({"group", "group#3"}), attributes=(("size", 22),)
+        ),
+        Resource(ResourceId(4), "C22", frozenset({"room", "room#4"}), attributes=(("seats", 30),)),
+        Resource(ResourceId(5), "B38", frozenset({"room", "room#5"}), attributes=(("seats", 30),)),
+    )
+    seed_task = Task(
+        TaskId(0),
+        "Relleno · g2#0",
+        1,
+        (
+            ResourceRequirement("teacher#0"),
+            ResourceRequirement("group#2"),
+            ResourceRequirement("room"),
+        ),
+    )
+    problem = SchedulingProblem(
+        grid=TimeGrid.from_segment_lengths([4] * 5), resources=resources, tasks=(seed_task,)
+    )
+    path = tmp_path / "c.bjs"
+    save_project(path, BjsProject.create("C", problem))
+    svc = EngineService()
+    session = svc.open(path)
+
+    bio = svc.add_load(session, [2], "BIO11", [0], 2, room_ids=[4])
+    ges = svc.add_load(session, [3], "GES11", [1], 2, room_ids=[5])
+    cid = svc.couple_lessons(session, [bio, ges])
+
+    # La vista del grupo 11GIB2 incluye el partner acoplado (sub-fila de Untis).
+    rows = svc.lessons(session, group_id=2)
+    assert [(r.subject, r.coupling_id) for r in rows[:2]] == [("BIO11", cid), ("GES11", cid)]
+
+    # El optimizador las pone a la misma hora.
+    assert svc.optimize(session, timeout=15.0).solved is True
+    solution = session.project.solution
+    assert solution is not None
+    starts: dict[str, set[int]] = {}
+    for assignment in solution.assignments:
+        task = session.project.problem.task_by_id(assignment.task_id)
+        starts.setdefault(task.name.split(" · ")[0], set()).add(int(assignment.start))
+    assert starts["BIO11"] == starts["GES11"]
+
+    # Persiste en el .bjs y se puede desacoplar.
+    svc.save(session)
+    reopened = svc.open(path)
+    row = next(r for r in svc.lessons(reopened) if r.subject == "BIO11")
+    assert row.coupling_id == cid
+    svc.uncouple_lesson(reopened, list(row.task_ids))
+    assert all(
+        r.coupling_id == -1 for r in svc.lessons(reopened) if r.subject in ("BIO11", "GES11")
+    )
+
+    # HHs distintas no se pueden acoplar.
+    extra = svc.add_load(session, [2], "ARTE", [0], 3)
+    with pytest.raises(ConfigError):
+        svc.couple_lessons(session, [bio, extra])
+
+
+def test_edicion_inline_de_leccion(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
+    tid = next(int(r.key) for r in svc.tables(session).teachers.rows)
+    t2 = svc.add_teacher(session, "COD2")
+
+    mate = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    # Cambiar la materia en la celda.
+    svc.set_lesson_subject(session, list(mate.task_ids), "Álgebra")
+    alg = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Álgebra")
+    # Cambiar los docentes (co-docencia) y verificar.
+    svc.set_lesson_teachers(session, list(alg.task_ids), [tid, t2])
+    alg2 = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Álgebra")
+    assert len(alg2.teachers) == 2
+    # Cambiar los grupos.
+    g2 = svc.add_group(session, "7C", 18)
+    svc.set_lesson_groups(session, list(alg2.task_ids), [gid, g2])
+    alg3 = next(r for r in svc.lessons(session, group_id=g2) if r.subject == "Álgebra")
+    assert len(alg3.groups) == 2
+    # Y sigue optimizando.
+    assert svc.optimize(session, timeout=10.0).solved is True
+
+
 def test_aulas_de_una_leccion(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

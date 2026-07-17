@@ -320,6 +320,30 @@ class EngineBridge(QObject):
         self._after_edit()
         self._announce("info", "Aulas de la lección actualizadas")
 
+    def set_lesson_subject(self, task_ids: list[int], subject: str) -> None:
+        self._service.set_lesson_subject(self.session, task_ids, subject)
+        self._after_edit()
+
+    def set_lesson_teachers(self, task_ids: list[int], teacher_ids: list[int]) -> None:
+        self._service.set_lesson_teachers(self.session, task_ids, teacher_ids)
+        self._after_edit()
+        self._announce("info", "Docentes de la lección actualizados")
+
+    def set_lesson_groups(self, task_ids: list[int], group_ids: list[int]) -> None:
+        self._service.set_lesson_groups(self.session, task_ids, group_ids)
+        self._after_edit()
+        self._announce("info", "Grupos de la lección actualizados")
+
+    def couple_lessons(self, lessons_task_ids: list[list[int]]) -> None:
+        self._service.couple_lessons(self.session, lessons_task_ids)
+        self._after_edit()
+        self._announce("success", "Lecciones acopladas: ocurrirán a la misma hora")
+
+    def uncouple_lesson(self, task_ids: list[int]) -> None:
+        self._service.uncouple_lesson(self.session, task_ids)
+        self._after_edit()
+        self._announce("info", "Acople deshecho")
+
     def set_group_size(self, resource_id: int, size: int) -> bool:
         self._service.set_group_size(self.session, resource_id, size)
         self._after_edit()

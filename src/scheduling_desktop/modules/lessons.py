@@ -1,11 +1,12 @@
 """Módulo · Carga (lecciones): el ingreso de carga horaria como en Untis.
 
-La ventana de lecciones de Untis: se elige **un grupo o un docente** y se ven sus
-lecciones (``N.lec | HHs | Profesores | Materia | Grupo(s) | Aulas``). *Nueva
-lección* abre un formulario con la materia (de las dadas de alta), los docentes,
-grupos y aulas (multi-selección: co-docencia y clases combinadas), pre-marcando
-el registro actual. Las **HHs se editan en la celda**; *Eliminar* borra la
-lección completa. Todo se enruta a la Fachada.
+Se elige **un grupo o un docente** y se ve su carga
+(``N.lec | HHs | Profesores | Materia | Grupo(s) | Aulas``). Se edita **como en
+Excel**: HHs y Materia directamente en la celda; doble-clic en Profesores,
+Grupo(s) o Aulas abre su selector múltiple. Los **acoples** (clases simultáneas:
+varios profesores en varios salones, misma materia o distintas) se muestran como
+fila padre + sub-filas (↳), igual que Untis: selecciona varias lecciones y pulsa
+*Acoplar*. Todo se enruta a la Fachada.
 """
 
 from __future__ import annotations
@@ -36,25 +37,37 @@ from ..engine_bridge import EngineBridge
 _ID_ROLE = int(Qt.ItemDataRole.UserRole)
 _COLUMNS = ("N.lec", "HHs", "Profesores", "Materia", "Grupo(s)", "Aulas")
 _HHS_COL = 1
+_TEACHERS_COL = 2
+_SUBJECT_COL = 3
+_GROUPS_COL = 4
 _ROOMS_COL = 5
+_EDITABLE_COLS = {_HHS_COL, _SUBJECT_COL}
 
 
-class _RoomsDialog(QDialog):
-    """Selector de aulas de una lección (vacío = el motor elige del pool)."""
+class _MultiPickDialog(QDialog):
+    """Selector múltiple de una entidad (docentes, grupos o aulas)."""
 
-    def __init__(self, bridge: EngineBridge, parent: QWidget, preselect: tuple[int, ...]) -> None:
+    def __init__(
+        self,
+        table: EntityTable,
+        parent: QWidget,
+        *,
+        title: str,
+        info: str,
+        preselect: tuple[int, ...] = (),
+    ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Aulas de la lección")
-        info = QLabel("Marca una o varias aulas fijas. Sin selección = el motor elige.")
-        info.setWordWrap(True)
-        self._rooms = QListWidget()
-        self._rooms.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
-        for row in bridge.tables().rooms.rows:
-            label = row.cells[0]
+        self.setWindowTitle(title)
+        label = QLabel(info)
+        label.setWordWrap(True)
+        self._list = QListWidget()
+        self._list.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        for row in table.rows:
+            text = row.cells[0]
             if len(row.cells) > 1 and row.cells[1]:
-                label = f"{row.cells[0]} — {row.cells[1]}"
-            self._rooms.addItem(label)
-            item = self._rooms.item(self._rooms.count() - 1)
+                text = f"{row.cells[0]} — {row.cells[1]}"
+            self._list.addItem(text)
+            item = self._list.item(self._list.count() - 1)
             item.setData(_ID_ROLE, int(row.key))
             if int(row.key) in preselect:
                 item.setSelected(True)
@@ -64,12 +77,12 @@ class _RoomsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout = QVBoxLayout(self)
-        layout.addWidget(info)
-        layout.addWidget(self._rooms)
+        layout.addWidget(label)
+        layout.addWidget(self._list)
         layout.addWidget(buttons)
 
     def selected(self) -> list[int]:
-        return [item.data(_ID_ROLE) for item in self._rooms.selectedItems()]
+        return [item.data(_ID_ROLE) for item in self._list.selectedItems()]
 
 
 class _LessonDialog(QDialog):
@@ -169,9 +182,14 @@ class LessonsModule(QWidget):
         new_btn.clicked.connect(self._on_new)
         del_btn = QPushButton("Eliminar")
         del_btn.clicked.connect(self._on_delete)
+        couple_btn = QPushButton("Acoplar")
+        couple_btn.setToolTip("Selecciona 2+ lecciones: ocurrirán a la misma hora")
+        couple_btn.clicked.connect(self._on_couple)
+        uncouple_btn = QPushButton("Desacoplar")
+        uncouple_btn.clicked.connect(self._on_uncouple)
         self._total = QLabel("HHs: 0")
         self._total.setStyleSheet("font-weight: 700;")
-        hint = QLabel("Doble-clic: HHs cambia las horas · Aulas abre el selector de aulas.")
+        hint = QLabel("Edita HHs y Materia en la celda · doble-clic en Profesores/Grupos/Aulas.")
         hint.setStyleSheet("color: #64748b;")
 
         top = QHBoxLayout()
@@ -180,6 +198,8 @@ class LessonsModule(QWidget):
         top.addWidget(self._record)
         top.addWidget(new_btn)
         top.addWidget(del_btn)
+        top.addWidget(couple_btn)
+        top.addWidget(uncouple_btn)
         top.addWidget(self._total)
         top.addWidget(hint)
         top.addStretch(1)
@@ -190,6 +210,7 @@ class LessonsModule(QWidget):
         self._table.setAlternatingRowColors(True)
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.itemChanged.connect(self._on_item_changed)
         self._table.cellDoubleClicked.connect(self._on_cell_double)
 
@@ -244,9 +265,12 @@ class LessonsModule(QWidget):
             self._rows = self._bridge.lessons(teacher_id=record)
         self._loading = True
         self._table.setRowCount(len(self._rows))
+        prev_coupling = -1
         for i, row in enumerate(self._rows):
+            is_sub = row.coupling_id >= 0 and row.coupling_id == prev_coupling
+            marker = "↳" if is_sub else ("⛓ " if row.coupling_id >= 0 else "")
             cells = (
-                str(row.task_ids[0]),
+                f"{marker}{'' if is_sub else row.task_ids[0]}",
                 str(row.hours),
                 ", ".join(row.teachers),
                 row.subject,
@@ -255,15 +279,20 @@ class LessonsModule(QWidget):
             )
             for col, text in enumerate(cells):
                 item = QTableWidgetItem(text)
-                if col != _HHS_COL:
+                if col not in _EDITABLE_COLS:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self._table.setItem(i, col, item)
+            prev_coupling = row.coupling_id if row.coupling_id >= 0 else -1
         self._table.resizeColumnsToContents()
         self._table.horizontalHeader().setStretchLastSection(True)
         self._loading = False
         self._total.setText(f"HHs: {sum(r.hours for r in self._rows)}")
 
     # --- acciones -------------------------------------------------------- #
+    def _selected_lessons(self) -> list[LessonRow]:
+        rows = sorted({index.row() for index in self._table.selectionModel().selectedRows()})
+        return [self._rows[r] for r in rows if 0 <= r < len(self._rows)]
+
     def _on_new(self) -> None:
         if not self._bridge.has_session:
             return
@@ -290,11 +319,11 @@ class LessonsModule(QWidget):
             QMessageBox.warning(self, "No se pudo crear la lección", str(exc))
 
     def _on_delete(self) -> None:
-        row = self._table.currentRow()
-        if not 0 <= row < len(self._rows):
+        selected = self._selected_lessons()
+        if not selected:
             QMessageBox.information(self, "Eliminar", "Selecciona una lección primero.")
             return
-        lesson = self._rows[row]
+        lesson = selected[0]
         if (
             QMessageBox.question(
                 self,
@@ -309,35 +338,97 @@ class LessonsModule(QWidget):
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo eliminar", str(exc))
 
-    def _on_cell_double(self, row: int, column: int) -> None:
-        """Doble-clic en Aulas: abre el selector de aulas de la lección."""
-        if column != _ROOMS_COL or not 0 <= row < len(self._rows):
-            return
-        lesson = self._rows[row]
-        dialog = _RoomsDialog(self._bridge, self, preselect=lesson.room_ids)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+    def _on_couple(self) -> None:
+        selected = self._selected_lessons()
+        if len(selected) < 2:
+            QMessageBox.information(
+                self,
+                "Acoplar",
+                "Selecciona dos o más lecciones (Ctrl+clic) para que ocurran a la misma hora.",
+            )
             return
         try:
-            self._bridge.set_lesson_rooms(list(lesson.task_ids), dialog.selected())
+            self._bridge.couple_lessons([list(lesson.task_ids) for lesson in selected])
         except ConfigError as exc:
-            QMessageBox.warning(self, "No se pudieron cambiar las aulas", str(exc))
+            QMessageBox.warning(self, "No se pudo acoplar", str(exc))
+
+    def _on_uncouple(self) -> None:
+        selected = self._selected_lessons()
+        if not selected:
+            QMessageBox.information(self, "Desacoplar", "Selecciona una lección acoplada.")
+            return
+        try:
+            self._bridge.uncouple_lesson(list(selected[0].task_ids))
+        except ConfigError as exc:
+            QMessageBox.warning(self, "No se pudo desacoplar", str(exc))
+
+    # --- edición en celda / doble-clic ----------------------------------- #
+    def _on_cell_double(self, row: int, column: int) -> None:
+        if not 0 <= row < len(self._rows):
+            return
+        lesson = self._rows[row]
+        tables = self._bridge.tables()
+        try:
+            if column == _ROOMS_COL:
+                dialog = _MultiPickDialog(
+                    tables.rooms,
+                    self,
+                    title="Aulas de la lección",
+                    info="Marca una o varias aulas fijas. Sin selección = el motor elige.",
+                    preselect=lesson.room_ids,
+                )
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    self._bridge.set_lesson_rooms(list(lesson.task_ids), dialog.selected())
+            elif column == _TEACHERS_COL:
+                dialog = _MultiPickDialog(
+                    tables.teachers,
+                    self,
+                    title="Docentes de la lección",
+                    info="Marca uno o varios docentes (co-docencia).",
+                    preselect=lesson.teacher_ids,
+                )
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    self._bridge.set_lesson_teachers(list(lesson.task_ids), dialog.selected())
+            elif column == _GROUPS_COL:
+                dialog = _MultiPickDialog(
+                    tables.groups,
+                    self,
+                    title="Grupos de la lección",
+                    info="Marca uno o varios grupos (clases combinadas).",
+                    preselect=lesson.group_ids,
+                )
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    self._bridge.set_lesson_groups(list(lesson.task_ids), dialog.selected())
+        except ConfigError as exc:
+            QMessageBox.warning(self, "No se pudo aplicar el cambio", str(exc))
 
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
-        if self._loading or item.column() != _HHS_COL:
+        if self._loading:
             return
         row = item.row()
         if not 0 <= row < len(self._rows):
             return
         lesson = self._rows[row]
-        try:
-            hours = int(item.text())
-        except ValueError:
-            self._reload_grid()
-            return
-        if hours == lesson.hours:
-            return
-        try:
-            self._bridge.set_lesson_hours(list(lesson.task_ids), hours)
-        except ConfigError as exc:
-            QMessageBox.warning(self, "HHs no válidas", str(exc))
-            self._reload_grid()
+        if item.column() == _HHS_COL:
+            try:
+                hours = int(item.text())
+            except ValueError:
+                self._reload_grid()
+                return
+            if hours == lesson.hours:
+                return
+            try:
+                self._bridge.set_lesson_hours(list(lesson.task_ids), hours)
+            except ConfigError as exc:
+                QMessageBox.warning(self, "HHs no válidas", str(exc))
+                self._reload_grid()
+        elif item.column() == _SUBJECT_COL:
+            subject = item.text().strip()
+            if not subject or subject == lesson.subject:
+                self._reload_grid()
+                return
+            try:
+                self._bridge.set_lesson_subject(list(lesson.task_ids), subject)
+            except ConfigError as exc:
+                QMessageBox.warning(self, "Materia no válida", str(exc))
+                self._reload_grid()
