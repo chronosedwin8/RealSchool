@@ -51,7 +51,8 @@ _HEADER_BG = QColor("#dbe4f0")
 _INK = QColor("#0f172a")
 _OK = QColor(34, 197, 94, 90)  # verde: destino disponible
 _NO = QColor(239, 68, 68, 70)  # rojo: destino no disponible
-_MW, _MH, _MHEAD, _MGAP = 22.0, 16.0, 20.0, 34.0  # mini-rejilla del mosaico
+# mini-rejilla del mosaico (legible: con encabezados y texto)
+_MW, _MH, _MHEAD, _MROWHEAD, _MGAP = 78.0, 44.0, 40.0, 30.0, 44.0
 
 
 def _cell_rect(day: int, period: int, duration: int = 1) -> QRectF:
@@ -385,44 +386,64 @@ class ScheduleEditorModule(QWidget):
             self._draw_cell(view, cell)
 
     def _draw_mosaic(self) -> None:
-        """Mini-horarios de todos los grupos a la vez (vista general estilo Untis)."""
+        """Horarios de varios grupos a la vez, legibles (con encabezados y materia)."""
         groups = [o for o in self._bridge.focus_options() if o.kind == "group"]
-        per_row = 4
+        per_row = 3
+        head = QFont()
+        head.setBold(True)
         for i, option in enumerate(groups):
             view = self._bridge.timetable(option.resource_id)
             col, row = i % per_row, i // per_row
-            block_w = view.days * _MW
-            block_h = view.periods_per_day * _MH
-            bx = 12 + col * (block_w + _MGAP)
-            by = 12 + row * (block_h + _MHEAD + _MGAP)
-            title = self._scene.addText(option.name)
+            block_w = _MROWHEAD + view.days * _MW
+            block_h = _MHEAD + view.periods_per_day * _MH
+            bx = 14 + col * (block_w + _MGAP)
+            by = 14 + row * (block_h + 26 + _MGAP)
+            title = self._scene.addText(f"Grupo {option.name}", head)
             title.setDefaultTextColor(_INK)
             title.setPos(bx, by)
-            gy = by + _MHEAD
+            ox, oy = bx, by + 26
+            self._scene.addRect(
+                ox, oy, block_w, _MHEAD, QPen(Qt.PenStyle.NoPen), QBrush(_HEADER_BG)
+            )
             for d in range(view.days):
-                for p in range(view.periods_per_day):
-                    self._scene.addRect(bx + d * _MW, gy + p * _MH, _MW, _MH, QPen(_GRID))
+                lbl = self._scene.addText(day_name(d, view.days)[:2])
+                lbl.setPos(ox + _MROWHEAD + d * _MW + 6, oy + 8)
+            for p in range(view.periods_per_day):
+                gy = oy + _MHEAD + p * _MH
+                plbl = self._scene.addText(f"P{p + 1}")
+                plbl.setPos(ox + 2, gy + _MH / 2 - 10)
+                for d in range(view.days):
+                    self._scene.addRect(ox + _MROWHEAD + d * _MW, gy, _MW, _MH, QPen(_GRID))
             for cell in view.cells:
-                rect = QRectF(
-                    bx + cell.day * _MW + 1,
-                    gy + cell.period * _MH + 1,
-                    _MW - 2,
-                    cell.duration * _MH - 2,
-                )
+                x = ox + _MROWHEAD + cell.day * _MW
+                y = oy + _MHEAD + cell.period * _MH
                 self._scene.addRect(
-                    rect, QPen(Qt.PenStyle.NoPen), QBrush(subject_color(cell.subject))
+                    QRectF(x + 1, y + 1, _MW - 2, cell.duration * _MH - 2),
+                    QPen(subject_color(cell.subject).darker(140)),
+                    QBrush(subject_color(cell.subject)),
                 )
+                text = self._scene.addText("")
+                text.setHtml(f"<b>{cell.subject[:8]}</b><br>{cell.room[:8]}")
+                text.setDefaultTextColor(_INK)
+                text.setPos(x + 4, y + 3)
 
     def _draw_reserved(self, focus_id: int, view: TimetableView) -> None:
-        # Banda de la ventana de almuerzo (docentes): el motor deja >= 1 hora libre ahí.
+        # Almuerzo (docentes): las horas LIBRES dentro de la ventana son el almuerzo.
         window = self._bridge.lunch_window()
         if window is not None and view.focus_kind == "teacher":
-            band = QBrush(QColor(251, 191, 36, 45))
+            occupied = {
+                (cell.day, cell.period + off) for cell in view.cells for off in range(cell.duration)
+            }
+            lunch = QBrush(QColor(251, 146, 60, 150))
             days = window.days or tuple(range(view.days))
             for day in days:
-                for period in range(window.start, window.end + 1):
-                    if 0 <= day < view.days and 0 <= period < view.periods_per_day:
-                        self._scene.addRect(_cell_rect(day, period), QPen(Qt.PenStyle.NoPen), band)
+                for period in range(window.start, min(window.end + 1, view.periods_per_day)):
+                    if day >= view.days or (day, period) in occupied:
+                        continue
+                    self._scene.addRect(_cell_rect(day, period), QPen(QColor("#ea580c")), lunch)
+                    tag = self._scene.addText("Almuerzo")
+                    tag.setDefaultTextColor(QColor("#7c2d12"))
+                    tag.setPos(_ROWHEAD + day * _CELL_W + 10, _HEAD + period * _CELL_H + 20)
         if not self._bridge.can_block(focus_id):
             return
         hatch = QBrush(QColor(100, 116, 139, 120), Qt.BrushStyle.BDiagPattern)
