@@ -28,12 +28,13 @@ from ..core.task import Task
 from ..engine import MetricsEngine, ReOptimizationEngine
 from ..pipeline.events import ProgressCallback
 from ..plugins import CONSTRAINT_CATALOG, ConstraintKind
+from ..plugins.catalog.lunch import LunchWindowPlugin
 from ..plugins.catalog.structural import IntervalNoOverlapPlugin
 from .cancel import CancelToken
 from .commands.solve import solution_summary
 from .config import EngineConfig, PluginsConfig, PluginSetting
 from .errors import AppError, ConfigError, InfeasibleError, InternalError, SolveTimeoutError
-from .project import BjsProject, new_project, open_project, save_project
+from .project import BjsProject, LunchWindow, new_project, open_project, save_project
 from .runtime import analyze_feasibility, build_registry, run_engine
 from .solvers import SOLVER_NAMES, solver_factory_for
 from .view_models import (
@@ -355,7 +356,14 @@ class EngineService:
             registry, boolean = build_registry(
                 project.constraints, structural_only=structural_only, mip=not is_cpsat
             )
-        except ConfigError as exc:
+            # Ventana de almuerzo: >= 1 hora libre en el rango (necesita inicios booleanos).
+            if project.lunch_window is not None and not structural_only:
+                window = project.lunch_window
+                registry.register(
+                    LunchWindowPlugin(start=window.start, end=window.end, days=window.days)
+                )
+                boolean = True
+        except (ConfigError, ValueError) as exc:
             return SolveOutcome(False, "error", solver_name, str(exc))
 
         solver_config = project.solver_config.to_solver_config()
@@ -562,62 +570,36 @@ class EngineService:
         self.set_blocked(session, resource_id, current)
         return blocked
 
-    # --- almuerzos (Fase 7 E2), encima del bloqueo ---------------------- #
-    def lunch_hours(self, session: Session, teacher_id: int) -> frozenset[tuple[int, int]]:
-        """Horas de almuerzo reservadas de un docente."""
-        return frozenset(session.project.lunch.get(teacher_id, ()))
+    # --- ventana de almuerzo (Fase 7 E2) -------------------------------- #
+    def lunch_window(self, session: Session) -> LunchWindow | None:
+        """Ventana de almuerzo configurada (rango de períodos con >= 1 hora libre)."""
+        return session.project.lunch_window
 
-    def _set_lunch(self, session: Session, teacher_id: int, slots: set[tuple[int, int]]) -> None:
-        lunch = dict(session.project.lunch)
-        if slots:
-            lunch[teacher_id] = tuple(sorted(slots))
-        else:
-            lunch.pop(teacher_id, None)
-        session.project = replace(session.project, lunch=lunch)
-        session.dirty = True
+    def set_lunch_window(
+        self, session: Session, start: int, end: int, days: tuple[int, ...] | None = None
+    ) -> None:
+        """Define la ventana de almuerzo: entre ``start`` y ``end`` (0-based, inclusive).
 
-    def toggle_lunch(self, session: Session, teacher_id: int, day: int, period: int) -> bool:
-        """Alterna la hora de almuerzo de un docente; devuelve el nuevo estado."""
-        current = set(self.lunch_hours(session, teacher_id))
-        cell = (day, period)
-        if cell in current:
-            current.discard(cell)
-            active = False
-        else:
-            current.add(cell)
-            active = True
-        self._set_lunch(session, teacher_id, current)
-        return active
-
-    def set_default_lunch(self, session: Session, period: int) -> int:
-        """Reserva el ``period`` como almuerzo para **todos los docentes, todos los días**.
-
-        Punto de partida configurable; luego cada almuerzo puede moverse por docente
-        y día con :meth:`toggle_lunch`. Devuelve cuántos docentes se afectaron.
+        El motor garantizará que cada docente tenga al menos una hora libre en ese
+        rango, en los ``days`` indicados (vacío/None = todos). No fija la hora: la
+        elige el solver donde queden huecos.
         """
-        project = session.project
-        segments = project.problem.grid.segments
-        days = [d for d, seg in enumerate(segments) if 0 <= period < seg.length]
-        lunch = dict(project.lunch)
-        teachers = [int(r.id) for r in project.problem.resources if "teacher" in r.tags]
-        for tid in teachers:
-            lunch[tid] = tuple(sorted({(d, period) for d in days}))
-        session.project = replace(project, lunch=lunch)
+        if end < start:
+            raise ConfigError("la ventana de almuerzo termina antes de empezar")
+        window = LunchWindow(start=start, end=end, days=tuple(days) if days else ())
+        session.project = replace(session.project, lunch_window=window)
         session.dirty = True
-        return len(teachers)
 
-    def clear_lunch(self, session: Session) -> None:
-        """Quita todas las horas de almuerzo."""
-        session.project = replace(session.project, lunch={})
+    def clear_lunch_window(self, session: Session) -> None:
+        session.project = replace(session.project, lunch_window=None)
         session.dirty = True
 
     @staticmethod
     def _reserved(project: BjsProject) -> dict[int, set[tuple[int, int]]]:
-        """Horas reservadas por recurso = disponibilidad bloqueada + almuerzo."""
+        """Horas bloqueadas por recurso (disponibilidad; el almuerzo es una ventana)."""
         merged: dict[int, set[tuple[int, int]]] = defaultdict(set)
-        for layer in (project.availability, project.lunch):
-            for rid, pairs in layer.items():
-                merged[rid].update(pairs)
+        for rid, pairs in project.availability.items():
+            merged[rid].update(pairs)
         return merged
 
     def _effective_problem(self, project: BjsProject) -> SchedulingProblem:

@@ -130,9 +130,9 @@ class ScheduleEditorModule(QWidget):
         self._undo_btn = QPushButton("Deshacer")
         self._undo_btn.clicked.connect(self._on_undo)
         self._undo_btn.setEnabled(False)
-        self._lunch_btn = QPushButton("Almuerzo por defecto…")
-        self._lunch_btn.clicked.connect(self._default_lunch)
-        self._hint = QLabel("Arrastra para mover · clic derecho: bloquear/liberar o almuerzo.")
+        self._lunch_btn = QPushButton("Ventana de almuerzo…")
+        self._lunch_btn.clicked.connect(self._edit_lunch_window)
+        self._hint = QLabel("Arrastra para mover · clic derecho para bloquear/liberar una hora.")
         self._hint.setStyleSheet("color: #64748b;")
 
         top = QHBoxLayout()
@@ -226,27 +226,33 @@ class ScheduleEditorModule(QWidget):
             "Liberar esta hora" if blocked else "Bloquear esta hora",
             lambda: self._bridge.toggle_block(focus_id, day, period),
         )
-        if self._view_model is not None and self._view_model.focus_kind == "teacher":
-            is_lunch = (day, period) in self._bridge.lunch_hours(focus_id)
-            menu.addAction(
-                "Quitar almuerzo aquí" if is_lunch else "Marcar almuerzo aquí",
-                lambda: self._bridge.toggle_lunch(focus_id, day, period),
-            )
         menu.exec(self.cursor().pos())
 
-    def _default_lunch(self) -> None:
+    def _edit_lunch_window(self) -> None:
         if self._view_model is None:
             return
-        period, ok = QInputDialog.getInt(
+        periods = self._view_model.periods_per_day
+        current = self._bridge.lunch_window()
+        start, ok = QInputDialog.getInt(
             self,
-            "Almuerzo por defecto",
-            "Período de almuerzo (1 = primer período):",
-            value=1,
+            "Ventana de almuerzo",
+            "Desde el período (1 = primero):",
+            value=(current.start + 1) if current else 1,
             minValue=1,
-            maxValue=self._view_model.periods_per_day,
+            maxValue=periods,
+        )
+        if not ok:
+            return
+        end, ok = QInputDialog.getInt(
+            self,
+            "Ventana de almuerzo",
+            "Hasta el período (inclusive):",
+            value=(current.end + 1) if current else min(start + 2, periods),
+            minValue=start,
+            maxValue=periods,
         )
         if ok:
-            self._bridge.set_default_lunch(period - 1)
+            self._bridge.set_lunch_window(start - 1, end - 1)
 
     # --- ciclo de arrastre (verde/rojo + flecha) ------------------------ #
     def _on_drag_started(self, task_id: int) -> None:
@@ -368,20 +374,21 @@ class ScheduleEditorModule(QWidget):
             self._draw_cell(view, cell)
 
     def _draw_reserved(self, focus_id: int, view: TimetableView) -> None:
+        # Banda de la ventana de almuerzo (docentes): el motor deja >= 1 hora libre ahí.
+        window = self._bridge.lunch_window()
+        if window is not None and view.focus_kind == "teacher":
+            band = QBrush(QColor(251, 191, 36, 45))
+            days = window.days or tuple(range(view.days))
+            for day in days:
+                for period in range(window.start, window.end + 1):
+                    if 0 <= day < view.days and 0 <= period < view.periods_per_day:
+                        self._scene.addRect(_cell_rect(day, period), QPen(Qt.PenStyle.NoPen), band)
         if not self._bridge.can_block(focus_id):
             return
         hatch = QBrush(QColor(100, 116, 139, 120), Qt.BrushStyle.BDiagPattern)
         for day, period in self._bridge.blocked_hours(focus_id):
             if 0 <= day < view.days and 0 <= period < view.periods_per_day:
                 self._scene.addRect(_cell_rect(day, period), QPen(QColor("#94a3b8")), hatch)
-        if view.focus_kind == "teacher":
-            lunch = QBrush(QColor(251, 146, 60, 150))
-            for day, period in self._bridge.lunch_hours(focus_id):
-                if 0 <= day < view.days and 0 <= period < view.periods_per_day:
-                    self._scene.addRect(_cell_rect(day, period), QPen(QColor("#ea580c")), lunch)
-                    label = self._scene.addText("Almuerzo")
-                    label.setDefaultTextColor(QColor("#7c2d12"))
-                    label.setPos(_ROWHEAD + day * _CELL_W + 9, _HEAD + period * _CELL_H + 20)
 
     def _draw_grid(self, view: TimetableView) -> None:
         pen = QPen(_GRID)

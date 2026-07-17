@@ -44,8 +44,22 @@ _HISTORY = "history.json"
 _AVAILABILITY = "availability.json"
 _LUNCH = "lunch.json"
 
-#: Disponibilidad/almuerzo: recurso -> tupla de (día, período) reservados (Fase 7).
+#: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
 Availability = dict[int, tuple[tuple[int, int], ...]]
+
+
+@dataclass(frozen=True, slots=True)
+class LunchWindow:
+    """Ventana de almuerzo (Fase 7 E2): un rango de períodos donde cada docente
+
+    debe tener **al menos una hora libre** para almorzar, en los días indicados.
+    El motor elige qué período queda libre (no es fijo). Ejemplo: P4-P7 de lunes a
+    viernes.
+    """
+
+    start: int  # período inicial dentro del día (0-based, inclusive)
+    end: int  # período final (inclusive)
+    days: tuple[int, ...]  # índices de día donde aplica
 
 
 def _read_slots(entries: dict[str, Any], fname: str) -> Availability:
@@ -59,6 +73,17 @@ def _slots_doc(layer: Availability) -> dict[str, Any]:
     return {
         "blocked": {str(rid): [[d, p] for d, p in slots] for rid, slots in layer.items() if slots}
     }
+
+
+def _read_lunch(entries: dict[str, Any]) -> LunchWindow | None:
+    window = entries.get(_LUNCH, {}).get("window")
+    if not window:
+        return None
+    return LunchWindow(
+        start=int(window["start"]),
+        end=int(window["end"]),
+        days=tuple(int(d) for d in window.get("days", ())),
+    )
 
 
 def engine_version() -> str:
@@ -110,7 +135,7 @@ class BjsProject:
     metrics: dict[str, Any] | None = None
     history: tuple[dict[str, Any], ...] = ()
     availability: Availability = field(default_factory=dict)
-    lunch: Availability = field(default_factory=dict)
+    lunch_window: LunchWindow | None = None
 
     @classmethod
     def create(
@@ -142,8 +167,11 @@ def save_project(path: str | Path, project: BjsProject) -> None:
         entries[_HISTORY] = {"runs": list(project.history)}
     if project.availability:
         entries[_AVAILABILITY] = _slots_doc(project.availability)
-    if project.lunch:
-        entries[_LUNCH] = _slots_doc(project.lunch)
+    if project.lunch_window is not None:
+        window = project.lunch_window
+        entries[_LUNCH] = {
+            "window": {"start": window.start, "end": window.end, "days": list(window.days)}
+        }
     pack(path, entries, project.manifest)
 
 
@@ -175,7 +203,7 @@ def open_project(path: str | Path) -> BjsProject:
         metrics=metrics,
         history=history,
         availability=_read_slots(entries, _AVAILABILITY),
-        lunch=_read_slots(entries, _LUNCH),
+        lunch_window=_read_lunch(entries),
     )
 
 

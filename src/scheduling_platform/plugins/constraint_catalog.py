@@ -178,6 +178,14 @@ CONSTRAINT_CATALOG: tuple[ConstraintDefinition, ...] = (
         plugin_name="frozen_schedule",
         note="Requiere parámetro frozen.",
     ),
+    ConstraintDefinition(
+        "HC-13",
+        "Ventana de almuerzo",
+        "En un rango de períodos por día, el recurso debe tener >= 1 período libre.",
+        ConstraintKind.HARD,
+        plugin_name="lunch_window",
+        note="Requiere parámetros start/end/days; la elige el solver (no es fija).",
+    ),
     # --- SOFT (penalizables), con Tier ---
     ConstraintDefinition(
         "SC-01",

@@ -22,6 +22,7 @@ from scheduling_platform.application import (
     EngineService,
     EntityTables,
     FocusOption,
+    LunchWindow,
     MoveTarget,
     ProgressEvent,
     ReportTable,
@@ -199,25 +200,21 @@ class EngineBridge(QObject):
         self.status_message.emit(f"Hora {estado} (día {day + 1}, período {period + 1})")
         return blocked
 
-    # --- almuerzos ------------------------------------------------------ #
-    def lunch_hours(self, teacher_id: int) -> frozenset[tuple[int, int]]:
-        return self._service.lunch_hours(self.session, teacher_id)
+    # --- ventana de almuerzo -------------------------------------------- #
+    def lunch_window(self) -> LunchWindow | None:
+        return self._service.lunch_window(self.session)
 
-    def toggle_lunch(self, teacher_id: int, day: int, period: int) -> bool:
-        active = self._service.toggle_lunch(self.session, teacher_id, day, period)
+    def set_lunch_window(self, start: int, end: int, days: tuple[int, ...] | None = None) -> None:
+        self._service.set_lunch_window(self.session, start, end, days)
         self.dirty_changed.emit(True)
         self.session_changed.emit()
-        self.status_message.emit("Almuerzo " + ("marcado" if active else "quitado"))
-        return active
+        self._announce("info", f"Ventana de almuerzo: periodos {start + 1} a {end + 1}")
 
-    def set_default_lunch(self, period: int) -> int:
-        count = self._service.set_default_lunch(self.session, period)
+    def clear_lunch_window(self) -> None:
+        self._service.clear_lunch_window(self.session)
         self.dirty_changed.emit(True)
         self.session_changed.emit()
-        self._announce(
-            "info", f"Almuerzo por defecto en el período {period + 1} ({count} docentes)"
-        )
-        return count
+        self._announce("info", "Ventana de almuerzo quitada")
 
     def dashboard(self) -> DashboardStats:
         return self._service.dashboard(self.session)

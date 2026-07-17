@@ -40,7 +40,7 @@ from .errors import (
     SolveTimeoutError,
 )
 from .log import AppLogger
-from .project import BjsProject, new_project, open_project, save_project
+from .project import BjsProject, LunchWindow, new_project, open_project, save_project
 from .service import EngineService, Session
 from .solvers import SOLVER_NAMES, solver_factory_for
 from .view_models import (
@@ -83,6 +83,7 @@ __all__ = [
     "GenerateCommand",
     "InfeasibleError",
     "InternalError",
+    "LunchWindow",
     "MoveTarget",
     "OptimizeCommand",
     "PluginSetting",
