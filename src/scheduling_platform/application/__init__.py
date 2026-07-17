@@ -44,6 +44,7 @@ from .project import BjsProject, new_project, open_project, save_project
 from .service import EngineService, Session
 from .solvers import SOLVER_NAMES, solver_factory_for
 from .view_models import (
+    ConstraintRow,
     DashboardStats,
     EntityTable,
     EntityTables,
@@ -67,6 +68,7 @@ __all__ = [
     "CommandResult",
     "ConfigError",
     "ConfigValidateCommand",
+    "ConstraintRow",
     "ConvertCommand",
     "DashboardStats",
     "DoctorCommand",

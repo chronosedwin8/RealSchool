@@ -143,3 +143,64 @@ def test_cancelar_marca_el_token(qapp: QApplication, tmp_path: Path) -> None:
     bridge.open_path(path)
     bridge.cancel_optimize()
     assert bridge._cancel.is_cancelled() is True
+
+
+def test_constraint_manager_edita_una_regla(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    cm = win._constraints
+    assert cm._list.count() >= 1
+
+    cm._select_rule("teacher_gaps")
+    cm._enabled.setChecked(True)
+    cm._weight.setValue(7)
+
+    settings = {s.id: s for s in bridge.session.project.constraints.plugins}
+    assert settings["teacher_gaps"].enabled is True
+    assert settings["teacher_gaps"].weight == 7  # sin robo de selección por reentrancia
+    assert bridge.session.dirty is True
+
+
+def test_validation_center_lista_y_navega(qapp: QApplication, tmp_path: Path) -> None:
+    # Docente sobre-asignado en 1 solo período => infactible.
+    problem = SchedulingProblem(
+        grid=TimeGrid.from_segment_lengths([1]),
+        resources=(
+            Resource(ResourceId(0), "Prof", frozenset({"teacher", "teacher#0"})),
+            Resource(ResourceId(1), "Aula", frozenset({"room"})),
+        ),
+        tasks=(
+            Task(
+                TaskId(0),
+                "A · c#0",
+                1,
+                (ResourceRequirement("teacher#0"), ResourceRequirement("room")),
+            ),
+            Task(
+                TaskId(1),
+                "B · c#0",
+                1,
+                (ResourceRequirement("teacher#0"), ResourceRequirement("room")),
+            ),
+        ),
+    )
+    path = tmp_path / "infeasible.bjs"
+    save_project(path, BjsProject.create("Infactible", problem))
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    vc = win._validation
+
+    pages: list[str] = []
+    vc.navigate.connect(lambda page: pages.append(page))
+    vc.refresh()
+    assert "INFACTIBLE" in vc._summary.text()
+    assert vc._tree.topLevelItemCount() >= 1
+
+    first = vc._tree.topLevelItem(0)
+    assert first is not None
+    vc._on_item(first, 0)
+    assert pages  # navegar dispara la señal a un módulo

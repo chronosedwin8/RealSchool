@@ -11,7 +11,14 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
 from ..engine_bridge import EngineBridge
-from . import PAGE_DASHBOARD, PAGE_DATA, PAGE_OPTIMIZE, PAGE_SCHEDULE
+from . import (
+    PAGE_CONSTRAINTS,
+    PAGE_DASHBOARD,
+    PAGE_DATA,
+    PAGE_OPTIMIZE,
+    PAGE_SCHEDULE,
+    PAGE_VALIDATION,
+)
 
 _PAGE_ROLE = int(Qt.ItemDataRole.UserRole)
 
@@ -46,6 +53,8 @@ class ExplorerTree(QTreeWidget):
         self._leaf(datos, f"Grupos ({stats.groups})", PAGE_DATA)
         self._leaf(datos, f"Materias ({stats.subjects})", PAGE_DATA)
         self._leaf(root, f"Horario ({stats.tasks} clases)", PAGE_SCHEDULE)
+        self._leaf(root, "Restricciones", PAGE_CONSTRAINTS)
+        self._leaf(root, "Validación", PAGE_VALIDATION)
         self._leaf(root, "Optimización", PAGE_OPTIMIZE)
         self.expandAll()
 

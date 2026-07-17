@@ -134,6 +134,30 @@ def test_set_rule_se_persiste(tmp_path: Path) -> None:
     assert settings["teacher_gaps"].weight == 5
 
 
+def test_constraints_catalog_refleja_configuracion(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    catalog = svc.constraints_catalog(session)
+    assert catalog  # hay restricciones editables
+    # No se ofrece el no-solape estructural (es un invariante del motor).
+    ids = {row.rule_id for row in catalog}
+    assert "interval_no_overlap" not in ids
+    assert "resource_no_overlap" not in ids
+    assert "teacher_gaps" in ids
+    # Toda blanda permite editar tier y peso; toda dura, no.
+    for row in catalog:
+        assert row.editable_weight == (row.kind == "soft")
+
+    # Al configurar una regla, el catálogo lo refleja.
+    svc.set_rule(session, "teacher_gaps", enabled=True, weight=8, tier=2)
+    updated = {r.rule_id: r for r in svc.constraints_catalog(session)}
+    assert updated["teacher_gaps"].enabled is True
+    assert updated["teacher_gaps"].weight == 8
+    assert updated["teacher_gaps"].tier == 2
+
+
 def test_optimize_devuelve_outcome_y_ubica_las_clases(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

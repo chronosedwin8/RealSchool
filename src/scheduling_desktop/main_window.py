@@ -20,12 +20,21 @@ from PySide6.QtWidgets import (
 )
 
 from .engine_bridge import EngineBridge
-from .modules import PAGE_DASHBOARD, PAGE_DATA, PAGE_OPTIMIZE, PAGE_SCHEDULE
+from .modules import (
+    PAGE_CONSTRAINTS,
+    PAGE_DASHBOARD,
+    PAGE_DATA,
+    PAGE_OPTIMIZE,
+    PAGE_SCHEDULE,
+    PAGE_VALIDATION,
+)
+from .modules.constraint_manager import ConstraintManagerModule
 from .modules.dashboard import DashboardModule
 from .modules.data_manager import DataManagerModule
 from .modules.explorer import ExplorerTree
 from .modules.optimization_console import OptimizationConsoleModule
 from .modules.schedule_editor import ScheduleEditorModule
+from .modules.validation_center import ValidationCenterModule
 
 _FILTER = "Proyecto RealSchool (*.bjs)"
 
@@ -42,6 +51,8 @@ class MainWindow(QMainWindow):
         self._dashboard = DashboardModule(self._bridge)
         self._data = DataManagerModule(self._bridge)
         self._schedule = ScheduleEditorModule(self._bridge)
+        self._constraints = ConstraintManagerModule(self._bridge)
+        self._validation = ValidationCenterModule(self._bridge)
         self._optimize = OptimizationConsoleModule(self._bridge)
 
         self._stack = QStackedWidget()
@@ -50,11 +61,14 @@ class MainWindow(QMainWindow):
             (PAGE_DASHBOARD, self._dashboard),
             (PAGE_DATA, self._data),
             (PAGE_SCHEDULE, self._schedule),
+            (PAGE_CONSTRAINTS, self._constraints),
+            (PAGE_VALIDATION, self._validation),
             (PAGE_OPTIMIZE, self._optimize),
         ):
             self._pages[page] = self._stack.addWidget(widget)
         self.setCentralWidget(self._stack)
 
+        self._validation.navigate.connect(self.show_page)
         self._explorer = ExplorerTree(self._bridge)
         self._explorer.navigate.connect(self.show_page)
         dock = QDockWidget("Explorador", self)
@@ -95,6 +109,8 @@ class MainWindow(QMainWindow):
             ("Tablero", PAGE_DASHBOARD),
             ("Datos", PAGE_DATA),
             ("Horario", PAGE_SCHEDULE),
+            ("Restricciones", PAGE_CONSTRAINTS),
+            ("Validación", PAGE_VALIDATION),
             ("Optimización", PAGE_OPTIMIZE),
         ):
             action = QAction(label, self)
@@ -128,7 +144,14 @@ class MainWindow(QMainWindow):
     # --- reacción a señales --------------------------------------------- #
     def _on_session_opened(self) -> None:
         self._set_enabled(True)
-        for module in (self._dashboard, self._data, self._schedule, self._optimize):
+        for module in (
+            self._dashboard,
+            self._data,
+            self._schedule,
+            self._constraints,
+            self._validation,
+            self._optimize,
+        ):
             module.refresh()
         self._explorer.refresh()
         self.show_page(PAGE_DASHBOARD)

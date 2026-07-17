@@ -1,0 +1,187 @@
+"""Módulo 5 · Constraint Manager: aquí las restricciones no se programan, se editan.
+
+Lista el catálogo de restricciones del motor; cada una se activa/desactiva y —si
+es blanda— se ajustan su **Tier** y su **Ponderación pedagógica** (peso). Todo se
+enruta a la Fachada (``set_rule`` → ``PluginsConfig``); la UI no conoce ninguna
+regla. Refleja las pantallas Peti/Desid + Ponderación de Untis.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+)
+
+from scheduling_platform.application import ConstraintRow
+
+from ..engine_bridge import EngineBridge
+
+_ID_ROLE = int(Qt.ItemDataRole.UserRole)
+_TIERS = [("Vital (T1)", 1), ("Operativa (T2)", 2), ("Preferencial (T3)", 3)]
+
+
+class ConstraintManagerModule(QWidget):
+    """Editor del catálogo de restricciones (activación, tier, ponderación)."""
+
+    def __init__(self, bridge: EngineBridge) -> None:
+        super().__init__()
+        self._bridge = bridge
+        self._rows: dict[str, ConstraintRow] = {}
+        self._current: str | None = None
+        self._loading = False
+        self._applying = False
+
+        self._list = QListWidget()
+        self._list.currentItemChanged.connect(self._on_select)
+
+        self._title = QLabel("—")
+        self._title.setStyleSheet("font-size: 16px; font-weight: 700;")
+        self._desc = QLabel("")
+        self._desc.setWordWrap(True)
+        self._desc.setStyleSheet("color: palette(mid);")
+
+        self._enabled = QCheckBox("Restricción activa")
+        self._enabled.toggled.connect(self._apply)
+
+        self._tier = QComboBox()
+        for label, value in _TIERS:
+            self._tier.addItem(label, value)
+        self._tier.currentIndexChanged.connect(self._apply)
+
+        self._weight = QSlider(Qt.Orientation.Horizontal)
+        self._weight.setRange(1, 20)
+        self._weight.valueChanged.connect(self._on_weight)
+        self._weight_label = QLabel("1")
+
+        weight_row = QHBoxLayout()
+        weight_row.addWidget(self._weight, stretch=1)
+        weight_row.addWidget(self._weight_label)
+
+        form = QFormLayout()
+        form.addRow(self._enabled)
+        self._tier_row_label = QLabel("Tier:")
+        self._weight_row_label = QLabel("Ponderación pedagógica:")
+        form.addRow(self._tier_row_label, self._tier)
+        form.addRow(self._weight_row_label, weight_row)
+
+        detail = QVBoxLayout()
+        detail.addWidget(self._title)
+        detail.addWidget(self._desc)
+        detail.addLayout(form)
+        detail.addStretch(1)
+        detail_widget = QWidget()
+        detail_widget.setLayout(detail)
+
+        layout = QHBoxLayout(self)
+        layout.addWidget(self._list, stretch=1)
+        layout.addWidget(detail_widget, stretch=2)
+
+        self._set_detail_enabled(False)
+        bridge.session_changed.connect(self.refresh)
+
+    def refresh(self) -> None:
+        # Se reconstruye la lista al abrir un proyecto, no en cada edición: una
+        # reconstrucción reentrante durante _apply robaría la selección.
+        if not self._bridge.has_session or self._applying:
+            return
+        self._loading = True
+        rows = self._bridge.constraints_catalog()
+        self._rows = {r.rule_id: r for r in rows}
+        self._list.clear()
+        for row in rows:
+            badge = "◆" if row.kind == "hard" else "◇"
+            estado = "●" if row.enabled else "○"
+            item = QListWidgetItem(f"{estado} {badge} {row.name}")
+            item.setData(_ID_ROLE, row.rule_id)
+            self._list.addItem(item)
+        self._loading = False
+        # Reseleccionar la restricción que estaba abierta.
+        target = self._current or (rows[0].rule_id if rows else None)
+        if target is not None:
+            self._select_rule(target)
+
+    def _select_rule(self, rule_id: str) -> None:
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.data(_ID_ROLE) == rule_id:
+                self._list.setCurrentRow(i)
+                return
+
+    def _on_select(self, current: QListWidgetItem | None, _prev: QListWidgetItem | None) -> None:
+        if current is None:
+            return
+        rule_id = current.data(_ID_ROLE)
+        if not isinstance(rule_id, str):
+            return
+        self._current = rule_id
+        self._load(self._rows[rule_id])
+
+    def _load(self, row: ConstraintRow) -> None:
+        self._loading = True
+        self._set_detail_enabled(True)
+        self._title.setText(f"{row.catalog_id} · {row.name}")
+        self._desc.setText(row.description)
+        self._enabled.setChecked(row.enabled)
+        tier_index = self._tier.findData(row.tier if row.tier in (1, 2, 3) else row.default_tier)
+        self._tier.setCurrentIndex(tier_index if tier_index >= 0 else 0)
+        self._weight.setValue(row.weight)
+        self._weight_label.setText(str(row.weight))
+        # Las duras no tienen tier ni peso ponderable.
+        self._tier.setVisible(row.editable_tier)
+        self._tier_row_label.setVisible(row.editable_tier)
+        self._weight.setEnabled(row.editable_weight)
+        self._weight_row_label.setVisible(row.editable_weight)
+        self._loading = False
+
+    def _on_weight(self, value: int) -> None:
+        self._weight_label.setText(str(value))
+        self._apply()
+
+    def _apply(self) -> None:
+        if self._loading or self._current is None:
+            return
+        row = self._rows[self._current]
+        enabled = self._enabled.isChecked()
+        weight = self._weight.value() if row.editable_weight else None
+        tier = self._tier.currentData() if row.editable_tier else None
+        tier_value = tier if isinstance(tier, int) else None
+        self._applying = True
+        try:
+            self._bridge.set_rule(self._current, enabled=enabled, weight=weight, tier=tier_value)
+        finally:
+            self._applying = False
+        # Actualiza el estado local y el badge del ítem sin reconstruir la lista.
+        self._rows[self._current] = replace(
+            row,
+            enabled=enabled,
+            weight=weight if weight is not None else row.weight,
+            tier=tier_value if tier_value is not None else row.tier,
+        )
+        self._update_badge(self._current)
+
+    def _update_badge(self, rule_id: str) -> None:
+        row = self._rows[rule_id]
+        badge = "◆" if row.kind == "hard" else "◇"
+        estado = "●" if row.enabled else "○"
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.data(_ID_ROLE) == rule_id:
+                item.setText(f"{estado} {badge} {row.name}")
+                return
+
+    def _set_detail_enabled(self, enabled: bool) -> None:
+        self._enabled.setEnabled(enabled)
+        self._tier.setEnabled(enabled)
+        self._weight.setEnabled(enabled)

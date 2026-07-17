@@ -359,6 +359,32 @@ class ValidationReport:
 
 
 # --------------------------------------------------------------------------- #
+# Catálogo de restricciones (Constraint Manager)
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
+class ConstraintRow:
+    """Una restricción del catálogo con su estado configurado (activa/tier/peso).
+
+    En el Constraint Manager no se *programan* restricciones: se **editan**. Las
+    blandas (``kind == "soft"``) permiten ajustar tier y ponderación pedagógica;
+    las duras solo activarse/desactivarse (peso infinito).
+    """
+
+    rule_id: str  # == plugin_name (clave de PluginSetting)
+    catalog_id: str  # p. ej. "SC-02"
+    name: str
+    description: str
+    kind: str  # "hard" | "soft"
+    enabled: bool
+    weight: int
+    tier: int
+    default_weight: int
+    default_tier: int
+    editable_weight: bool
+    editable_tier: bool
+
+
+# --------------------------------------------------------------------------- #
 # Resultado de una optimización (Optimization Console)
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)

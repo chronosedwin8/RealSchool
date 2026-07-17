@@ -21,6 +21,7 @@ from pathlib import Path
 from ..core.resource import Resource
 from ..engine import MetricsEngine
 from ..pipeline.events import ProgressCallback
+from ..plugins import CONSTRAINT_CATALOG, ConstraintKind
 from .cancel import CancelToken
 from .commands.solve import solution_summary
 from .config import EngineConfig, PluginsConfig, PluginSetting
@@ -29,6 +30,7 @@ from .project import BjsProject, new_project, open_project, save_project
 from .runtime import analyze_feasibility, build_registry, run_engine
 from .solvers import SOLVER_NAMES, solver_factory_for
 from .view_models import (
+    ConstraintRow,
     DashboardStats,
     EntityTables,
     FocusOption,
@@ -43,6 +45,9 @@ from .view_models import (
 
 _METRICS = MetricsEngine()
 _CPSAT = "ortools_cpsat"
+# El no-solape estructural es un invariante del motor (siempre activo vía
+# build_registry); no se ofrece como restricción editable en la GUI.
+_STRUCTURAL_NOOVERLAP = frozenset({"interval_no_overlap", "resource_no_overlap"})
 
 
 @dataclass(slots=True)
@@ -138,6 +143,44 @@ class EngineService:
 
     def available_solvers(self) -> tuple[str, ...]:
         return SOLVER_NAMES
+
+    def constraints_catalog(self, session: Session) -> tuple[ConstraintRow, ...]:
+        """Catálogo de restricciones editables con su estado configurado.
+
+        Solo las instanciables (con ``factory``) y no estructurales; deduplicadas
+        por plugin. El estado (activa/tier/peso) sale de la ``PluginsConfig`` del
+        proyecto o, en su defecto, de los valores por defecto del catálogo.
+        """
+        settings = {s.id: s for s in session.project.constraints.plugins}
+        rows: list[ConstraintRow] = []
+        seen: set[str] = set()
+        for d in CONSTRAINT_CATALOG:
+            if d.plugin_name is None or d.factory is None:
+                continue
+            if d.plugin_name in _STRUCTURAL_NOOVERLAP or d.plugin_name in seen:
+                continue
+            seen.add(d.plugin_name)
+            setting = settings.get(d.plugin_name)
+            is_soft = d.kind is ConstraintKind.SOFT
+            weight = setting.weight if setting and setting.weight is not None else d.default_weight
+            tier = setting.tier if setting and setting.tier is not None else d.tier
+            rows.append(
+                ConstraintRow(
+                    rule_id=d.plugin_name,
+                    catalog_id=d.id,
+                    name=d.name,
+                    description=d.description,
+                    kind=d.kind.value,
+                    enabled=setting.enabled if setting is not None else False,
+                    weight=weight if weight is not None else 1,
+                    tier=tier if tier is not None else 0,
+                    default_weight=d.default_weight if d.default_weight is not None else 1,
+                    default_tier=d.tier if d.tier is not None else 0,
+                    editable_weight=is_soft,
+                    editable_tier=is_soft,
+                )
+            )
+        return tuple(rows)
 
     # --- optimización ---------------------------------------------------- #
     def optimize(

@@ -15,6 +15,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from scheduling_platform.application import (
     CancelToken,
+    ConstraintRow,
     DashboardStats,
     EngineService,
     EntityTables,
@@ -129,6 +130,9 @@ class EngineBridge(QObject):
 
     def validate(self) -> ValidationReport:
         return self._service.validate(self.session)
+
+    def constraints_catalog(self) -> tuple[ConstraintRow, ...]:
+        return self._service.constraints_catalog(self.session)
 
     def available_solvers(self) -> tuple[str, ...]:
         return self._service.available_solvers()

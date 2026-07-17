@@ -6,6 +6,15 @@ from __future__ import annotations
 PAGE_DASHBOARD = "dashboard"
 PAGE_DATA = "data"
 PAGE_SCHEDULE = "schedule"
+PAGE_CONSTRAINTS = "constraints"
+PAGE_VALIDATION = "validation"
 PAGE_OPTIMIZE = "optimize"
 
-__all__ = ["PAGE_DASHBOARD", "PAGE_DATA", "PAGE_OPTIMIZE", "PAGE_SCHEDULE"]
+__all__ = [
+    "PAGE_CONSTRAINTS",
+    "PAGE_DASHBOARD",
+    "PAGE_DATA",
+    "PAGE_OPTIMIZE",
+    "PAGE_SCHEDULE",
+    "PAGE_VALIDATION",
+]
