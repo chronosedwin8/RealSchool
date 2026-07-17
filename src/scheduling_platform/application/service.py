@@ -870,6 +870,34 @@ class EngineService:
         session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
         session.dirty = True
 
+    def set_lesson_rooms(self, session: Session, task_ids: list[int], room_ids: list[int]) -> None:
+        """Fija las aulas de una lección (vacío = vuelve al pool y el motor elige)."""
+        problem = session.project.problem
+        ids = set(task_ids)
+        if not any(int(t.id) in ids for t in problem.tasks):
+            raise ConfigError("lección inexistente")
+        if room_ids:
+            room_reqs = tuple(
+                ResourceRequirement(self._room_unique_tag(problem, rid)) for rid in room_ids
+            )
+        else:
+            room_reqs = (ResourceRequirement("room"),)
+
+        def rebuilt(task: Task) -> Task:
+            keep = tuple(r for r in task.requirements if r.tag.startswith(("teacher#", "group#")))
+            return replace(task, requirements=keep + room_reqs)
+
+        tasks = tuple(rebuilt(t) if int(t.id) in ids else t for t in problem.tasks)
+        session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
+        session.dirty = True
+
+    @staticmethod
+    def _room_unique_tag(problem: SchedulingProblem, room_id: int) -> str:
+        res = next((r for r in problem.resources if int(r.id) == room_id), None)
+        if res is None or "room" not in res.tags:
+            raise ConfigError(f"aula inexistente: {room_id}")
+        return next(t for t in res.tags if t.startswith("room#"))
+
     # --- materias (entidad de primera clase, Fase 7 E4) ----------------- #
     def add_subject(self, session: Session, name: str) -> None:
         """Da de alta una materia (aunque aún no tenga clases)."""

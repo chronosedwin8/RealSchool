@@ -10,7 +10,7 @@ lección completa. Todo se enruta a la Fachada.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -36,6 +36,40 @@ from ..engine_bridge import EngineBridge
 _ID_ROLE = int(Qt.ItemDataRole.UserRole)
 _COLUMNS = ("N.lec", "HHs", "Profesores", "Materia", "Grupo(s)", "Aulas")
 _HHS_COL = 1
+_ROOMS_COL = 5
+
+
+class _RoomsDialog(QDialog):
+    """Selector de aulas de una lección (vacío = el motor elige del pool)."""
+
+    def __init__(self, bridge: EngineBridge, parent: QWidget, preselect: tuple[int, ...]) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Aulas de la lección")
+        info = QLabel("Marca una o varias aulas fijas. Sin selección = el motor elige.")
+        info.setWordWrap(True)
+        self._rooms = QListWidget()
+        self._rooms.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        for row in bridge.tables().rooms.rows:
+            label = row.cells[0]
+            if len(row.cells) > 1 and row.cells[1]:
+                label = f"{row.cells[0]} — {row.cells[1]}"
+            self._rooms.addItem(label)
+            item = self._rooms.item(self._rooms.count() - 1)
+            item.setData(_ID_ROLE, int(row.key))
+            if int(row.key) in preselect:
+                item.setSelected(True)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.addWidget(info)
+        layout.addWidget(self._rooms)
+        layout.addWidget(buttons)
+
+    def selected(self) -> list[int]:
+        return [item.data(_ID_ROLE) for item in self._rooms.selectedItems()]
 
 
 class _LessonDialog(QDialog):
@@ -120,6 +154,7 @@ class LessonsModule(QWidget):
         self._bridge = bridge
         self._rows: tuple[LessonRow, ...] = ()
         self._loading = False
+        self._refresh_pending = False
 
         self._mode = QComboBox()
         self._mode.addItem("Grupos", "group")
@@ -136,7 +171,7 @@ class LessonsModule(QWidget):
         del_btn.clicked.connect(self._on_delete)
         self._total = QLabel("HHs: 0")
         self._total.setStyleSheet("font-weight: 700;")
-        hint = QLabel("Doble-clic en HHs para cambiar las horas semanales.")
+        hint = QLabel("Doble-clic: HHs cambia las horas · Aulas abre el selector de aulas.")
         hint.setStyleSheet("color: #64748b;")
 
         top = QHBoxLayout()
@@ -156,12 +191,24 @@ class LessonsModule(QWidget):
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.itemChanged.connect(self._on_item_changed)
+        self._table.cellDoubleClicked.connect(self._on_cell_double)
 
         layout = QVBoxLayout(self)
         layout.addLayout(top)
         layout.addWidget(self._table, stretch=1)
 
-        bridge.session_changed.connect(self.refresh)
+        bridge.session_changed.connect(self._defer_refresh)
+
+    # --- refresco seguro (fuera del commit del editor) ------------------- #
+    def _defer_refresh(self) -> None:
+        if self._refresh_pending:
+            return
+        self._refresh_pending = True
+        QTimer.singleShot(0, self._do_deferred_refresh)
+
+    def _do_deferred_refresh(self) -> None:
+        self._refresh_pending = False
+        self.refresh()
 
     # --- selección de registro ------------------------------------------ #
     def refresh(self) -> None:
@@ -261,6 +308,19 @@ class LessonsModule(QWidget):
             self._bridge.remove_lesson(list(lesson.task_ids))
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo eliminar", str(exc))
+
+    def _on_cell_double(self, row: int, column: int) -> None:
+        """Doble-clic en Aulas: abre el selector de aulas de la lección."""
+        if column != _ROOMS_COL or not 0 <= row < len(self._rows):
+            return
+        lesson = self._rows[row]
+        dialog = _RoomsDialog(self._bridge, self, preselect=lesson.room_ids)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            self._bridge.set_lesson_rooms(list(lesson.task_ids), dialog.selected())
+        except ConfigError as exc:
+            QMessageBox.warning(self, "No se pudieron cambiar las aulas", str(exc))
 
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
         if self._loading or item.column() != _HHS_COL:

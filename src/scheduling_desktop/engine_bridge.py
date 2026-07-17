@@ -315,6 +315,11 @@ class EngineBridge(QObject):
         self._service.set_lesson_hours(self.session, task_ids, hours)
         self._after_edit()
 
+    def set_lesson_rooms(self, task_ids: list[int], room_ids: list[int]) -> None:
+        self._service.set_lesson_rooms(self.session, task_ids, room_ids)
+        self._after_edit()
+        self._announce("info", "Aulas de la lección actualizadas")
+
     def set_group_size(self, resource_id: int, size: int) -> bool:
         self._service.set_group_size(self.session, resource_id, size)
         self._after_edit()

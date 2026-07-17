@@ -291,6 +291,32 @@ def test_data_manager_crud_y_carga(qapp: QApplication, tmp_path: Path) -> None:
     assert sum(1 for r in coro.requirements if r.tag.startswith("group#")) == len(gids)
 
 
+def test_fila_vacia_crea_registro_estilo_excel(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    dm = win._data
+    dm.refresh()
+
+    # Escribir en la fila vacía del final crea el registro (como Untis/Excel).
+    model = dm._models["teacher"]
+    before = len(bridge.tables().teachers.rows)
+    assert model.rowCount() == before + 1  # la fila vacía existe
+    assert model.setData(model.index(before, 0), "PROFX") is True
+    assert len(bridge.tables().teachers.rows) == before + 1
+    assert "PROFX" in {r.cells[0] for r in bridge.tables().teachers.rows}
+
+    # Ediciones encadenadas (rename tras rename) no revientan la interfaz:
+    # el refresco va diferido y las vistas persisten.
+    tid = next(int(r.key) for r in bridge.tables().teachers.rows if r.cells[0] == "PROFX")
+    for i in range(3):
+        bridge.rename_resource(tid, f"PROFX{i}")
+    qapp.processEvents()
+    assert "PROFX2" in {r.cells[0] for r in bridge.tables().teachers.rows}
+
+
 def test_ventana_de_lecciones_y_mdi(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

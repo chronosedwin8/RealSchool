@@ -249,6 +249,33 @@ def test_lecciones_por_grupo_y_docente(tmp_path: Path) -> None:
     assert set(dep.task_ids) == set(ids)
 
 
+def test_aulas_de_una_leccion(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
+    room_id = next(int(r.key) for r in svc.tables(session).rooms.rows)
+
+    mate = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    assert mate.rooms == ()  # pool: el motor elige
+
+    # Fijar un aula concreta a la lección.
+    svc.set_lesson_rooms(session, list(mate.task_ids), [room_id])
+    fixed = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    assert fixed.room_ids == (room_id,)
+    # Y con el aula fijada, sigue siendo optimizable.
+    assert svc.optimize(session, timeout=10.0).solved is True
+
+    # Volver al pool (vacío = el motor elige).
+    svc.set_lesson_rooms(session, list(fixed.task_ids), [])
+    back = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    assert back.rooms == ()
+
+    with pytest.raises(ConfigError):
+        svc.set_lesson_rooms(session, list(back.task_ids), [999])  # aula inexistente
+
+
 def test_datos_maestros_estilo_untis(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)
