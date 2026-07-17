@@ -41,6 +41,10 @@ _SOLVER = "solver_config.json"
 _SOLUTION = "solution.json"
 _METRICS = "metrics.json"
 _HISTORY = "history.json"
+_AVAILABILITY = "availability.json"
+
+#: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
+Availability = dict[int, tuple[tuple[int, int], ...]]
 
 
 def engine_version() -> str:
@@ -91,6 +95,7 @@ class BjsProject:
     solution: Solution | None = None
     metrics: dict[str, Any] | None = None
     history: tuple[dict[str, Any], ...] = ()
+    availability: Availability = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -120,6 +125,14 @@ def save_project(path: str | Path, project: BjsProject) -> None:
         entries[_METRICS] = project.metrics
     if project.history:
         entries[_HISTORY] = {"runs": list(project.history)}
+    if project.availability:
+        entries[_AVAILABILITY] = {
+            "blocked": {
+                str(rid): [[d, p] for d, p in slots]
+                for rid, slots in project.availability.items()
+                if slots
+            }
+        }
     pack(path, entries, project.manifest)
 
 
@@ -142,6 +155,10 @@ def open_project(path: str | Path) -> BjsProject:
     solution = solution_from_dict(entries[_SOLUTION]) if _SOLUTION in entries else None
     metrics = entries.get(_METRICS)
     history = tuple(entries.get(_HISTORY, {}).get("runs", []))
+    availability: Availability = {
+        int(rid): tuple((int(d), int(p)) for d, p in pairs)
+        for rid, pairs in entries.get(_AVAILABILITY, {}).get("blocked", {}).items()
+    }
     return BjsProject(
         manifest=manifest,
         problem=problem,
@@ -150,6 +167,7 @@ def open_project(path: str | Path) -> BjsProject:
         solution=solution,
         metrics=metrics,
         history=history,
+        availability=availability,
     )
 
 

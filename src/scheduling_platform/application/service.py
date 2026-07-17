@@ -190,7 +190,7 @@ class EngineService:
         """Consolida factibilidad estructural + consistencia del ``.bjs``."""
         project = session.project
         items: list[ValidationItem] = []
-        report = analyze_feasibility(project.problem)
+        report = analyze_feasibility(self._effective_problem(project))
         for issue in report.issues:
             items.append(ValidationItem("error", issue.message, ", ".join(issue.entities)))
         try:
@@ -347,6 +347,7 @@ class EngineService:
         la marca *sucia*; el llamador decide cuándo persistir con ``save``.
         """
         project = session.project
+        problem = self._effective_problem(project)  # aplica los bloqueos de horas
         solver_name = solver or project.solver_config.default_solver
         try:
             factory = solver_factory_for(solver_name)
@@ -367,7 +368,7 @@ class EngineService:
 
         try:
             result = run_engine(
-                project.problem,
+                problem,
                 registry,
                 solver_factory=factory,
                 solver_config=solver_config,
@@ -381,7 +382,7 @@ class EngineService:
         except (ConfigError, InternalError, AppError) as exc:
             return SolveOutcome(False, "error", solver_name, str(exc))
 
-        summary = solution_summary(project.problem, result)
+        summary = solution_summary(problem, result)
         summary["solver"] = solver_name
         run_record = {
             "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -408,7 +409,7 @@ class EngineService:
         project = session.project
         if project.solution is None:
             return ()
-        problem = project.problem
+        problem = self._effective_problem(project)  # allowed_starts ya excluye bloqueos
         try:
             task = problem.task_by_id(TaskId(task_id))
         except Exception:
@@ -418,6 +419,7 @@ class EngineService:
         group_id = self._resource_of_tag(problem, task, "group#")
         room_ids = {int(r.id) for r in problem.resources if "room" in r.tags}
         total_rooms = len(room_ids) or 1
+        blocked = self._blocked_linear(project, (teacher_id, group_id))
 
         teacher_busy: set[int] = set()
         group_busy: set[int] = set()
@@ -436,13 +438,15 @@ class EngineService:
                 for slot in slots:
                     rooms_used[slot].add(room)
 
-        valid = problem.grid.valid_starts(task.duration, task.same_segment)
+        valid = problem.valid_starts_for(task)
         targets: list[MoveTarget] = []
         for day, seg in enumerate(problem.grid.segments):
             for period in range(seg.length):
                 start = int(seg.start) + period
                 slots = range(start, start + task.duration)
-                if start not in valid:
+                if any(s in blocked for s in slots):
+                    targets.append(MoveTarget(day, period, False, "hora bloqueada"))
+                elif start not in valid:
                     targets.append(MoveTarget(day, period, False, "no cabe en el día"))
                 elif any(s in teacher_busy for s in slots):
                     targets.append(MoveTarget(day, period, False, "docente ocupado"))
@@ -453,6 +457,16 @@ class EngineService:
                 else:
                     targets.append(MoveTarget(day, period, True, "disponible"))
         return tuple(targets)
+
+    def _blocked_linear(self, project: BjsProject, resource_ids: tuple[int, ...]) -> set[int]:
+        """Slots lineales bloqueados para los recursos dados (según disponibilidad)."""
+        segments = project.problem.grid.segments
+        out: set[int] = set()
+        for rid in resource_ids:
+            for day, period in project.availability.get(rid, ()):
+                if 0 <= day < len(segments) and 0 <= period < segments[day].length:
+                    out.add(int(segments[day].start) + period)
+        return out
 
     def move_class(
         self, session: Session, task_id: int, day: int, period: int, *, timeout: float | None = 15.0
@@ -466,7 +480,7 @@ class EngineService:
         project = session.project
         if project.solution is None:
             return SolveOutcome(False, "error", "-", "genera un horario antes de mover clases")
-        problem = project.problem
+        problem = self._effective_problem(project)  # respeta los bloqueos de horas
         segments = problem.grid.segments
         if not 0 <= day < len(segments):
             return SolveOutcome(False, "error", "-", "día fuera de rango")
@@ -480,8 +494,8 @@ class EngineService:
             return SolveOutcome(False, "error", "-", f"clase inexistente: {task_id}")
 
         target = TimeSlotIndex(int(seg.start) + period)
-        if target not in problem.grid.valid_starts(task.duration, task.same_segment):
-            return SolveOutcome(False, "infeasible", "-", "la clase no cabe en ese período")
+        if target not in problem.valid_starts_for(task):
+            return SolveOutcome(False, "infeasible", "-", "no cabe ahí (bloqueada u ocupada)")
 
         # Problema temporal con la clase fijada en el destino; el resto, congelado.
         fixed_task = replace(task, allowed_starts=frozenset({target}))
@@ -513,6 +527,76 @@ class EngineService:
             if tag in resource.tags:
                 return int(resource.id)
         return -1
+
+    # --- disponibilidad / bloqueo de horas (Fase 7 E1) ------------------ #
+    def availability(self, session: Session, resource_id: int) -> frozenset[tuple[int, int]]:
+        """Horas (día, período) BLOQUEADAS de un docente o grupo."""
+        return frozenset(session.project.availability.get(resource_id, ()))
+
+    def can_block(self, session: Session, resource_id: int) -> bool:
+        """Solo docentes y grupos se bloquean (portan un tag único requerible)."""
+        res = next((r for r in session.project.problem.resources if int(r.id) == resource_id), None)
+        return res is not None and ("teacher" in res.tags or "group" in res.tags)
+
+    def set_blocked(self, session: Session, resource_id: int, slots: set[tuple[int, int]]) -> None:
+        """Fija el conjunto de horas bloqueadas de un recurso (reemplaza)."""
+        availability = dict(session.project.availability)
+        if slots:
+            availability[resource_id] = tuple(sorted(slots))
+        else:
+            availability.pop(resource_id, None)
+        session.project = replace(session.project, availability=availability)
+        session.dirty = True
+
+    def toggle_block(self, session: Session, resource_id: int, day: int, period: int) -> bool:
+        """Alterna el bloqueo de una hora; devuelve el nuevo estado (True = bloqueada)."""
+        current = set(self.availability(session, resource_id))
+        cell = (day, period)
+        if cell in current:
+            current.discard(cell)
+            blocked = False
+        else:
+            current.add(cell)
+            blocked = True
+        self.set_blocked(session, resource_id, current)
+        return blocked
+
+    def _effective_problem(self, project: BjsProject) -> SchedulingProblem:
+        """Aplica la disponibilidad: recorta ``allowed_starts`` en las horas bloqueadas."""
+        if not project.availability:
+            return project.problem
+        problem = project.problem
+        segments = problem.grid.segments
+        tag_blocked: dict[str, set[int]] = {}
+        for rid, pairs in project.availability.items():
+            res = next((r for r in problem.resources if int(r.id) == rid), None)
+            if res is None:
+                continue
+            tag = next((t for t in res.tags if t.startswith(("teacher#", "group#"))), None)
+            if tag is None:
+                continue
+            slots = tag_blocked.setdefault(tag, set())
+            for day, period in pairs:
+                if 0 <= day < len(segments) and 0 <= period < segments[day].length:
+                    slots.add(int(segments[day].start) + period)
+        if not tag_blocked:
+            return problem
+
+        new_tasks: list[Task] = []
+        for task in problem.tasks:
+            blocked: set[int] = set()
+            for req in task.requirements:
+                blocked |= tag_blocked.get(req.tag, set())
+            if not blocked:
+                new_tasks.append(task)
+                continue
+            allowed = frozenset(
+                start
+                for start in problem.valid_starts_for(task)
+                if not any((start + off) in blocked for off in range(task.duration))
+            )
+            new_tasks.append(replace(task, allowed_starts=allowed))
+        return replace(problem, tasks=tuple(new_tasks))
 
     # --- edición básica -------------------------------------------------- #
     def rename_resource(self, session: Session, resource_id: int, name: str) -> None:

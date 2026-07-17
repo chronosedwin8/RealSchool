@@ -339,6 +339,37 @@ def test_vista_enlazada_clic_a_aula(qapp: QApplication, tmp_path: Path) -> None:
     assert editor._focus.currentData() == cell.room_id
 
 
+def test_bloquear_hora_desde_el_editor(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    SolveWorker(
+        bridge._service,
+        bridge.session,
+        solver="ortools_cpsat",
+        seed=42,
+        timeout=10.0,
+        structural_only=False,
+        cancel=bridge._cancel,
+    ).run()
+
+    editor = win._schedule
+    editor.refresh()
+    focus = next(o for o in bridge.focus_options() if o.kind == "teacher")
+    assert bridge.can_block(focus.resource_id) is True
+
+    blocked = bridge.toggle_block(focus.resource_id, 0, 2)
+    assert blocked is True
+    assert (0, 2) in bridge.blocked_hours(focus.resource_id)
+    editor.refresh()  # repinta con la celda bloqueada (no lanza)
+
+    # Un aula no se puede bloquear.
+    room = next(o for o in bridge.focus_options() if o.kind == "room")
+    assert bridge.can_block(room.resource_id) is False
+
+
 def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

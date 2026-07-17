@@ -15,6 +15,7 @@ from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QContextMenuEvent,
     QFont,
     QMouseEvent,
     QPainter,
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -69,12 +71,16 @@ class _TimetableView(QGraphicsView):
     drag_started = Signal(int)  # task_id
     drag_moved = Signal(int, int)  # día, período
     drag_dropped = Signal(int, int)  # día, período
+    cell_context = Signal(int, int)  # día, período (clic derecho)
 
     def __init__(self, scene: QGraphicsScene) -> None:
         super().__init__(scene)
         self._dragging = False
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
         pos = self.mapToScene(event.position().toPoint())
         scene = self.scene()
         task: int | None = None
@@ -88,6 +94,12 @@ class _TimetableView(QGraphicsView):
             self._dragging = True
             self.drag_started.emit(task)
         super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        pos = self.mapToScene(event.pos())
+        day, period = _cell_at(pos.x(), pos.y())
+        if day >= 0 and period >= 0:
+            self.cell_context.emit(day, period)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self._dragging:
@@ -117,7 +129,7 @@ class ScheduleEditorModule(QWidget):
         self._undo_btn = QPushButton("Deshacer")
         self._undo_btn.clicked.connect(self._on_undo)
         self._undo_btn.setEnabled(False)
-        self._hint = QLabel("Arrastra una clase: verde = se puede, rojo = ocupado.")
+        self._hint = QLabel("Arrastra para mover · clic derecho para bloquear/liberar una hora.")
         self._hint.setStyleSheet("color: #64748b;")
 
         top = QHBoxLayout()
@@ -132,6 +144,7 @@ class ScheduleEditorModule(QWidget):
         self._view.drag_started.connect(self._on_drag_started)
         self._view.drag_moved.connect(self._on_drag_moved)
         self._view.drag_dropped.connect(self._on_drag_dropped)
+        self._view.cell_context.connect(self._on_cell_context)
 
         # Inspector lateral (vistas enlazadas: clic en clase -> docente/aula).
         self._inspector = QLabel("Haz clic en una clase para ver sus detalles.")
@@ -197,6 +210,17 @@ class ScheduleEditorModule(QWidget):
 
     def _on_undo(self) -> None:
         self._bridge.undo()
+
+    def _on_cell_context(self, day: int, period: int) -> None:
+        focus_id = self._focus.currentData()
+        if not isinstance(focus_id, int) or not self._bridge.can_block(focus_id):
+            self._bridge.status_message.emit("Bloquear horas solo aplica a docentes y grupos")
+            return
+        blocked = (day, period) in self._bridge.blocked_hours(focus_id)
+        menu = QMenu(self)
+        label = "Liberar esta hora" if blocked else "Bloquear esta hora"
+        menu.addAction(label, lambda: self._bridge.toggle_block(focus_id, day, period))
+        menu.exec(self.cursor().pos())
 
     # --- ciclo de arrastre (verde/rojo + flecha) ------------------------ #
     def _on_drag_started(self, task_id: int) -> None:
@@ -313,8 +337,17 @@ class ScheduleEditorModule(QWidget):
         view = self._bridge.timetable(focus_id)
         self._view_model = view
         self._draw_grid(view)
+        self._draw_blocked(focus_id, view)
         for cell in view.cells:
             self._draw_cell(view, cell)
+
+    def _draw_blocked(self, focus_id: int, view: TimetableView) -> None:
+        if not self._bridge.can_block(focus_id):
+            return
+        hatch = QBrush(QColor(100, 116, 139, 120), Qt.BrushStyle.BDiagPattern)
+        for day, period in self._bridge.blocked_hours(focus_id):
+            if 0 <= day < view.days and 0 <= period < view.periods_per_day:
+                self._scene.addRect(_cell_rect(day, period), QPen(QColor("#94a3b8")), hatch)
 
     def _draw_grid(self, view: TimetableView) -> None:
         pen = QPen(_GRID)

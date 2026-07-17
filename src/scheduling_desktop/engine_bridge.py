@@ -184,6 +184,21 @@ class EngineBridge(QObject):
     def move_targets(self, task_id: int) -> tuple[MoveTarget, ...]:
         return self._service.move_targets(self.session, task_id)
 
+    # --- disponibilidad / bloqueo de horas ------------------------------ #
+    def can_block(self, resource_id: int) -> bool:
+        return self._service.can_block(self.session, resource_id)
+
+    def blocked_hours(self, resource_id: int) -> frozenset[tuple[int, int]]:
+        return self._service.availability(self.session, resource_id)
+
+    def toggle_block(self, resource_id: int, day: int, period: int) -> bool:
+        blocked = self._service.toggle_block(self.session, resource_id, day, period)
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+        estado = "bloqueada" if blocked else "liberada"
+        self.status_message.emit(f"Hora {estado} (día {day + 1}, período {period + 1})")
+        return blocked
+
     def dashboard(self) -> DashboardStats:
         return self._service.dashboard(self.session)
 

@@ -234,6 +234,54 @@ def test_move_class_a_periodo_invalido_no_cambia(tmp_path: Path) -> None:
     assert session.project.solution is before  # la sesión no cambió
 
 
+def test_bloqueo_de_horas_persiste_y_manda(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    # Bloquear al docente (id 0) todo el día 0 (rejilla 2x3).
+    svc.set_blocked(session, 0, {(0, 0), (0, 1), (0, 2)})
+    assert svc.availability(session, 0) == frozenset({(0, 0), (0, 1), (0, 2)})
+    svc.save(session)
+
+    # Persiste al reabrir.
+    reopened = svc.open(path)
+    assert svc.availability(reopened, 0) == frozenset({(0, 0), (0, 1), (0, 2)})
+
+    # El optimizador respeta el bloqueo: ninguna clase del docente cae el día 0.
+    svc.optimize(reopened, timeout=10.0)
+    focus = next(o for o in svc.focus_options(reopened) if o.kind == "teacher")
+    view = svc.timetable(reopened, focus.resource_id)
+    assert all(cell.day != 0 for cell in view.cells)
+
+    # move_targets marca esas celdas como bloqueadas y no se puede mover ahí.
+    targets = {(t.day, t.period): t for t in svc.move_targets(reopened, 0)}
+    assert targets[(0, 0)].feasible is False
+    assert targets[(0, 0)].reason == "hora bloqueada"
+    assert svc.move_class(reopened, 0, 0, 0).solved is False
+
+
+def test_can_block_solo_docentes_y_grupos(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    assert svc.can_block(session, 0) is True  # docente
+    assert svc.can_block(session, 1) is True  # grupo
+    assert svc.can_block(session, 2) is False  # aula
+
+
+def test_toggle_block(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    assert svc.toggle_block(session, 0, 1, 1) is True
+    assert (1, 1) in svc.availability(session, 0)
+    assert svc.toggle_block(session, 0, 1, 1) is False
+    assert (1, 1) not in svc.availability(session, 0)
+
+
 def test_reports_del_horario(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)
