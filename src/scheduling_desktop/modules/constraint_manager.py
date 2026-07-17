@@ -69,12 +69,19 @@ class ConstraintManagerModule(QWidget):
         weight_row.addWidget(self._weight, stretch=1)
         weight_row.addWidget(self._weight_label)
 
+        self._weight_widget = QWidget()
+        self._weight_widget.setLayout(weight_row)
+
+        self._hard_note = QLabel("Restricción obligatoria: peso ∞ (no ponderable).")
+        self._hard_note.setStyleSheet("color: #b45309; font-style: italic;")
+
         form = QFormLayout()
         form.addRow(self._enabled)
         self._tier_row_label = QLabel("Tier:")
         self._weight_row_label = QLabel("Ponderación pedagógica:")
         form.addRow(self._tier_row_label, self._tier)
-        form.addRow(self._weight_row_label, weight_row)
+        form.addRow(self._weight_row_label, self._weight_widget)
+        form.addRow(self._hard_note)
 
         detail = QVBoxLayout()
         detail.addWidget(self._title)
@@ -138,11 +145,13 @@ class ConstraintManagerModule(QWidget):
         self._tier.setCurrentIndex(tier_index if tier_index >= 0 else 0)
         self._weight.setValue(row.weight)
         self._weight_label.setText(str(row.weight))
-        # Las duras no tienen tier ni peso ponderable.
+        # Las duras no tienen tier ni peso ponderable: se ocultan los controles y
+        # se muestra una nota clara (en vez de un slider muerto).
         self._tier.setVisible(row.editable_tier)
         self._tier_row_label.setVisible(row.editable_tier)
-        self._weight.setEnabled(row.editable_weight)
+        self._weight_widget.setVisible(row.editable_weight)
         self._weight_row_label.setVisible(row.editable_weight)
+        self._hard_note.setVisible(not row.editable_weight)
         self._loading = False
 
     def _on_weight(self, value: int) -> None:

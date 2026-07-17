@@ -48,6 +48,8 @@ class ValidationCenterModule(QWidget):
         self._tree = QTreeWidget()
         self._tree.setColumnCount(3)
         self._tree.setHeaderLabels(["Severidad", "Mensaje", "Dónde"])
+        self._tree.setAlternatingRowColors(True)
+        self._tree.setRootIsDecorated(False)
         self._tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._tree.itemActivated.connect(self._on_item)
         self._tree.itemDoubleClicked.connect(self._on_item)

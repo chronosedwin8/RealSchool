@@ -12,12 +12,14 @@ from PySide6.QtWidgets import QApplication
 
 from .engine_bridge import EngineBridge
 from .main_window import MainWindow
+from .theme import APP_QSS
 
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv if argv is None else argv)
     app = QApplication(args)
     app.setApplicationName("RealSchool")
+    app.setStyleSheet(APP_QSS)
 
     bridge = EngineBridge()
     window = MainWindow(bridge)

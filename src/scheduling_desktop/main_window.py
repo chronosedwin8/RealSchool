@@ -10,13 +10,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QMainWindow,
     QStackedWidget,
+    QStyle,
+    QToolBar,
 )
 
 from .engine_bridge import EngineBridge
@@ -77,6 +79,7 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
 
         self._build_menu()
+        self._build_toolbar()
         self.statusBar().showMessage("Abre un proyecto .bjs para empezar")
 
         self._bridge.session_opened.connect(self._on_session_opened)
@@ -116,6 +119,31 @@ class MainWindow(QMainWindow):
             action = QAction(label, self)
             action.triggered.connect(lambda _checked=False, p=page: self.show_page(p))
             ver.addAction(action)
+
+    def _build_toolbar(self) -> None:
+        bar = QToolBar("Principal")
+        bar.setMovable(False)
+        bar.setIconSize(QSize(26, 26))
+        bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.addToolBar(bar)
+        style = self.style()
+
+        def icon(pixmap: QStyle.StandardPixmap) -> QIcon:
+            return style.standardIcon(pixmap)
+
+        bar.addAction(icon(QStyle.StandardPixmap.SP_DirOpenIcon), "Abrir", self.open_dialog)
+        bar.addAction(icon(QStyle.StandardPixmap.SP_DialogSaveButton), "Guardar", self.save)
+        bar.addSeparator()
+        nav = (
+            ("Tablero", QStyle.StandardPixmap.SP_FileDialogInfoView, PAGE_DASHBOARD),
+            ("Datos", QStyle.StandardPixmap.SP_FileDialogListView, PAGE_DATA),
+            ("Horario", QStyle.StandardPixmap.SP_FileDialogDetailedView, PAGE_SCHEDULE),
+            ("Restricciones", QStyle.StandardPixmap.SP_FileDialogContentsView, PAGE_CONSTRAINTS),
+            ("Validación", QStyle.StandardPixmap.SP_MessageBoxWarning, PAGE_VALIDATION),
+            ("Optimizar", QStyle.StandardPixmap.SP_MediaPlay, PAGE_OPTIMIZE),
+        )
+        for label, pixmap, page in nav:
+            bar.addAction(icon(pixmap), label, lambda _=False, p=page: self.show_page(p))
 
     # --- navegación / acciones ------------------------------------------ #
     def show_page(self, page: str) -> None:

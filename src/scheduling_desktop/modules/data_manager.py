@@ -39,7 +39,10 @@ class DataManagerModule(QWidget):
         for table in tables.as_tuple():
             view = QTableView()
             view.setModel(self._model_for(table))
+            view.setAlternatingRowColors(True)
+            view.verticalHeader().setVisible(False)
             view.resizeColumnsToContents()
+            view.horizontalHeader().setStretchLastSection(True)
             view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
             self._tabs.addTab(view, f"{table.title} ({len(table.rows)})")
             self._views[table.kind] = view
