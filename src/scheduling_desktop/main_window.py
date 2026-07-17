@@ -1,9 +1,10 @@
-"""Ventana principal: el shell que hospeda los módulos (Fase 6).
+"""Ventana principal: shell MDI con ventanas padre/hijo, como Untis (Fase 6).
 
-Menú/toolbar, dock del Explorer a la izquierda, área central con pestañas de
-módulos (``QStackedWidget``) y barra de estado. Orquesta la navegación y refleja
-las señales del puente (título, estado, cambios sin guardar). No contiene lógica
-de negocio: delega todo en ``EngineBridge``.
+Cada módulo se abre como una **ventana hija** dentro del área central
+(``QMdiArea``): se pueden tener varias a la vez (horario del grupo + horario del
+docente + lecciones), moverlas, ponerlas en cascada o mosaico — el flujo de
+trabajo de Untis. La toolbar y el menú abren/enfocan cada ventana. No contiene
+lógica de negocio: delega todo en ``EngineBridge``.
 """
 
 from __future__ import annotations
@@ -15,9 +16,11 @@ from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
     QMainWindow,
-    QStackedWidget,
+    QMdiArea,
+    QMdiSubWindow,
     QStyle,
     QToolBar,
+    QWidget,
 )
 
 from .engine_bridge import EngineBridge
@@ -27,6 +30,7 @@ from .modules import (
     PAGE_DATA,
     PAGE_HELP,
     PAGE_IMPORT_EXPORT,
+    PAGE_LOAD,
     PAGE_LOGS,
     PAGE_NOTIFICATIONS,
     PAGE_OPTIMIZE,
@@ -42,6 +46,7 @@ from .modules.dashboard import DashboardModule
 from .modules.data_manager import DataManagerModule
 from .modules.help_center import HelpCenterModule
 from .modules.import_export import ImportExportModule
+from .modules.lessons import LessonsModule
 from .modules.log_viewer import LogViewerModule
 from .modules.notification_center import NotificationCenterModule
 from .modules.optimization_console import OptimizationConsoleModule
@@ -56,16 +61,17 @@ _FILTER = "Proyecto RealSchool (*.bjs)"
 
 
 class MainWindow(QMainWindow):
-    """Contenedor visual del motor headless."""
+    """Contenedor visual del motor headless (MDI, como Untis)."""
 
     def __init__(self, bridge: EngineBridge | None = None) -> None:
         super().__init__()
         self._bridge = bridge or EngineBridge()
         self.setWindowTitle("RealSchool")
-        self.resize(1200, 780)
+        self.resize(1400, 860)
 
         self._dashboard = DashboardModule(self._bridge)
         self._data = DataManagerModule(self._bridge)
+        self._lessons = LessonsModule(self._bridge)
         self._schedule = ScheduleEditorModule(self._bridge)
         self._constraints = ConstraintManagerModule(self._bridge)
         self._validation = ValidationCenterModule(self._bridge)
@@ -79,26 +85,30 @@ class MainWindow(QMainWindow):
         self._help = HelpCenterModule(self._bridge)
         self._optimize = OptimizationConsoleModule(self._bridge)
 
-        self._stack = QStackedWidget()
-        self._pages: dict[str, int] = {}
-        for page, widget in (
-            (PAGE_DASHBOARD, self._dashboard),
-            (PAGE_DATA, self._data),
-            (PAGE_SCHEDULE, self._schedule),
-            (PAGE_CONSTRAINTS, self._constraints),
-            (PAGE_VALIDATION, self._validation),
-            (PAGE_REPORTS, self._reports),
-            (PAGE_IMPORT_EXPORT, self._import_export),
-            (PAGE_PROJECT, self._project),
-            (PAGE_SETTINGS, self._settings),
-            (PAGE_PLUGINS, self._plugins),
-            (PAGE_LOGS, self._logs),
-            (PAGE_NOTIFICATIONS, self._notifications),
-            (PAGE_HELP, self._help),
-            (PAGE_OPTIMIZE, self._optimize),
-        ):
-            self._pages[page] = self._stack.addWidget(widget)
-        self.setCentralWidget(self._stack)
+        # Área MDI: cada módulo vive en una ventana hija (padre/hijo, como Untis).
+        self._mdi = QMdiArea()
+        self._mdi.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._mdi.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setCentralWidget(self._mdi)
+
+        self._pages: dict[str, tuple[QWidget, str]] = {
+            PAGE_DASHBOARD: (self._dashboard, "Tablero"),
+            PAGE_DATA: (self._data, "Datos maestros"),
+            PAGE_LOAD: (self._lessons, "Carga (lecciones)"),
+            PAGE_SCHEDULE: (self._schedule, "Horario"),
+            PAGE_CONSTRAINTS: (self._constraints, "Restricciones"),
+            PAGE_VALIDATION: (self._validation, "Validación"),
+            PAGE_REPORTS: (self._reports, "Informes"),
+            PAGE_IMPORT_EXPORT: (self._import_export, "Importar / Exportar"),
+            PAGE_PROJECT: (self._project, "Proyecto y versiones"),
+            PAGE_SETTINGS: (self._settings, "Configuración"),
+            PAGE_PLUGINS: (self._plugins, "Extensiones"),
+            PAGE_LOGS: (self._logs, "Registro (logs)"),
+            PAGE_NOTIFICATIONS: (self._notifications, "Notificaciones"),
+            PAGE_HELP: (self._help, "Ayuda"),
+            PAGE_OPTIMIZE: (self._optimize, "Optimización"),
+        }
+        self._subwindows: dict[str, QMdiSubWindow] = {}
 
         self._validation.navigate.connect(self.show_page)
 
@@ -134,7 +144,8 @@ class MainWindow(QMainWindow):
         ver = self.menuBar().addMenu("&Ver")
         for label, page in (
             ("Tablero", PAGE_DASHBOARD),
-            ("Datos", PAGE_DATA),
+            ("Datos maestros", PAGE_DATA),
+            ("Carga (lecciones)", PAGE_LOAD),
             ("Horario", PAGE_SCHEDULE),
             ("Restricciones", PAGE_CONSTRAINTS),
             ("Validación", PAGE_VALIDATION),
@@ -151,6 +162,17 @@ class MainWindow(QMainWindow):
             action = QAction(label, self)
             action.triggered.connect(lambda _checked=False, p=page: self.show_page(p))
             ver.addAction(action)
+
+        ventana = self.menuBar().addMenu("Ve&ntana")
+        cascada = QAction("Cascada", self)
+        cascada.triggered.connect(self._mdi.cascadeSubWindows)
+        ventana.addAction(cascada)
+        mosaico = QAction("Mosaico", self)
+        mosaico.triggered.connect(self._mdi.tileSubWindows)
+        ventana.addAction(mosaico)
+        cerrar = QAction("Cerrar todas", self)
+        cerrar.triggered.connect(self._mdi.closeAllSubWindows)
+        ventana.addAction(cerrar)
 
     def _build_toolbar(self) -> None:
         bar = QToolBar("Principal")
@@ -169,6 +191,7 @@ class MainWindow(QMainWindow):
         nav = (
             ("Tablero", QStyle.StandardPixmap.SP_FileDialogInfoView, PAGE_DASHBOARD),
             ("Datos", QStyle.StandardPixmap.SP_FileDialogListView, PAGE_DATA),
+            ("Carga", QStyle.StandardPixmap.SP_FileDialogNewFolder, PAGE_LOAD),
             ("Horario", QStyle.StandardPixmap.SP_FileDialogDetailedView, PAGE_SCHEDULE),
             ("Restricciones", QStyle.StandardPixmap.SP_FileDialogContentsView, PAGE_CONSTRAINTS),
             ("Validación", QStyle.StandardPixmap.SP_MessageBoxWarning, PAGE_VALIDATION),
@@ -182,8 +205,22 @@ class MainWindow(QMainWindow):
 
     # --- navegación / acciones ------------------------------------------ #
     def show_page(self, page: str) -> None:
-        if page in self._pages:
-            self._stack.setCurrentIndex(self._pages[page])
+        """Abre (o enfoca) la ventana hija del módulo, estilo Untis."""
+        entry = self._pages.get(page)
+        if entry is None:
+            return
+        widget, title = entry
+        sub = self._subwindows.get(page)
+        if sub is None:
+            sub = self._mdi.addSubWindow(widget)
+            sub.setWindowTitle(title)
+            # Cerrar la ventana hija solo la oculta (se puede reabrir).
+            sub.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+            sub.resize(1080, 660)
+            self._subwindows[page] = sub
+        sub.show()
+        sub.raise_()
+        self._mdi.setActiveSubWindow(sub)
 
     def open_dialog(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Abrir proyecto", "", _FILTER)
@@ -207,23 +244,10 @@ class MainWindow(QMainWindow):
     # --- reacción a señales --------------------------------------------- #
     def _on_session_opened(self) -> None:
         self._set_enabled(True)
-        for module in (
-            self._dashboard,
-            self._data,
-            self._schedule,
-            self._constraints,
-            self._validation,
-            self._reports,
-            self._import_export,
-            self._project,
-            self._settings,
-            self._plugins,
-            self._logs,
-            self._notifications,
-            self._help,
-            self._optimize,
-        ):
-            module.refresh()
+        for widget, _title in self._pages.values():
+            refresh = getattr(widget, "refresh", None)
+            if callable(refresh):
+                refresh()
         self.show_page(PAGE_DASHBOARD)
         self._update_title(dirty=False)
 
@@ -237,4 +261,4 @@ class MainWindow(QMainWindow):
 
     def _set_enabled(self, enabled: bool) -> None:
         self._act_save.setEnabled(enabled)
-        self._stack.setEnabled(enabled)
+        self._mdi.setEnabled(enabled)

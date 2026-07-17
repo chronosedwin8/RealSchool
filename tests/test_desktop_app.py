@@ -291,6 +291,31 @@ def test_data_manager_crud_y_carga(qapp: QApplication, tmp_path: Path) -> None:
     assert sum(1 for r in coro.requirements if r.tag.startswith("group#")) == len(gids)
 
 
+def test_ventana_de_lecciones_y_mdi(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+
+    # MDI: varias ventanas hijas abiertas a la vez (padre/hijo, como Untis).
+    win.show_page("data")
+    win.show_page("load")
+    win.show_page("schedule")
+    assert len(win._mdi.subWindowList()) >= 3
+
+    # La ventana de lecciones lista la carga del grupo actual y el total de HHs.
+    lessons = win._lessons
+    lessons.refresh()
+    assert lessons._mode.currentData() == "group"
+    assert lessons._table.rowCount() == 2  # Matemáticas + Historia del demo
+    assert lessons._total.text() == "HHs: 2"
+
+    # Cambiar a la vista por docente también puebla la tabla.
+    lessons._mode.setCurrentIndex(1)
+    assert lessons._table.rowCount() == 2
+
+
 def test_plataforma_m5(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

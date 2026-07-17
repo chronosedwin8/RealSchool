@@ -43,6 +43,7 @@ from .view_models import (
     DashboardStats,
     EntityTables,
     FocusOption,
+    LessonRow,
     MoveTarget,
     ReportTable,
     SolveOutcome,
@@ -51,6 +52,7 @@ from .view_models import (
     ValidationReport,
     entity_tables,
     focus_options,
+    lesson_rows,
     timetable_view,
 )
 
@@ -817,6 +819,56 @@ class EngineService:
         )
         session.dirty = True
         return [base + s for s in range(sessions)]
+
+    # --- lecciones (vista de carga estilo Untis) ------------------------ #
+    def lessons(
+        self, session: Session, *, group_id: int | None = None, teacher_id: int | None = None
+    ) -> tuple[LessonRow, ...]:
+        """Lecciones del proyecto, filtrables por grupo o por docente (como Untis)."""
+        rows = lesson_rows(session.project.problem)
+        if group_id is not None:
+            rows = tuple(r for r in rows if group_id in r.group_ids)
+        if teacher_id is not None:
+            rows = tuple(r for r in rows if teacher_id in r.teacher_ids)
+        return rows
+
+    def remove_lesson(self, session: Session, task_ids: list[int]) -> None:
+        """Elimina una lección completa (todas sus sesiones)."""
+        ids = set(task_ids)
+        problem = session.project.problem
+        keep = tuple(t for t in problem.tasks if int(t.id) not in ids)
+        if len(keep) == len(problem.tasks):
+            return
+        if not keep:
+            raise ConfigError("no se puede eliminar: dejaría el proyecto sin clases")
+        session.project = self._structural_change(session.project, replace(problem, tasks=keep))
+        session.dirty = True
+
+    def set_lesson_hours(self, session: Session, task_ids: list[int], hours: int) -> None:
+        """Cambia las horas semanales (HHs) de una lección: añade o quita sesiones."""
+        if hours < 1:
+            raise ConfigError("las horas semanales deben ser >= 1")
+        problem = session.project.problem
+        ids = sorted(set(task_ids))
+        current = [t for t in problem.tasks if int(t.id) in set(ids)]
+        if not current:
+            raise ConfigError("lección inexistente")
+        if hours == len(current):
+            return
+        if hours < len(current):
+            drop = {int(t.id) for t in current[hours:]}
+            tasks = tuple(t for t in problem.tasks if int(t.id) not in drop)
+        else:
+            template = current[0]
+            subject = template.name.split(" · ", 1)[0]
+            base = max(int(t.id) for t in problem.tasks) + 1
+            extra = tuple(
+                replace(template, id=TaskId(base + i), name=f"{subject} · x#{base + i}")
+                for i in range(hours - len(current))
+            )
+            tasks = (*problem.tasks, *extra)
+        session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
+        session.dirty = True
 
     # --- materias (entidad de primera clase, Fase 7 E4) ----------------- #
     def add_subject(self, session: Session, name: str) -> None:

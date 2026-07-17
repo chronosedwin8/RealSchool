@@ -211,6 +211,44 @@ def test_materia_primera_clase(tmp_path: Path) -> None:
     assert "Filosofía" in {r.cells[0] for r in svc.tables(svc.open(path)).subjects.rows}
 
 
+def test_lecciones_por_grupo_y_docente(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    tid = next(int(r.key) for r in svc.tables(session).teachers.rows)
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
+
+    # El demo trae 2 lecciones de 1 HH (Matemáticas e Historia) para el grupo.
+    rows = svc.lessons(session, group_id=gid)
+    assert {(r.subject, r.hours) for r in rows} == {("Matemáticas", 1), ("Historia", 1)}
+    # La misma vista por docente (como Untis: por grupo o por profesor).
+    assert {r.subject for r in svc.lessons(session, teacher_id=tid)} == {
+        "Matemáticas",
+        "Historia",
+    }
+
+    # Cambiar HHs: subir a 3 y bajar a 2.
+    mate = next(r for r in rows if r.subject == "Matemáticas")
+    svc.set_lesson_hours(session, list(mate.task_ids), 3)
+    mate3 = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    assert mate3.hours == 3
+    svc.set_lesson_hours(session, list(mate3.task_ids), 2)
+    mate2 = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    assert mate2.hours == 2
+
+    # Eliminar la lección completa.
+    svc.remove_lesson(session, list(mate2.task_ids))
+    assert {r.subject for r in svc.lessons(session, group_id=gid)} == {"Historia"}
+
+    # Una lección acoplada aparece con todos sus docentes.
+    t2 = svc.add_teacher(session, "COD1")
+    ids = svc.add_load(session, [gid], "Deporte", [tid, t2], sessions=2)
+    dep = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Deporte")
+    assert dep.hours == 2 and len(dep.teachers) == 2
+    assert set(dep.task_ids) == set(ids)
+
+
 def test_datos_maestros_estilo_untis(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

@@ -5,26 +5,20 @@ Pestañas Docentes/Aulas/Grupos/Materias como las ventanas de datos de Untis:
 del docente; sección y aula propia del grupo; capacidad y aula alternativa del
 aula; sección y **color** de la materia). Todo se edita **en la celda**; *Nuevo*
 crea la fila lista para escribir; el selector de registro salta a una fila. La
-UI no valida reglas: cada edición se enruta a la Fachada por su campo semántico.
+carga horaria se ingresa en la ventana **Carga (lecciones)**. La UI no valida
+reglas: cada edición se enruta a la Fachada por su campo semántico.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, Qt
+from PySide6.QtCore import QModelIndex
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QColorDialog,
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QListWidget,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QTableView,
     QTabWidget,
     QVBoxLayout,
@@ -37,65 +31,8 @@ from ..engine_bridge import EngineBridge
 from ..models import EntityTableModel
 
 _KINDS = ("teacher", "room", "group", "subject")
-_ID_ROLE = int(Qt.ItemDataRole.UserRole)
 #: Columnas calculadas por el motor (no editables).
 _READONLY_FIELDS = {"classes", "availability", "sessions", "teachers"}
-
-
-class _LoadDialog(QDialog):
-    """Diálogo de carga: acopla varios docentes, grupos y (opcional) aulas."""
-
-    def __init__(self, tables: EntityTables, parent: QWidget) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Añadir carga (una asignación)")
-        self._subject = QLineEdit()
-        self._sessions = QSpinBox()
-        self._sessions.setRange(1, 40)
-        self._teachers = self._multi_list(tables.teachers)
-        self._groups = self._multi_list(tables.groups)
-        self._rooms = self._multi_list(tables.rooms)
-
-        form = QFormLayout()
-        form.addRow("Materia:", self._subject)
-        form.addRow("Sesiones/semana:", self._sessions)
-        form.addRow(QLabel("Docentes (uno o varios):"), self._teachers)
-        form.addRow(QLabel("Grupos (uno o varios):"), self._groups)
-        form.addRow(QLabel("Aulas (opcional; vacío = el solver elige):"), self._rooms)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addWidget(buttons)
-
-    @staticmethod
-    def _multi_list(table: EntityTable) -> QListWidget:
-        widget = QListWidget()
-        widget.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
-        widget.setMaximumHeight(120)
-        for row in table.rows:
-            label = row.cells[0]
-            if len(row.cells) > 1 and row.cells[1]:
-                label = f"{row.cells[0]} — {row.cells[1]}"
-            widget.addItem(label)
-            widget.item(widget.count() - 1).setData(_ID_ROLE, int(row.key))
-        return widget
-
-    @staticmethod
-    def _selected_ids(widget: QListWidget) -> list[int]:
-        return [item.data(_ID_ROLE) for item in widget.selectedItems()]
-
-    def result_values(self) -> tuple[list[int], str, list[int], int, list[int]]:
-        return (
-            self._selected_ids(self._groups),
-            self._subject.text().strip(),
-            self._selected_ids(self._teachers),
-            self._sessions.value(),
-            self._selected_ids(self._rooms),
-        )
 
 
 class DataManagerModule(QWidget):
@@ -117,8 +54,6 @@ class DataManagerModule(QWidget):
         self._add_btn.clicked.connect(self._on_add)
         del_btn = QPushButton("Eliminar")
         del_btn.clicked.connect(self._on_delete)
-        load_btn = QPushButton("Añadir carga (clase)…")
-        load_btn.clicked.connect(self._on_add_load)
         self._hint = QLabel(
             "Doble-clic en una celda para editar · en Materias, el Color abre la paleta."
         )
@@ -127,7 +62,6 @@ class DataManagerModule(QWidget):
         toolbar.addWidget(self._record)
         toolbar.addWidget(self._add_btn)
         toolbar.addWidget(del_btn)
-        toolbar.addWidget(load_btn)
         toolbar.addWidget(self._hint)
         toolbar.addStretch(1)
 
@@ -262,26 +196,6 @@ class DataManagerModule(QWidget):
                 self._bridge.remove_resource(int(key))
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo eliminar", str(exc))
-
-    def _on_add_load(self) -> None:
-        if self._tables is None:
-            return
-        if not self._tables.groups.rows or not self._tables.teachers.rows:
-            QMessageBox.information(self, "Carga", "Necesitas al menos un grupo y un docente.")
-            return
-        dialog = _LoadDialog(self._tables, self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        group_ids, subject, teacher_ids, sessions, room_ids = dialog.result_values()
-        if not subject or not group_ids or not teacher_ids:
-            QMessageBox.information(
-                self, "Carga", "Indica materia, al menos un grupo y un docente."
-            )
-            return
-        try:
-            self._bridge.add_load(group_ids, subject, teacher_ids, sessions, room_ids or None)
-        except ConfigError as exc:
-            QMessageBox.warning(self, "No se pudo añadir la carga", str(exc))
 
     # --- modelos / edición en celda -------------------------------------- #
     def _model_for(self, table: EntityTable) -> EntityTableModel:

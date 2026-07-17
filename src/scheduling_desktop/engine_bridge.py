@@ -22,6 +22,7 @@ from scheduling_platform.application import (
     EngineService,
     EntityTables,
     FocusOption,
+    LessonRow,
     LunchWindow,
     MoveTarget,
     ProgressEvent,
@@ -298,6 +299,21 @@ class EngineBridge(QObject):
         )
         self._after_edit()
         self._announce("success", f"Carga añadida: {subject} ({sessions}h)")
+
+    # --- lecciones (vista de carga estilo Untis) ------------------------ #
+    def lessons(
+        self, *, group_id: int | None = None, teacher_id: int | None = None
+    ) -> tuple[LessonRow, ...]:
+        return self._service.lessons(self.session, group_id=group_id, teacher_id=teacher_id)
+
+    def remove_lesson(self, task_ids: list[int]) -> None:
+        self._service.remove_lesson(self.session, task_ids)
+        self._after_edit()
+        self._announce("info", "Lección eliminada")
+
+    def set_lesson_hours(self, task_ids: list[int], hours: int) -> None:
+        self._service.set_lesson_hours(self.session, task_ids, hours)
+        self._after_edit()
 
     def set_group_size(self, resource_id: int, size: int) -> bool:
         self._service.set_group_size(self.session, resource_id, size)

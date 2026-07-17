@@ -229,6 +229,88 @@ def entity_tables(
 
 
 # --------------------------------------------------------------------------- #
+# Lecciones (carga horaria, la vista "N.lec" de Untis)
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
+class LessonRow:
+    """Una lección: una asignación (materia + docentes + grupos + aulas) con sus
+    horas semanales (``hours`` = número de sesiones). Equivale al N.lec de Untis;
+    puede acoplar varios docentes/grupos/aulas (Kopplung)."""
+
+    key: str  # identificador estable (ids de las clases)
+    task_ids: tuple[int, ...]
+    subject: str
+    teacher_ids: tuple[int, ...]
+    teachers: tuple[str, ...]  # abreviaturas
+    group_ids: tuple[int, ...]
+    groups: tuple[str, ...]
+    room_ids: tuple[int, ...]  # aulas fijas (vacío = el solver elige del pool)
+    rooms: tuple[str, ...]
+    hours: int
+    duration: int
+
+
+def lesson_rows(problem: SchedulingProblem) -> tuple[LessonRow, ...]:
+    """Agrupa las clases en lecciones: misma materia + mismos requerimientos.
+
+    Cada grupo de clases idénticas (materia, docentes, grupos, aulas, duración)
+    es una lección con ``hours`` sesiones semanales, como la vista de lecciones
+    de Untis por grupo o por docente.
+    """
+    tag_owner: dict[str, tuple[int, str]] = {}
+    for res in problem.resources:
+        for tag in res.tags:
+            if tag.startswith((_TEACHER_PREFIX, _GROUP_PREFIX, "room#")):
+                tag_owner[tag] = (int(res.id), res.name)
+
+    grouped: dict[tuple[str, tuple[str, ...], int], list[int]] = defaultdict(list)
+    for task in problem.tasks:
+        subject = _subject_of(task.name)
+        signature = (subject, tuple(sorted(r.tag for r in task.requirements)), task.duration)
+        grouped[signature].append(int(task.id))
+
+    rows: list[LessonRow] = []
+    for (subject, tags, duration), task_ids in grouped.items():
+        teacher_ids: list[int] = []
+        teachers: list[str] = []
+        group_ids: list[int] = []
+        groups: list[str] = []
+        room_ids: list[int] = []
+        rooms: list[str] = []
+        for tag in tags:
+            owner = tag_owner.get(tag)
+            if owner is None:
+                continue  # tags genéricos (room, roomtype#...) = pool de aulas
+            if tag.startswith(_TEACHER_PREFIX):
+                teacher_ids.append(owner[0])
+                teachers.append(owner[1])
+            elif tag.startswith(_GROUP_PREFIX):
+                group_ids.append(owner[0])
+                groups.append(owner[1])
+            elif tag.startswith("room#"):
+                room_ids.append(owner[0])
+                rooms.append(owner[1])
+        ordered = tuple(sorted(task_ids))
+        rows.append(
+            LessonRow(
+                key="-".join(str(t) for t in ordered),
+                task_ids=ordered,
+                subject=subject,
+                teacher_ids=tuple(teacher_ids),
+                teachers=tuple(teachers),
+                group_ids=tuple(group_ids),
+                groups=tuple(groups),
+                room_ids=tuple(room_ids),
+                rooms=tuple(rooms),
+                hours=len(ordered),
+                duration=duration,
+            )
+        )
+    rows.sort(key=lambda r: (r.groups, r.subject))
+    return tuple(rows)
+
+
+# --------------------------------------------------------------------------- #
 # Selector de foco de la rejilla (por docente / grupo / aula)
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)

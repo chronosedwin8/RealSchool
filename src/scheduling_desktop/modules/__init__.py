@@ -5,6 +5,7 @@ from __future__ import annotations
 # Claves de página del área central (QStackedWidget).
 PAGE_DASHBOARD = "dashboard"
 PAGE_DATA = "data"
+PAGE_LOAD = "load"
 PAGE_SCHEDULE = "schedule"
 PAGE_CONSTRAINTS = "constraints"
 PAGE_VALIDATION = "validation"
@@ -24,6 +25,7 @@ __all__ = [
     "PAGE_DATA",
     "PAGE_HELP",
     "PAGE_IMPORT_EXPORT",
+    "PAGE_LOAD",
     "PAGE_LOGS",
     "PAGE_NOTIFICATIONS",
     "PAGE_OPTIMIZE",
