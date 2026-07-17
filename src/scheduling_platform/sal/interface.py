@@ -12,7 +12,7 @@ tocar el dominio.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import NewType
@@ -63,11 +63,17 @@ class SolverConfig:
 
     ``None`` deja el valor por defecto del solver. ``random_seed`` fijo habilita
     ejecuciones reproducibles (verificado en la Fase 7).
+
+    ``should_stop`` es un seam **opt-in** de cancelación cooperativa (análogo a
+    ``on_event``): si se provee, el backend lo consulta durante la búsqueda y la
+    detiene de forma limpia cuando devuelve ``True`` (p. ej. el botón *Detener* de
+    la GUI). ``None`` (por defecto) deja el comportamiento histórico intacto.
     """
 
     max_time_in_seconds: float | None = None
     num_search_workers: int | None = None
     random_seed: int | None = None
+    should_stop: Callable[[], bool] | None = None
 
 
 class ISolver(ABC):

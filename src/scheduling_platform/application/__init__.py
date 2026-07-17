@@ -9,6 +9,7 @@ nunca importa esta capa (verificado por ``tests/test_architecture.py``).
 
 from __future__ import annotations
 
+from .cancel import CancelToken
 from .commands.base import Command, CommandResult
 from .commands.config_validate import ConfigValidateCommand
 from .commands.convert import ConvertCommand
@@ -39,7 +40,19 @@ from .errors import (
 )
 from .log import AppLogger
 from .project import BjsProject, new_project, open_project, save_project
+from .service import EngineService, Session
 from .solvers import SOLVER_NAMES, solver_factory_for
+from .view_models import (
+    DashboardStats,
+    EntityTable,
+    EntityTables,
+    FocusOption,
+    SolveOutcome,
+    TimetableCell,
+    TimetableView,
+    ValidationItem,
+    ValidationReport,
+)
 
 __all__ = [
     "SOLVER_NAMES",
@@ -47,15 +60,21 @@ __all__ = [
     "AppError",
     "AppLogger",
     "BjsProject",
+    "CancelToken",
     "Command",
     "CommandDispatcher",
     "CommandResult",
     "ConfigError",
     "ConfigValidateCommand",
     "ConvertCommand",
+    "DashboardStats",
     "DoctorCommand",
     "EngineConfig",
+    "EngineService",
+    "EntityTable",
+    "EntityTables",
     "ExplainCommand",
+    "FocusOption",
     "GenerateCommand",
     "InfeasibleError",
     "InternalError",
@@ -66,8 +85,14 @@ __all__ = [
     "ProjectInfoCommand",
     "ProjectPackCommand",
     "ProjectValidateCommand",
+    "Session",
+    "SolveOutcome",
     "SolveTimeoutError",
+    "TimetableCell",
+    "TimetableView",
     "ValidateCommand",
+    "ValidationItem",
+    "ValidationReport",
     "load_engine_config",
     "load_plugins_config",
     "new_project",

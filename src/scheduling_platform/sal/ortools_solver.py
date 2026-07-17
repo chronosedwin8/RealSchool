@@ -10,7 +10,7 @@ ve tipos de OR-Tools. Se importa explícitamente
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from ortools.sat.python import cp_model
@@ -115,9 +115,11 @@ class ORToolsSolver(ISolver):
         self._model.add_hint(self._vars[var], value)
 
     def solve(self, config: SolverConfig | None = None) -> SolverStatus:
+        should_stop = None
         if config is not None:
             self._apply_config(config)
-        recorder = _FirstSolutionTimer()
+            should_stop = config.should_stop
+        recorder = _FirstSolutionTimer(should_stop)
         status = self._solver.solve(self._model, recorder)
         self._first_solution_ms = recorder.first_ms
         return _STATUS_MAP.get(status, SolverStatus.UNKNOWN)
@@ -158,15 +160,24 @@ class ORToolsSolver(ISolver):
 
 
 class _FirstSolutionTimer(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
-    """Registra el tiempo (ms) de la primera solución factible (Actividad 10)."""
+    """Registra el tiempo (ms) de la primera solución factible (Actividad 10).
 
-    def __init__(self) -> None:
+    Si se le pasa ``should_stop``, además consulta la señal de cancelación en cada
+    solución y detiene la búsqueda de forma limpia (conserva la mejor solución
+    hallada). CP-SAT solo invoca el callback al encontrar soluciones factibles;
+    el ``max_time_in_seconds`` sigue acotando el peor caso sin soluciones.
+    """
+
+    def __init__(self, should_stop: Callable[[], bool] | None = None) -> None:
         super().__init__()
         self.first_ms = -1.0
+        self._should_stop = should_stop
 
     def on_solution_callback(self) -> None:
         if self.first_ms < 0:
             self.first_ms = self.wall_time * 1000.0
+        if self._should_stop is not None and self._should_stop():
+            self.stop_search()
 
 
 def _const_holds(op: RelOp, rhs: int) -> bool:

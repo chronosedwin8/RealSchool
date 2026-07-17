@@ -49,3 +49,7 @@ del diseño. Aquí están ordenados por fase.
 ## Documentación (Fase 4)
 
 - [ADR-030 — Documentación del SDK con MkDocs Material](../adr/ADR-030-documentacion-mkdocs.md)
+
+## API interna y app de escritorio (Fases 5–6)
+
+- [ADR-031 — Fachada `EngineService` como frontera única GUI↔motor](../adr/ADR-031-fachada-engine-service.md)
