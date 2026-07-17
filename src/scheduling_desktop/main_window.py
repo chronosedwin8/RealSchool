@@ -26,7 +26,9 @@ from .modules import (
     PAGE_CONSTRAINTS,
     PAGE_DASHBOARD,
     PAGE_DATA,
+    PAGE_IMPORT_EXPORT,
     PAGE_OPTIMIZE,
+    PAGE_PROJECT,
     PAGE_REPORTS,
     PAGE_SCHEDULE,
     PAGE_VALIDATION,
@@ -35,7 +37,9 @@ from .modules.constraint_manager import ConstraintManagerModule
 from .modules.dashboard import DashboardModule
 from .modules.data_manager import DataManagerModule
 from .modules.explorer import ExplorerTree
+from .modules.import_export import ImportExportModule
 from .modules.optimization_console import OptimizationConsoleModule
+from .modules.project_manager import ProjectManagerModule
 from .modules.reports import ReportsModule
 from .modules.schedule_editor import ScheduleEditorModule
 from .modules.validation_center import ValidationCenterModule
@@ -58,6 +62,8 @@ class MainWindow(QMainWindow):
         self._constraints = ConstraintManagerModule(self._bridge)
         self._validation = ValidationCenterModule(self._bridge)
         self._reports = ReportsModule(self._bridge)
+        self._import_export = ImportExportModule(self._bridge)
+        self._project = ProjectManagerModule(self._bridge)
         self._optimize = OptimizationConsoleModule(self._bridge)
 
         self._stack = QStackedWidget()
@@ -69,6 +75,8 @@ class MainWindow(QMainWindow):
             (PAGE_CONSTRAINTS, self._constraints),
             (PAGE_VALIDATION, self._validation),
             (PAGE_REPORTS, self._reports),
+            (PAGE_IMPORT_EXPORT, self._import_export),
+            (PAGE_PROJECT, self._project),
             (PAGE_OPTIMIZE, self._optimize),
         ):
             self._pages[page] = self._stack.addWidget(widget)
@@ -119,6 +127,8 @@ class MainWindow(QMainWindow):
             ("Restricciones", PAGE_CONSTRAINTS),
             ("Validación", PAGE_VALIDATION),
             ("Informes", PAGE_REPORTS),
+            ("Importar/Exportar", PAGE_IMPORT_EXPORT),
+            ("Proyecto", PAGE_PROJECT),
             ("Optimización", PAGE_OPTIMIZE),
         ):
             action = QAction(label, self)
@@ -146,6 +156,8 @@ class MainWindow(QMainWindow):
             ("Restricciones", QStyle.StandardPixmap.SP_FileDialogContentsView, PAGE_CONSTRAINTS),
             ("Validación", QStyle.StandardPixmap.SP_MessageBoxWarning, PAGE_VALIDATION),
             ("Informes", QStyle.StandardPixmap.SP_FileDialogInfoView, PAGE_REPORTS),
+            ("Import/Export", QStyle.StandardPixmap.SP_ArrowDown, PAGE_IMPORT_EXPORT),
+            ("Proyecto", QStyle.StandardPixmap.SP_DirIcon, PAGE_PROJECT),
             ("Optimizar", QStyle.StandardPixmap.SP_MediaPlay, PAGE_OPTIMIZE),
         )
         for label, pixmap, page in nav:
@@ -185,6 +197,8 @@ class MainWindow(QMainWindow):
             self._constraints,
             self._validation,
             self._reports,
+            self._import_export,
+            self._project,
             self._optimize,
         ):
             module.refresh()

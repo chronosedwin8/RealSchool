@@ -6,11 +6,15 @@ validación, optimización estructurada y reconstrucción de la rejilla dia x pe
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+import pytest
 
 from scheduling_platform.application import (
     BjsProject,
     CancelToken,
+    ConfigError,
     EngineService,
     save_project,
 )
@@ -273,6 +277,74 @@ def test_optimize_infactible_no_lanza(tmp_path: Path) -> None:
     outcome = svc.optimize(svc.open(path), timeout=5.0)
     assert outcome.solved is False
     assert outcome.status in {"infeasible", "timeout"}
+
+
+_UNTIS_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<document version="3.0" xmlns="https://untis.at/untis/XmlInterface">
+  <general><header1>Demo</header1></general>
+  <timeperiods>
+    <timeperiod id="a"><day>1</day><period>1</period><starttime>0800</starttime>
+      <endtime>0845</endtime><timegrid>G</timegrid></timeperiod>
+    <timeperiod id="b"><day>1</day><period>2</period><starttime>0900</starttime>
+      <endtime>0945</endtime><timegrid>G</timegrid></timeperiod>
+  </timeperiods>
+  <rooms><room id="RM_1"><longname>Aula 1</longname></room></rooms>
+  <teachers><teacher id="TR_A"><forename>Ana</forename></teacher></teachers>
+  <subjects><subject id="SU_MAT"><longname>Mate</longname></subject></subjects>
+  <classes><class id="CL_1"><longname>1A</longname><timegrid>G</timegrid></class></classes>
+  <lessons>
+    <lesson id="LS_1"><periods>1</periods><lesson_subject id="SU_MAT"/>
+      <lesson_teacher id="TR_A"/><lesson_classes id="CL_1"/><timegrid>G</timegrid>
+      <times><time><assigned_day>1</assigned_day><assigned_period>1</assigned_period>
+        <assigned_room id="RM_1"/></time></times></lesson>
+  </lessons>
+</document>
+"""
+
+
+def test_export_json(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    svc.optimize(session, timeout=10.0)
+    out = svc.export_json(session, tmp_path / "export.json")
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert set(doc) == {"manifest", "problem", "solution", "metrics"}
+    assert len(doc["problem"]["tasks"]) == 2
+    assert doc["solution"] is not None
+
+
+def test_snapshots(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    assert svc.list_snapshots(session) == ()
+    snap = svc.snapshot(session)
+    assert snap.exists()
+    snaps = svc.list_snapshots(session)
+    assert len(snaps) == 1
+    # La versión se puede reabrir como proyecto válido.
+    restored = svc.open(snap)
+    assert restored.project.manifest["project_name"] == "Colegio Demo"
+
+
+def test_import_untis(tmp_path: Path) -> None:
+    xml = tmp_path / "u.xml"
+    xml.write_text(_UNTIS_XML, encoding="utf-8")
+    svc = EngineService()
+    session = svc.import_untis(xml, tmp_path / "imported.bjs")
+    assert len(session.project.problem.tasks) == 1
+    assert (tmp_path / "imported.bjs").exists()
+
+
+def test_import_untis_formato_invalido(tmp_path: Path) -> None:
+    bad = tmp_path / "x.txt"
+    bad.write_text("no soy untis", encoding="utf-8")
+    svc = EngineService()
+    with pytest.raises(ConfigError):
+        svc.import_untis(bad, tmp_path / "out.bjs")
 
 
 def test_cancel_token_como_should_stop() -> None:

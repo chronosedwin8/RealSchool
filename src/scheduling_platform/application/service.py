@@ -13,6 +13,8 @@ excepción hacia la interfaz; se devuelve como :class:`SolveOutcome` estructurad
 
 from __future__ import annotations
 
+import json
+import shutil
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -94,6 +96,60 @@ class EngineService:
             solver_config=project.solver_config,
         )
         return Session(project=saved, path=Path(path))
+
+    # --- import / export ------------------------------------------------ #
+    def import_untis(
+        self, xml_path: str | Path, dest_bjs: str | Path, *, name: str | None = None
+    ) -> Session:
+        """Importa un export XML de Untis a un ``.bjs`` nuevo y lo abre."""
+        from ..untis import UntisToCanonicalAdapter, parse_untis
+
+        source = Path(xml_path)
+        if not source.exists():
+            raise ConfigError(f"no existe el archivo: {source}")
+        if source.suffix.lower() != ".xml":
+            raise ConfigError(f"formato no soportado: {source.suffix!r} (usa un .xml de Untis)")
+        translation = UntisToCanonicalAdapter().translate(parse_untis(source))
+        project = new_project(dest_bjs, name or source.stem, translation.problem)
+        return Session(project=project, path=Path(dest_bjs))
+
+    def export_json(self, session: Session, dest_file: str | Path) -> Path:
+        """Exporta el proyecto (problema + solución + métricas) a un JSON legible."""
+        from ..serialization.codec import problem_to_dict, solution_to_dict
+
+        project = session.project
+        doc = {
+            "manifest": project.manifest,
+            "problem": problem_to_dict(project.problem),
+            "solution": (
+                solution_to_dict(project.solution) if project.solution is not None else None
+            ),
+            "metrics": project.metrics,
+        }
+        target = Path(dest_file)
+        target.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        return target
+
+    # --- versiones / snapshots ------------------------------------------ #
+    def snapshot(self, session: Session) -> Path:
+        """Guarda el proyecto y crea una copia con fecha para poder restaurarla."""
+        if session.path is None:
+            raise ConfigError("guarda el proyecto antes de crear una versión")
+        self.save(session)
+        folder = session.path.parent / f"{session.path.stem}_snapshots"
+        folder.mkdir(exist_ok=True)
+        dest = folder / f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.bjs"
+        shutil.copy2(session.path, dest)
+        return dest
+
+    def list_snapshots(self, session: Session) -> tuple[Path, ...]:
+        """Versiones guardadas del proyecto, de la más reciente a la más antigua."""
+        if session.path is None:
+            return ()
+        folder = session.path.parent / f"{session.path.stem}_snapshots"
+        if not folder.exists():
+            return ()
+        return tuple(sorted(folder.glob("*.bjs"), reverse=True))
 
     # --- consultas (modelos de vista) ----------------------------------- #
     def tables(self, session: Session) -> EntityTables:

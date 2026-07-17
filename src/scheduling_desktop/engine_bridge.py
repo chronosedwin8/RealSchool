@@ -120,6 +120,29 @@ class EngineBridge(QObject):
         self.dirty_changed.emit(False)
         self.status_message.emit("Proyecto guardado")
 
+    # --- import / export / versiones ------------------------------------ #
+    def import_untis(self, xml_path: str | Path, dest_bjs: str | Path) -> None:
+        """Importa un XML de Untis y lo abre como proyecto activo."""
+        self._session = self._service.import_untis(xml_path, dest_bjs)
+        self._undo_stack.clear()
+        self.session_opened.emit()
+        self.session_changed.emit()
+        self.dirty_changed.emit(False)
+        self.status_message.emit(f"Importado desde Untis: {Path(xml_path).name}")
+
+    def export_json(self, dest_file: str | Path) -> None:
+        self._service.export_json(self.session, dest_file)
+        self.status_message.emit(f"Exportado a JSON: {Path(dest_file).name}")
+
+    def snapshot(self) -> Path:
+        dest = self._service.snapshot(self.session)
+        self.dirty_changed.emit(False)
+        self.status_message.emit(f"Versión creada: {dest.name}")
+        return dest
+
+    def list_snapshots(self) -> tuple[Path, ...]:
+        return self._service.list_snapshots(self.session)
+
     # --- consultas (delegan en la Fachada) ------------------------------ #
     def tables(self) -> EntityTables:
         return self._service.tables(self.session)

@@ -9,13 +9,17 @@ PAGE_SCHEDULE = "schedule"
 PAGE_CONSTRAINTS = "constraints"
 PAGE_VALIDATION = "validation"
 PAGE_REPORTS = "reports"
+PAGE_IMPORT_EXPORT = "import_export"
+PAGE_PROJECT = "project"
 PAGE_OPTIMIZE = "optimize"
 
 __all__ = [
     "PAGE_CONSTRAINTS",
     "PAGE_DASHBOARD",
     "PAGE_DATA",
+    "PAGE_IMPORT_EXPORT",
     "PAGE_OPTIMIZE",
+    "PAGE_PROJECT",
     "PAGE_REPORTS",
     "PAGE_SCHEDULE",
     "PAGE_VALIDATION",

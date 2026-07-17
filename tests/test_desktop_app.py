@@ -270,6 +270,22 @@ def test_drag_feedback_verde_rojo(qapp: QApplication, tmp_path: Path) -> None:
     assert not editor._overlays  # y limpia el estado del arrastre
 
 
+def test_project_manager_crea_version(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+
+    pm = win._project
+    pm.refresh()
+    assert pm._snapshots.count() == 0
+    bridge.snapshot()
+    pm.refresh()
+    assert pm._snapshots.count() == 1
+    assert win._import_export._btn_export.isEnabled()
+
+
 def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

@@ -15,7 +15,9 @@ from . import (
     PAGE_CONSTRAINTS,
     PAGE_DASHBOARD,
     PAGE_DATA,
+    PAGE_IMPORT_EXPORT,
     PAGE_OPTIMIZE,
+    PAGE_PROJECT,
     PAGE_REPORTS,
     PAGE_SCHEDULE,
     PAGE_VALIDATION,
@@ -57,6 +59,8 @@ class ExplorerTree(QTreeWidget):
         self._leaf(root, "Restricciones", PAGE_CONSTRAINTS)
         self._leaf(root, "Validación", PAGE_VALIDATION)
         self._leaf(root, "Informes", PAGE_REPORTS)
+        self._leaf(root, "Importar / Exportar", PAGE_IMPORT_EXPORT)
+        self._leaf(root, "Proyecto y versiones", PAGE_PROJECT)
         self._leaf(root, "Optimización", PAGE_OPTIMIZE)
         self.expandAll()
 
