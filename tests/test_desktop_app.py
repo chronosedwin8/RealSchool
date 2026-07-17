@@ -291,6 +291,28 @@ def test_data_manager_crud_y_carga(qapp: QApplication, tmp_path: Path) -> None:
     assert sum(1 for r in coro.requirements if r.tag.startswith("group#")) == len(gids)
 
 
+def test_celda_materia_ofrece_las_materias_creadas(qapp: QApplication, tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QComboBox, QStyleOptionViewItem
+
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    bridge.add_subject("Filosofía")
+    lm = win._lessons
+    lm.refresh()
+    qapp.processEvents()
+
+    delegate = lm._table.itemDelegateForColumn(3)  # columna Materia
+    index = lm._table.model().index(0, 3)
+    editor = delegate.createEditor(lm._table, QStyleOptionViewItem(), index)
+    assert isinstance(editor, QComboBox)
+    items = {editor.itemText(i) for i in range(editor.count())}
+    assert {"Mate", "Historia", "Filosofía"} <= items  # las materias creadas
+    assert editor.isEditable()  # y permite escribir una nueva
+
+
 def test_leccion_desde_fila_vacia_y_acople_untis(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

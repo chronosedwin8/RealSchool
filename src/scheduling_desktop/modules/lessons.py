@@ -13,9 +13,10 @@ Todo se enruta a la Fachada.
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QPersistentModelIndex, Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -29,6 +30,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -68,6 +71,42 @@ class _DisplayRow:
     kind: str  # "single" | "parent" | "sub"
     n_groups: int = 0
     n_teachers: int = 0
+
+
+class _SubjectDelegate(QStyledItemDelegate):
+    """Editor de la columna Materia: combo con las materias ya creadas.
+
+    Permite **escoger de las materias dadas de alta** (Datos > Materias) o
+    escribir una nueva (el combo es editable).
+    """
+
+    def __init__(self, subjects: Callable[[], list[str]], parent: QWidget) -> None:
+        super().__init__(parent)
+        self._subjects = subjects
+
+    def createEditor(
+        self,
+        parent: QWidget,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QWidget:
+        combo = QComboBox(parent)
+        combo.setEditable(True)
+        combo.addItems(self._subjects())
+        return combo
+
+    def setEditorData(self, editor: QWidget, index: QModelIndex | QPersistentModelIndex) -> None:
+        if isinstance(editor, QComboBox):
+            editor.setCurrentText(str(index.data() or ""))
+
+    def setModelData(
+        self,
+        editor: QWidget,
+        model: QAbstractItemModel,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        if isinstance(editor, QComboBox):
+            model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
 
 
 class _MultiPickDialog(QDialog):
@@ -242,6 +281,10 @@ class LessonsModule(QWidget):
         self._table.itemChanged.connect(self._on_item_changed)
         self._table.cellDoubleClicked.connect(self._on_cell_double)
         self._table.cellClicked.connect(self._on_cell_clicked)
+        # La celda Materia edita con un combo de las materias ya creadas.
+        self._table.setItemDelegateForColumn(
+            _SUBJECT_COL, _SubjectDelegate(self._subject_names, self._table)
+        )
 
         layout = QVBoxLayout(self)
         layout.addLayout(top)
@@ -382,6 +425,12 @@ class LessonsModule(QWidget):
             if text.startswith("(") or col == 0:
                 item.setForeground(_PLACEHOLDER)
             self._table.setItem(row, col, item)
+
+    def _subject_names(self) -> list[str]:
+        """Las materias dadas de alta, para el combo de la celda Materia."""
+        if not self._bridge.has_session:
+            return []
+        return [r.cells[0] for r in self._bridge.tables().subjects.rows]
 
     def _names_of(self, kind: str, ids: list[int]) -> str:
         tables = self._bridge.tables()
