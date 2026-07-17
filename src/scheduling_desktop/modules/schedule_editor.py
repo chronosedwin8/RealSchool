@@ -133,9 +133,40 @@ class ScheduleEditorModule(QWidget):
         self._view.drag_moved.connect(self._on_drag_moved)
         self._view.drag_dropped.connect(self._on_drag_dropped)
 
+        # Inspector lateral (vistas enlazadas: clic en clase -> docente/aula).
+        self._inspector = QLabel("Haz clic en una clase para ver sus detalles.")
+        self._inspector.setWordWrap(True)
+        self._inspector.setStyleSheet("font-weight: 600;")
+        self._btn_teacher = QPushButton("Ver horario del docente")
+        self._btn_room = QPushButton("Ver horario del aula")
+        self._btn_group = QPushButton("Ver horario del grupo")
+        for btn in (self._btn_teacher, self._btn_room, self._btn_group):
+            btn.setEnabled(False)
+        self._clicked_teacher = -1
+        self._clicked_room = -1
+        self._clicked_group = -1
+        self._btn_teacher.clicked.connect(lambda: self._focus_on(self._clicked_teacher))
+        self._btn_room.clicked.connect(lambda: self._focus_on(self._clicked_room))
+        self._btn_group.clicked.connect(lambda: self._focus_on(self._clicked_group))
+
+        inspector_box = QVBoxLayout()
+        inspector_box.addWidget(QLabel("Clase seleccionada"))
+        inspector_box.addWidget(self._inspector)
+        inspector_box.addWidget(self._btn_teacher)
+        inspector_box.addWidget(self._btn_group)
+        inspector_box.addWidget(self._btn_room)
+        inspector_box.addStretch(1)
+        inspector_widget = QWidget()
+        inspector_widget.setMaximumWidth(240)
+        inspector_widget.setLayout(inspector_box)
+
+        center = QHBoxLayout()
+        center.addWidget(self._view, stretch=1)
+        center.addWidget(inspector_widget)
+
         layout = QVBoxLayout(self)
         layout.addLayout(top)
-        layout.addWidget(self._view, stretch=1)
+        layout.addLayout(center, stretch=1)
 
         # Estado del arrastre en curso.
         self._view_model: TimetableView | None = None
@@ -204,7 +235,10 @@ class ScheduleEditorModule(QWidget):
         source = self._drag_source
         target = self._targets.get((day, period))
         self._clear_drag()
-        if task is None or (day, period) == source:
+        if task is None:
+            return
+        if (day, period) == source:
+            self._inspect(task)  # soltar donde estaba = clic: mostrar detalles
             return
         if target is not None and target.feasible:
             self._bridge.move_class(task, day, period)  # el puente emite refresh
@@ -212,6 +246,29 @@ class ScheduleEditorModule(QWidget):
             self._bridge.status_message.emit(f"No se puede mover ahí: {target.reason}")
         else:
             self._bridge.status_message.emit("Suelta la clase dentro de la rejilla")
+
+    def _inspect(self, task_id: int) -> None:
+        if self._view_model is None:
+            return
+        cell = next((c for c in self._view_model.cells if c.task_id == task_id), None)
+        if cell is None:
+            return
+        self._clicked_teacher = cell.teacher_id
+        self._clicked_group = cell.group_id
+        self._clicked_room = cell.room_id
+        self._inspector.setText(
+            f"{cell.subject}\nDocente: {cell.teacher}\nGrupo: {cell.group}\nAula: {cell.room}"
+        )
+        self._btn_teacher.setEnabled(cell.teacher_id >= 0)
+        self._btn_group.setEnabled(cell.group_id >= 0)
+        self._btn_room.setEnabled(cell.room_id >= 0)
+
+    def _focus_on(self, resource_id: int) -> None:
+        if resource_id < 0:
+            return
+        index = self._focus.findData(resource_id)
+        if index >= 0:
+            self._focus.setCurrentIndex(index)  # dispara _redraw
 
     def _clear_drag(self) -> None:
         for item in (*self._overlays, *self._arrow):

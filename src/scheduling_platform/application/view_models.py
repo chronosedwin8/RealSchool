@@ -13,7 +13,7 @@ del negocio no se filtren a la interfaz.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..core.problem import SchedulingProblem
 from ..core.solution import Solution
@@ -184,7 +184,11 @@ def focus_options(problem: SchedulingProblem) -> tuple[FocusOption, ...]:
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)
 class TimetableCell:
-    """Una clase ubicada en (día, período) para el recurso en foco."""
+    """Una clase ubicada en (día, período) para el recurso en foco.
+
+    Incluye los ids de docente/grupo/aula para las **vistas enlazadas**: al hacer
+    clic en la clase se puede saltar al horario de su docente o de su aula.
+    """
 
     day: int
     period: int
@@ -195,6 +199,9 @@ class TimetableCell:
     group: str
     room: str
     conflict: bool
+    teacher_id: int = -1
+    group_id: int = -1
+    room_id: int = -1
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,6 +258,12 @@ def timetable_view(
 
     teacher_names = _name_by_tag(problem, _TEACHER_PREFIX)
     group_names = _name_by_tag(problem, _GROUP_PREFIX)
+    id_by_tag = {
+        tag: int(r.id)
+        for r in problem.resources
+        for tag in r.tags
+        if tag.startswith((_TEACHER_PREFIX, _GROUP_PREFIX))
+    }
     room_name_by_id = {int(r.id): r.name for r in problem.resources if _ROOM in r.tags}
 
     cells: list[TimetableCell] = []
@@ -263,19 +276,10 @@ def timetable_view(
             seg = problem.grid.segment_of(assignment.start)
             day = day_of[seg.id]
             period = int(assignment.start) - int(seg.start)
-            teacher = next(
-                (teacher_names[r.tag] for r in task.requirements if r.tag in teacher_names), "—"
-            )
-            group = next(
-                (group_names[r.tag] for r in task.requirements if r.tag in group_names), "—"
-            )
-            room = next(
-                (
-                    room_name_by_id[int(r)]
-                    for r in assignment.resource_ids
-                    if int(r) in room_name_by_id
-                ),
-                "—",
+            teacher_tag = next((r.tag for r in task.requirements if r.tag in teacher_names), None)
+            group_tag = next((r.tag for r in task.requirements if r.tag in group_names), None)
+            room_id = next(
+                (int(r) for r in assignment.resource_ids if int(r) in room_name_by_id), -1
             )
             index = len(cells)
             cells.append(
@@ -285,10 +289,13 @@ def timetable_view(
                     duration=task.duration,
                     task_id=int(task.id),
                     subject=_subject_of(task.name),
-                    teacher=teacher,
-                    group=group,
-                    room=room,
+                    teacher=teacher_names.get(teacher_tag, "—") if teacher_tag else "—",
+                    group=group_names.get(group_tag, "—") if group_tag else "—",
+                    room=room_name_by_id.get(room_id, "—"),
                     conflict=False,
+                    teacher_id=id_by_tag.get(teacher_tag, -1) if teacher_tag else -1,
+                    group_id=id_by_tag.get(group_tag, -1) if group_tag else -1,
+                    room_id=room_id,
                 )
             )
             for offset in range(task.duration):
@@ -311,17 +318,7 @@ def timetable_view(
 
 
 def _with_conflict(cell: TimetableCell) -> TimetableCell:
-    return TimetableCell(
-        day=cell.day,
-        period=cell.period,
-        duration=cell.duration,
-        task_id=cell.task_id,
-        subject=cell.subject,
-        teacher=cell.teacher,
-        group=cell.group,
-        room=cell.room,
-        conflict=True,
-    )
+    return replace(cell, conflict=True)
 
 
 # --------------------------------------------------------------------------- #

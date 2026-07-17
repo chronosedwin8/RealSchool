@@ -309,6 +309,36 @@ def test_project_manager_crea_version(qapp: QApplication, tmp_path: Path) -> Non
     assert win._import_export._btn_export.isEnabled()
 
 
+def test_vista_enlazada_clic_a_aula(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    SolveWorker(
+        bridge._service,
+        bridge.session,
+        solver="ortools_cpsat",
+        seed=42,
+        timeout=10.0,
+        structural_only=False,
+        cancel=bridge._cancel,
+    ).run()
+
+    editor = win._schedule
+    editor.refresh()
+    focus = next(o for o in bridge.focus_options() if o.kind == "teacher")
+    editor._focus.setCurrentIndex(editor._focus.findData(focus.resource_id))
+    cell = bridge.timetable(focus.resource_id).cells[0]
+    assert cell.room_id >= 0 and cell.group_id >= 0
+
+    editor._inspect(cell.task_id)
+    assert editor._btn_room.isEnabled()
+    # "Ver horario del aula" cambia el foco a esa aula.
+    editor._focus_on(cell.room_id)
+    assert editor._focus.currentData() == cell.room_id
+
+
 def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)
