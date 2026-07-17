@@ -26,6 +26,10 @@ docs = [
     "mkdocs-mermaid2-plugin>=1.1",
     "pytest-markdown-docs>=0.6",
 ]
+desktop = [
+    "PySide6>=6.8",
+    "pytest-qt>=4.4",
+]
 dev = [
     "mypy>=2.3",
     "ruff>=0.15",
@@ -34,10 +38,13 @@ dev = [
     "pytest-benchmark>=5.2",
     "typer>=0.12",
     "rich>=13.7",
+    "PySide6>=6.8",
+    "pytest-qt>=4.4",
 ]
 
 [project.scripts]
 schedule-engine = "scheduling_platform.cli.main:app"
+schedule-desktop = "scheduling_desktop.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

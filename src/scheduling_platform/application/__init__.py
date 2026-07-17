@@ -9,6 +9,7 @@ nunca importa esta capa (verificado por ``tests/test_architecture.py``).
 
 from __future__ import annotations
 
+from ..pipeline.events import ProgressCallback, ProgressEvent
 from .cancel import CancelToken
 from .commands.base import Command, CommandResult
 from .commands.config_validate import ConfigValidateCommand
@@ -81,6 +82,8 @@ __all__ = [
     "OptimizeCommand",
     "PluginSetting",
     "PluginsConfig",
+    "ProgressCallback",
+    "ProgressEvent",
     "ProjectExtractCommand",
     "ProjectInfoCommand",
     "ProjectPackCommand",

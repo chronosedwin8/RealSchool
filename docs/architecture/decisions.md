@@ -53,3 +53,4 @@ del diseño. Aquí están ordenados por fase.
 ## API interna y app de escritorio (Fases 5–6)
 
 - [ADR-031 — Fachada `EngineService` como frontera única GUI↔motor](../adr/ADR-031-fachada-engine-service.md)
+- [ADR-032 — Arquitectura de la app de escritorio (PySide6)](../adr/ADR-032-app-escritorio-pyside6.md)
