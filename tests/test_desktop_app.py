@@ -270,6 +270,27 @@ def test_drag_feedback_verde_rojo(qapp: QApplication, tmp_path: Path) -> None:
     assert not editor._overlays  # y limpia el estado del arrastre
 
 
+def test_data_manager_crud_y_carga(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    dm = win._data
+
+    before = bridge.tables().teachers.rows
+    tid = bridge.add_teacher("Nuevo Docente")
+    dm.refresh()
+    assert len(bridge.tables().teachers.rows) == len(before) + 1
+
+    # Carga acoplada: 2 grupos con el docente nuevo (una sola asignación).
+    gids = [int(r.key) for r in bridge.tables().groups.rows]
+    bridge.add_load(gids, "Coro", [tid], 1)
+    assert "Coro" in {r.cells[0] for r in bridge.tables().subjects.rows}
+    coro = next(t for t in bridge.session.project.problem.tasks if t.name.startswith("Coro"))
+    assert sum(1 for r in coro.requirements if r.tag.startswith("group#")) == len(gids)
+
+
 def test_plataforma_m5(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

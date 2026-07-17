@@ -116,6 +116,86 @@ def test_edicion_basica_round_trip(tmp_path: Path) -> None:
     assert tables.rooms.rows[0].cells[2] == "40"
 
 
+def test_crud_entidades(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+
+    tid = svc.add_teacher(session, "Bruno")
+    gid = svc.add_group(session, "7B", 25)
+    rid = svc.add_room(session, "Lab", 20)
+    tables = svc.tables(session)
+    assert len(tables.teachers.rows) == 2
+    assert "Bruno" in {r.cells[1] for r in tables.teachers.rows}
+    assert tables.groups.rows[-1].cells[2] == "25"  # tamaño del grupo nuevo
+    assert len(tables.rooms.rows) == 2
+
+    # Eliminar el aula nueva; el resto sigue.
+    svc.remove_resource(session, rid)
+    assert len(svc.tables(session).rooms.rows) == 1
+
+    # Persiste al guardar/reabrir.
+    svc.save(session)
+    reopened = svc.open(path)
+    assert len(svc.tables(reopened).teachers.rows) == 2
+    assert {int(g.cells[0]) for g in svc.tables(reopened).groups.rows} >= {gid}
+    _ = tid
+
+
+def test_add_load_y_remove_subject(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    tid = next(int(r.cells[0]) for r in svc.tables(session).teachers.rows)
+    gid = next(int(r.cells[0]) for r in svc.tables(session).groups.rows)
+
+    ids = svc.add_load(session, [gid], "Ciencias", [tid], sessions=3)
+    assert len(ids) == 3
+    assert "Ciencias" in {r.cells[0] for r in svc.tables(session).subjects.rows}
+    # La nueva carga se puede optimizar.
+    assert svc.optimize(session, timeout=10.0).solved is True
+
+    # Eliminar la materia borra sus clases.
+    before = len(session.project.problem.tasks)
+    svc.remove_subject(session, "Ciencias")
+    assert len(session.project.problem.tasks) == before - 3
+    assert "Ciencias" not in {r.cells[0] for r in svc.tables(session).subjects.rows}
+
+
+def test_add_load_acoplada_varios_docentes_y_grupos(tmp_path: Path) -> None:
+    # Una asignación puede acoplar varios docentes y varios grupos (Kopplung).
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    t1 = svc.add_teacher(session, "Bruno")
+    g1 = svc.add_group(session, "7B", 20)
+    teacher0 = next(int(r.cells[0]) for r in svc.tables(session).teachers.rows)
+    group0 = next(int(r.cells[0]) for r in svc.tables(session).groups.rows)
+
+    ids = svc.add_load(session, [group0, g1], "Banda", [teacher0, t1], sessions=1)
+    assert len(ids) == 1
+    task = next(t for t in session.project.problem.tasks if int(t.id) == ids[0])
+    tags = {req.tag for req in task.requirements}
+    # Una sola clase acopla 2 docentes + 2 grupos + un aula del pool.
+    assert sum(1 for t in tags if t.startswith("teacher#")) == 2  # co-docencia
+    assert sum(1 for t in tags if t.startswith("group#")) == 2  # grupos combinados
+    assert "room" in tags
+    # Los recursos añadidos (id == número de tag) están en el acople.
+    assert f"teacher#{t1}" in tags and f"group#{g1}" in tags
+
+
+def test_add_load_rechaza_ids_invalidos(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    with pytest.raises(ConfigError):
+        svc.add_load(session, [999], "X", [0], sessions=1)  # grupo inexistente
+
+
 def test_validate_factible(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

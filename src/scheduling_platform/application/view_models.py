@@ -126,11 +126,9 @@ def entity_tables(problem: SchedulingProblem) -> EntityTables:
             )
         elif kind == _GROUP:
             tag = _unique_tag(res.tags, _GROUP_PREFIX) or ""
+            size = res.attribute("size") or size_of_group.get(tag, 0)
             groups_rows.append(
-                EntityRow(
-                    rid,
-                    (rid, res.name, str(size_of_group.get(tag, 0)), str(tasks_per_tag.get(tag, 0))),
-                )
+                EntityRow(rid, (rid, res.name, str(size), str(tasks_per_tag.get(tag, 0))))
             )
 
     subjects_rows = tuple(

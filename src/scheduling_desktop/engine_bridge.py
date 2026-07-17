@@ -232,6 +232,54 @@ class EngineBridge(QObject):
         return self._service.available_solvers()
 
     # --- edición básica ------------------------------------------------- #
+    # --- CRUD de entidades y carga horaria ------------------------------ #
+    def add_teacher(self, name: str) -> int:
+        new_id = self._service.add_teacher(self.session, name)
+        self._after_edit()
+        self._announce("success", f"Docente añadido: {name}")
+        return new_id
+
+    def add_group(self, name: str, size: int) -> int:
+        new_id = self._service.add_group(self.session, name, size)
+        self._after_edit()
+        self._announce("success", f"Grupo añadido: {name}")
+        return new_id
+
+    def add_room(self, name: str, seats: int) -> int:
+        new_id = self._service.add_room(self.session, name, seats)
+        self._after_edit()
+        self._announce("success", f"Aula añadida: {name}")
+        return new_id
+
+    def remove_resource(self, resource_id: int) -> None:
+        self._service.remove_resource(self.session, resource_id)
+        self._after_edit()
+        self._announce("info", "Recurso eliminado")
+
+    def remove_subject(self, subject: str) -> None:
+        self._service.remove_subject(self.session, subject)
+        self._after_edit()
+        self._announce("info", f"Materia eliminada: {subject}")
+
+    def add_load(
+        self,
+        group_ids: list[int],
+        subject: str,
+        teacher_ids: list[int],
+        sessions: int,
+        room_ids: list[int] | None = None,
+    ) -> None:
+        self._service.add_load(
+            self.session, group_ids, subject, teacher_ids, sessions, room_ids=room_ids
+        )
+        self._after_edit()
+        self._announce("success", f"Carga añadida: {subject} ({sessions}h)")
+
+    def set_group_size(self, resource_id: int, size: int) -> bool:
+        self._service.set_group_size(self.session, resource_id, size)
+        self._after_edit()
+        return True
+
     def rename_resource(self, resource_id: int, name: str) -> bool:
         self._service.rename_resource(self.session, resource_id, name)
         self._after_edit()

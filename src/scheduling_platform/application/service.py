@@ -21,8 +21,9 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ..core.ids import TaskId, TimeSlotIndex
+from ..core.ids import ResourceId, TaskId, TimeSlotIndex
 from ..core.problem import SchedulingProblem
+from ..core.requirement import ResourceRequirement
 from ..core.resource import Resource
 from ..core.task import Task
 from ..engine import MetricsEngine, ReOptimizationEngine
@@ -640,6 +641,143 @@ class EngineService:
             new_tasks.append(replace(task, allowed_starts=allowed))
         return replace(problem, tasks=tuple(new_tasks))
 
+    # --- CRUD de entidades y carga horaria (Fase 7 E4) ------------------ #
+    def add_teacher(self, session: Session, name: str) -> int:
+        """Crea un docente nuevo. Devuelve su id."""
+        return self._add_resource(session, name, ("teacher", "teacher#{id}"))
+
+    def add_group(self, session: Session, name: str, size: int = 30) -> int:
+        """Crea un grupo nuevo (con su tamaño). Devuelve su id."""
+        return self._add_resource(
+            session, name, ("group", "group#{id}"), attributes=(("size", size),)
+        )
+
+    def add_room(self, session: Session, name: str, seats: int = 30) -> int:
+        """Crea un aula nueva (con sus cupos). Devuelve su id."""
+        return self._add_resource(
+            session, name, ("room", "room#{id}", "roomtype#normal"), attributes=(("seats", seats),)
+        )
+
+    def _add_resource(
+        self,
+        session: Session,
+        name: str,
+        tags: tuple[str, ...],
+        *,
+        attributes: tuple[tuple[str, int], ...] = (),
+    ) -> int:
+        if not name.strip():
+            raise ConfigError("el nombre no puede estar vacío")
+        project = session.project
+        new_id = max((int(r.id) for r in project.problem.resources), default=-1) + 1
+        resolved = frozenset(tag.format(id=new_id) for tag in tags)
+        resource = Resource(ResourceId(new_id), name.strip(), resolved, attributes=attributes)
+        new_problem = replace(project.problem, resources=(*project.problem.resources, resource))
+        session.project = self._structural_change(project, new_problem)
+        session.dirty = True
+        return new_id
+
+    def remove_resource(self, session: Session, resource_id: int) -> None:
+        """Elimina un docente/grupo/aula y las clases que dependen de él."""
+        project = session.project
+        problem = project.problem
+        target = next((r for r in problem.resources if int(r.id) == resource_id), None)
+        if target is None:
+            raise ConfigError(f"recurso inexistente: {resource_id}")
+        unique = {t for t in target.tags if t.startswith(("teacher#", "group#", "room#"))}
+        resources = tuple(r for r in problem.resources if int(r.id) != resource_id)
+        tasks = tuple(
+            t for t in problem.tasks if not any(req.tag in unique for req in t.requirements)
+        )
+        if not resources or not tasks:
+            raise ConfigError("no se puede eliminar: dejaría el proyecto sin recursos o sin clases")
+        session.project = self._structural_change(
+            project, replace(problem, resources=resources, tasks=tasks)
+        )
+        session.dirty = True
+
+    def add_load(
+        self,
+        session: Session,
+        group_ids: list[int],
+        subject: str,
+        teacher_ids: list[int],
+        sessions: int,
+        *,
+        room_ids: list[int] | None = None,
+        duration: int = 1,
+    ) -> list[int]:
+        """Añade carga horaria: crea ``sessions`` clases de ``subject`` (una asignación).
+
+        Una asignación puede acoplar **varios docentes**, **varios grupos** y
+        **varias aulas** (clase combinada / co-docencia, la *Kopplung* de Untis):
+        cada clase requiere a la vez todos ellos. Si no se dan aulas concretas, el
+        solver elige una del pool. Devuelve los ids de las clases creadas.
+        """
+        if not subject.strip():
+            raise ConfigError("la materia no puede estar vacía")
+        if sessions < 1:
+            raise ConfigError("el número de sesiones debe ser >= 1")
+        if not group_ids or not teacher_ids:
+            raise ConfigError("una asignación necesita al menos un grupo y un docente")
+        problem = session.project.problem
+
+        def unique_tag(rid: int, kind: str, prefix: str) -> str:
+            res = next((r for r in problem.resources if int(r.id) == rid), None)
+            if res is None or kind not in res.tags:
+                raise ConfigError(f"{kind} inexistente: {rid}")
+            return next(t for t in res.tags if t.startswith(prefix))
+
+        teacher_reqs = [
+            ResourceRequirement(unique_tag(t, "teacher", "teacher#")) for t in teacher_ids
+        ]
+        group_tags = [unique_tag(g, "group", "group#") for g in group_ids]
+        group_reqs = [ResourceRequirement(tag) for tag in group_tags]
+        if room_ids:
+            room_reqs = [ResourceRequirement(unique_tag(r, "room", "room#")) for r in room_ids]
+        else:
+            room_reqs = [ResourceRequirement("room")]
+        requirements = tuple(teacher_reqs + group_reqs + room_reqs)
+
+        size = sum(
+            next(r for r in problem.resources if r.has_tag(tag)).attribute("size", 30)
+            for tag in group_tags
+        )
+        base = max((int(t.id) for t in problem.tasks), default=-1) + 1
+        tag_key = "-".join(str(g) for g in group_ids)
+        new_tasks = [
+            Task(
+                TaskId(base + s),
+                f"{subject.strip()} · g{tag_key}#{s}",
+                duration,
+                requirements,
+                attributes=(("size", size),),
+            )
+            for s in range(sessions)
+        ]
+        session.project = self._structural_change(
+            session.project, replace(problem, tasks=(*problem.tasks, *new_tasks))
+        )
+        session.dirty = True
+        return [base + s for s in range(sessions)]
+
+    def remove_subject(self, session: Session, subject: str) -> None:
+        """Elimina una materia: borra todas sus clases."""
+        project = session.project
+        problem = project.problem
+        keep = tuple(t for t in problem.tasks if t.name.split(" · ", 1)[0] != subject)
+        if not keep:
+            raise ConfigError("no se puede eliminar: dejaría el proyecto sin clases")
+        if len(keep) == len(problem.tasks):
+            return
+        session.project = self._structural_change(project, replace(problem, tasks=keep))
+        session.dirty = True
+
+    @staticmethod
+    def _structural_change(project: BjsProject, problem: SchedulingProblem) -> BjsProject:
+        """Aplica un cambio estructural: invalida la solución y las métricas previas."""
+        return replace(project, problem=problem, solution=None, metrics=None)
+
     # --- edición básica -------------------------------------------------- #
     def rename_resource(self, session: Session, resource_id: int, name: str) -> None:
         """Renombra un recurso (docente/aula/grupo)."""
@@ -651,6 +789,16 @@ class EngineService:
         def mutate(res: Resource) -> Resource:
             attrs = dict(res.attributes)
             attrs["seats"] = seats
+            return replace(res, attributes=tuple(attrs.items()))
+
+        self._replace_resource(session, resource_id, mutate)
+
+    def set_group_size(self, session: Session, resource_id: int, size: int) -> None:
+        """Cambia el tamaño de un grupo."""
+
+        def mutate(res: Resource) -> Resource:
+            attrs = dict(res.attributes)
+            attrs["size"] = size
             return replace(res, attributes=tuple(attrs.items()))
 
         self._replace_resource(session, resource_id, mutate)
