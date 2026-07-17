@@ -459,11 +459,12 @@ class EngineService:
         return tuple(targets)
 
     def _blocked_linear(self, project: BjsProject, resource_ids: tuple[int, ...]) -> set[int]:
-        """Slots lineales bloqueados para los recursos dados (según disponibilidad)."""
+        """Slots lineales reservados (bloqueo + almuerzo) para los recursos dados."""
         segments = project.problem.grid.segments
+        reserved = self._reserved(project)
         out: set[int] = set()
         for rid in resource_ids:
-            for day, period in project.availability.get(rid, ()):
+            for day, period in reserved.get(rid, set()):
                 if 0 <= day < len(segments) and 0 <= period < segments[day].length:
                     out.add(int(segments[day].start) + period)
         return out
@@ -561,14 +562,73 @@ class EngineService:
         self.set_blocked(session, resource_id, current)
         return blocked
 
+    # --- almuerzos (Fase 7 E2), encima del bloqueo ---------------------- #
+    def lunch_hours(self, session: Session, teacher_id: int) -> frozenset[tuple[int, int]]:
+        """Horas de almuerzo reservadas de un docente."""
+        return frozenset(session.project.lunch.get(teacher_id, ()))
+
+    def _set_lunch(self, session: Session, teacher_id: int, slots: set[tuple[int, int]]) -> None:
+        lunch = dict(session.project.lunch)
+        if slots:
+            lunch[teacher_id] = tuple(sorted(slots))
+        else:
+            lunch.pop(teacher_id, None)
+        session.project = replace(session.project, lunch=lunch)
+        session.dirty = True
+
+    def toggle_lunch(self, session: Session, teacher_id: int, day: int, period: int) -> bool:
+        """Alterna la hora de almuerzo de un docente; devuelve el nuevo estado."""
+        current = set(self.lunch_hours(session, teacher_id))
+        cell = (day, period)
+        if cell in current:
+            current.discard(cell)
+            active = False
+        else:
+            current.add(cell)
+            active = True
+        self._set_lunch(session, teacher_id, current)
+        return active
+
+    def set_default_lunch(self, session: Session, period: int) -> int:
+        """Reserva el ``period`` como almuerzo para **todos los docentes, todos los días**.
+
+        Punto de partida configurable; luego cada almuerzo puede moverse por docente
+        y día con :meth:`toggle_lunch`. Devuelve cuántos docentes se afectaron.
+        """
+        project = session.project
+        segments = project.problem.grid.segments
+        days = [d for d, seg in enumerate(segments) if 0 <= period < seg.length]
+        lunch = dict(project.lunch)
+        teachers = [int(r.id) for r in project.problem.resources if "teacher" in r.tags]
+        for tid in teachers:
+            lunch[tid] = tuple(sorted({(d, period) for d in days}))
+        session.project = replace(project, lunch=lunch)
+        session.dirty = True
+        return len(teachers)
+
+    def clear_lunch(self, session: Session) -> None:
+        """Quita todas las horas de almuerzo."""
+        session.project = replace(session.project, lunch={})
+        session.dirty = True
+
+    @staticmethod
+    def _reserved(project: BjsProject) -> dict[int, set[tuple[int, int]]]:
+        """Horas reservadas por recurso = disponibilidad bloqueada + almuerzo."""
+        merged: dict[int, set[tuple[int, int]]] = defaultdict(set)
+        for layer in (project.availability, project.lunch):
+            for rid, pairs in layer.items():
+                merged[rid].update(pairs)
+        return merged
+
     def _effective_problem(self, project: BjsProject) -> SchedulingProblem:
-        """Aplica la disponibilidad: recorta ``allowed_starts`` en las horas bloqueadas."""
-        if not project.availability:
+        """Aplica disponibilidad + almuerzo: recorta ``allowed_starts`` en esas horas."""
+        reserved = self._reserved(project)
+        if not reserved:
             return project.problem
         problem = project.problem
         segments = problem.grid.segments
         tag_blocked: dict[str, set[int]] = {}
-        for rid, pairs in project.availability.items():
+        for rid, pairs in reserved.items():
             res = next((r for r in problem.resources if int(r.id) == rid), None)
             if res is None:
                 continue

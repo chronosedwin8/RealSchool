@@ -199,6 +199,26 @@ class EngineBridge(QObject):
         self.status_message.emit(f"Hora {estado} (día {day + 1}, período {period + 1})")
         return blocked
 
+    # --- almuerzos ------------------------------------------------------ #
+    def lunch_hours(self, teacher_id: int) -> frozenset[tuple[int, int]]:
+        return self._service.lunch_hours(self.session, teacher_id)
+
+    def toggle_lunch(self, teacher_id: int, day: int, period: int) -> bool:
+        active = self._service.toggle_lunch(self.session, teacher_id, day, period)
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+        self.status_message.emit("Almuerzo " + ("marcado" if active else "quitado"))
+        return active
+
+    def set_default_lunch(self, period: int) -> int:
+        count = self._service.set_default_lunch(self.session, period)
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+        self._announce(
+            "info", f"Almuerzo por defecto en el período {period + 1} ({count} docentes)"
+        )
+        return count
+
     def dashboard(self) -> DashboardStats:
         return self._service.dashboard(self.session)
 

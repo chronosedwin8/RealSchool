@@ -282,6 +282,30 @@ def test_toggle_block(tmp_path: Path) -> None:
     assert (1, 1) not in svc.availability(session, 0)
 
 
+def test_almuerzo_por_defecto_respetado_y_movible(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    # Almuerzo por defecto en el período 1 (índice 1) para todos los docentes.
+    n = svc.set_default_lunch(session, 1)
+    assert n == 1  # el demo tiene 1 docente
+    assert (0, 1) in svc.lunch_hours(session, 0)
+
+    # El optimizador lo respeta: el docente no da clase en el período 1.
+    svc.optimize(session, timeout=10.0)
+    focus = next(o for o in svc.focus_options(session) if o.kind == "teacher")
+    assert all(cell.period != 1 for cell in svc.timetable(session, focus.resource_id).cells)
+
+    # El almuerzo se mueve (día 0: de período 1 a período 2) y persiste.
+    svc.toggle_lunch(session, 0, 0, 1)  # quita
+    svc.toggle_lunch(session, 0, 0, 2)  # pone
+    svc.save(session)
+    reopened = svc.open(path)
+    day0 = {(d, p) for (d, p) in svc.lunch_hours(reopened, 0) if d == 0}
+    assert day0 == {(0, 2)}
+
+
 def test_reports_del_horario(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

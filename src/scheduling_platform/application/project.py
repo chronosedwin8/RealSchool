@@ -42,9 +42,23 @@ _SOLUTION = "solution.json"
 _METRICS = "metrics.json"
 _HISTORY = "history.json"
 _AVAILABILITY = "availability.json"
+_LUNCH = "lunch.json"
 
-#: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
+#: Disponibilidad/almuerzo: recurso -> tupla de (día, período) reservados (Fase 7).
 Availability = dict[int, tuple[tuple[int, int], ...]]
+
+
+def _read_slots(entries: dict[str, Any], fname: str) -> Availability:
+    return {
+        int(rid): tuple((int(d), int(p)) for d, p in pairs)
+        for rid, pairs in entries.get(fname, {}).get("blocked", {}).items()
+    }
+
+
+def _slots_doc(layer: Availability) -> dict[str, Any]:
+    return {
+        "blocked": {str(rid): [[d, p] for d, p in slots] for rid, slots in layer.items() if slots}
+    }
 
 
 def engine_version() -> str:
@@ -96,6 +110,7 @@ class BjsProject:
     metrics: dict[str, Any] | None = None
     history: tuple[dict[str, Any], ...] = ()
     availability: Availability = field(default_factory=dict)
+    lunch: Availability = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -126,13 +141,9 @@ def save_project(path: str | Path, project: BjsProject) -> None:
     if project.history:
         entries[_HISTORY] = {"runs": list(project.history)}
     if project.availability:
-        entries[_AVAILABILITY] = {
-            "blocked": {
-                str(rid): [[d, p] for d, p in slots]
-                for rid, slots in project.availability.items()
-                if slots
-            }
-        }
+        entries[_AVAILABILITY] = _slots_doc(project.availability)
+    if project.lunch:
+        entries[_LUNCH] = _slots_doc(project.lunch)
     pack(path, entries, project.manifest)
 
 
@@ -155,10 +166,6 @@ def open_project(path: str | Path) -> BjsProject:
     solution = solution_from_dict(entries[_SOLUTION]) if _SOLUTION in entries else None
     metrics = entries.get(_METRICS)
     history = tuple(entries.get(_HISTORY, {}).get("runs", []))
-    availability: Availability = {
-        int(rid): tuple((int(d), int(p)) for d, p in pairs)
-        for rid, pairs in entries.get(_AVAILABILITY, {}).get("blocked", {}).items()
-    }
     return BjsProject(
         manifest=manifest,
         problem=problem,
@@ -167,7 +174,8 @@ def open_project(path: str | Path) -> BjsProject:
         solution=solution,
         metrics=metrics,
         history=history,
-        availability=availability,
+        availability=_read_slots(entries, _AVAILABILITY),
+        lunch=_read_slots(entries, _LUNCH),
     )
 
 
