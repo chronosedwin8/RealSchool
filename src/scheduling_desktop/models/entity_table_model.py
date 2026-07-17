@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtGui import QColor
 
 from scheduling_platform.application import EntityTable
 
@@ -53,9 +54,20 @@ class EntityTableModel(QAbstractTableModel):
     def data(self, index: _Index, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         if not index.isValid():
             return None
+        value = self._table.rows[index.row()].cells[index.column()]
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
-            return self._table.rows[index.row()].cells[index.column()]
+            return value
+        if (
+            role == Qt.ItemDataRole.BackgroundRole
+            and self._is_color_column(index.column())
+            and value.startswith("#")
+        ):
+            return QColor(value)
         return None
+
+    def _is_color_column(self, column: int) -> bool:
+        fields = self._table.fields
+        return bool(fields) and column < len(fields) and fields[column] == "color"
 
     def flags(self, index: _Index) -> Qt.ItemFlag:
         base = super().flags(index)

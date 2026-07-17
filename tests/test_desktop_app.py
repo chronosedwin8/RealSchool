@@ -98,7 +98,7 @@ def test_edicion_en_data_manager_va_a_la_fachada(qapp: QApplication, tmp_path: P
     assert ok is True
     assert bridge.session.dirty is True
     tables = bridge.tables()
-    assert tables.teachers.rows[0].cells[1] == "Ana Pérez"
+    assert tables.teachers.rows[0].cells[0] == "Ana Pérez"
 
 
 def test_optimizar_en_worker_y_pintar_horario(qapp: QApplication, tmp_path: Path) -> None:

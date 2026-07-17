@@ -43,12 +43,18 @@ class EntityRow:
 
 @dataclass(frozen=True, slots=True)
 class EntityTable:
-    """Una tabla tipo Excel de una clase de entidad (docentes, aulas...)."""
+    """Una tabla tipo Excel de una clase de entidad (docentes, aulas...).
+
+    ``fields`` nombra semánticamente cada columna (``abbrev``, ``full_name``,
+    ``email``, ``section``, ``seats``, ``size``, ``color``...) para que la UI
+    sepa cómo enrutar cada edición sin conocer el orden de columnas.
+    """
 
     kind: str
     title: str
     columns: tuple[str, ...]
     rows: tuple[EntityRow, ...]
+    fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,13 +94,20 @@ def _subject_of(task_name: str) -> str:
 
 
 def entity_tables(
-    problem: SchedulingProblem, registered_subjects: tuple[str, ...] = ()
+    problem: SchedulingProblem,
+    registered_subjects: tuple[str, ...] = (),
+    resource_info: dict[int, dict[str, str]] | None = None,
+    subject_info: dict[str, dict[str, str]] | None = None,
 ) -> EntityTables:
-    """Reconstruye las tablas de docentes/aulas/grupos/materias desde el canónico.
+    """Reconstruye las tablas de docentes/aulas/grupos/materias, estilo Untis.
 
-    ``registered_subjects`` son las materias dadas de alta explícitamente (entidad
-    de primera clase); se muestran aunque aún no tengan clases asignadas.
+    El nombre canónico del recurso actúa como **abreviatura** (lo que se ve en el
+    horario); ``resource_info``/``subject_info`` aportan los datos maestros
+    (nombre completo, e-mail, sección, aula propia/alternativa, color de materia).
+    ``registered_subjects`` son las materias dadas de alta explícitamente.
     """
+    res_info = resource_info or {}
+    sub_info = subject_info or {}
     # Demanda por tag único: cuántas tareas requiere cada docente/grupo, y si su
     # dominio temporal está restringido (disponibilidad parcial).
     tasks_per_tag: dict[str, int] = defaultdict(int)
@@ -120,27 +133,66 @@ def entity_tables(
     for res in sorted(problem.resources, key=lambda r: int(r.id)):
         kind = _kind_of(res.tags)
         rid = str(int(res.id))
+        info = res_info.get(int(res.id), {})
         if kind == _TEACHER:
             tag = _unique_tag(res.tags, _TEACHER_PREFIX) or ""
             avail = "Parcial" if tag in restricted_tags else "Completa"
             teachers_rows.append(
-                EntityRow(rid, (rid, res.name, str(tasks_per_tag.get(tag, 0)), avail))
+                EntityRow(
+                    rid,
+                    (
+                        res.name,
+                        info.get("full_name", ""),
+                        info.get("email", ""),
+                        info.get("section", ""),
+                        str(tasks_per_tag.get(tag, 0)),
+                        avail,
+                    ),
+                )
             )
         elif kind == _ROOM:
             rooms_rows.append(
-                EntityRow(rid, (rid, res.name, str(res.attribute("seats")), _room_type(res.tags)))
+                EntityRow(
+                    rid,
+                    (
+                        res.name,
+                        info.get("full_name", ""),
+                        str(res.attribute("seats")),
+                        info.get("alt_room", ""),
+                    ),
+                )
             )
         elif kind == _GROUP:
             tag = _unique_tag(res.tags, _GROUP_PREFIX) or ""
             size = res.attribute("size") or size_of_group.get(tag, 0)
             groups_rows.append(
-                EntityRow(rid, (rid, res.name, str(size), str(tasks_per_tag.get(tag, 0))))
+                EntityRow(
+                    rid,
+                    (
+                        res.name,
+                        info.get("full_name", ""),
+                        info.get("section", ""),
+                        info.get("home_room", ""),
+                        str(size),
+                        str(tasks_per_tag.get(tag, 0)),
+                    ),
+                )
             )
 
     for name in registered_subjects:
         subjects.setdefault(name, (0, set()))  # materias sin clases aún
     subjects_rows = tuple(
-        EntityRow(name, (name, str(count), str(len(teachers))))
+        EntityRow(
+            name,
+            (
+                name,
+                sub_info.get(name, {}).get("full_name", ""),
+                sub_info.get(name, {}).get("section", ""),
+                sub_info.get(name, {}).get("color", ""),
+                str(count),
+                str(len(teachers)),
+            ),
+        )
         for name, (count, teachers) in sorted(subjects.items())
     )
 
@@ -148,15 +200,30 @@ def entity_tables(
         teachers=EntityTable(
             _TEACHER,
             "Docentes",
-            ("ID", "Docente", "Clases", "Disponibilidad"),
+            ("Abrev.", "Nombre completo", "E-mail", "Sección", "Clases", "Disponibilidad"),
             tuple(teachers_rows),
+            ("abbrev", "full_name", "email", "section", "classes", "availability"),
         ),
-        rooms=EntityTable(_ROOM, "Aulas", ("ID", "Aula", "Cupos", "Tipo"), tuple(rooms_rows)),
+        rooms=EntityTable(
+            _ROOM,
+            "Aulas",
+            ("Abrev.", "Nombre completo", "Capacidad", "Aula alternativa"),
+            tuple(rooms_rows),
+            ("abbrev", "full_name", "seats", "alt_room"),
+        ),
         groups=EntityTable(
-            _GROUP, "Grupos", ("ID", "Grupo", "Tamaño", "Clases"), tuple(groups_rows)
+            _GROUP,
+            "Grupos",
+            ("Abrev.", "Nombre completo", "Sección", "Aula propia", "Tamaño", "Clases"),
+            tuple(groups_rows),
+            ("abbrev", "full_name", "section", "home_room", "size", "classes"),
         ),
         subjects=EntityTable(
-            "subject", "Materias", ("Materia", "Sesiones", "Docentes"), subjects_rows
+            "subject",
+            "Materias",
+            ("Abreviatura", "Nombre completo", "Sección", "Color", "Sesiones", "Docentes"),
+            subjects_rows,
+            ("abbrev", "full_name", "section", "color", "sessions", "teachers"),
         ),
     )
 

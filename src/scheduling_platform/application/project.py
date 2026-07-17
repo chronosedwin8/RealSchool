@@ -44,6 +44,7 @@ _HISTORY = "history.json"
 _AVAILABILITY = "availability.json"
 _LUNCH = "lunch.json"
 _SUBJECTS = "subjects.json"
+_DIRECTORY = "directory.json"
 
 #: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
 Availability = dict[int, tuple[tuple[int, int], ...]]
@@ -138,6 +139,10 @@ class BjsProject:
     availability: Availability = field(default_factory=dict)
     lunch_window: LunchWindow | None = None
     subjects: tuple[str, ...] = ()  # materias registradas (entidad de primera clase)
+    # Datos maestros estilo Untis (Fase 7): campos de texto por entidad que no
+    # afectan al solver (nombre completo, e-mail, sección, aula propia, color...).
+    resource_info: dict[int, dict[str, str]] = field(default_factory=dict)
+    subject_info: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -176,6 +181,11 @@ def save_project(path: str | Path, project: BjsProject) -> None:
         }
     if project.subjects:
         entries[_SUBJECTS] = {"names": list(project.subjects)}
+    if project.resource_info or project.subject_info:
+        entries[_DIRECTORY] = {
+            "resources": {str(k): dict(v) for k, v in project.resource_info.items() if v},
+            "subjects": {k: dict(v) for k, v in project.subject_info.items() if v},
+        }
     pack(path, entries, project.manifest)
 
 
@@ -209,6 +219,14 @@ def open_project(path: str | Path) -> BjsProject:
         availability=_read_slots(entries, _AVAILABILITY),
         lunch_window=_read_lunch(entries),
         subjects=tuple(str(n) for n in entries.get(_SUBJECTS, {}).get("names", ())),
+        resource_info={
+            int(k): {str(a): str(b) for a, b in v.items()}
+            for k, v in entries.get(_DIRECTORY, {}).get("resources", {}).items()
+        },
+        subject_info={
+            str(k): {str(a): str(b) for a, b in v.items()}
+            for k, v in entries.get(_DIRECTORY, {}).get("subjects", {}).items()
+        },
     )
 
 

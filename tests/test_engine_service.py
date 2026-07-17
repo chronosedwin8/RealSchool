@@ -79,10 +79,11 @@ def test_open_y_tablas_de_entidades(tmp_path: Path) -> None:
     svc = EngineService()
     session = svc.open(path)
     tables = svc.tables(session)
-    assert [r.cells[1] for r in tables.teachers.rows] == ["Ana Docente"]
-    assert [r.cells[1] for r in tables.rooms.rows] == ["Aula 101"]
-    assert tables.rooms.rows[0].cells[2] == "30"  # cupos
-    assert [r.cells[1] for r in tables.groups.rows] == ["10A"]
+    # La columna 0 es la Abreviatura (lo que se ve en el horario), como en Untis.
+    assert [r.cells[0] for r in tables.teachers.rows] == ["Ana Docente"]
+    assert [r.cells[0] for r in tables.rooms.rows] == ["Aula 101"]
+    assert tables.rooms.rows[0].cells[2] == "30"  # capacidad
+    assert [r.cells[0] for r in tables.groups.rows] == ["10A"]
     # Materias derivadas del nombre de las tareas ("Materia · carga#i").
     assert {r.cells[0] for r in tables.subjects.rows} == {"Matemáticas", "Historia"}
 
@@ -112,7 +113,7 @@ def test_edicion_basica_round_trip(tmp_path: Path) -> None:
     # Reabrir refleja el cambio.
     reopened = svc.open(path)
     tables = svc.tables(reopened)
-    assert tables.teachers.rows[0].cells[1] == "Ana Pérez"
+    assert tables.teachers.rows[0].cells[0] == "Ana Pérez"
     assert tables.rooms.rows[0].cells[2] == "40"
 
 
@@ -127,8 +128,8 @@ def test_crud_entidades(tmp_path: Path) -> None:
     rid = svc.add_room(session, "Lab", 20)
     tables = svc.tables(session)
     assert len(tables.teachers.rows) == 2
-    assert "Bruno" in {r.cells[1] for r in tables.teachers.rows}
-    assert tables.groups.rows[-1].cells[2] == "25"  # tamaño del grupo nuevo
+    assert "Bruno" in {r.cells[0] for r in tables.teachers.rows}
+    assert tables.groups.rows[-1].cells[4] == "25"  # tamaño del grupo nuevo
     assert len(tables.rooms.rows) == 2
 
     # Eliminar el aula nueva; el resto sigue.
@@ -139,7 +140,7 @@ def test_crud_entidades(tmp_path: Path) -> None:
     svc.save(session)
     reopened = svc.open(path)
     assert len(svc.tables(reopened).teachers.rows) == 2
-    assert {int(g.cells[0]) for g in svc.tables(reopened).groups.rows} >= {gid}
+    assert {int(g.key) for g in svc.tables(reopened).groups.rows} >= {gid}
     _ = tid
 
 
@@ -148,8 +149,8 @@ def test_add_load_y_remove_subject(tmp_path: Path) -> None:
     _make(path)
     svc = EngineService()
     session = svc.open(path)
-    tid = next(int(r.cells[0]) for r in svc.tables(session).teachers.rows)
-    gid = next(int(r.cells[0]) for r in svc.tables(session).groups.rows)
+    tid = next(int(r.key) for r in svc.tables(session).teachers.rows)
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
 
     ids = svc.add_load(session, [gid], "Ciencias", [tid], sessions=3)
     assert len(ids) == 3
@@ -172,8 +173,8 @@ def test_add_load_acoplada_varios_docentes_y_grupos(tmp_path: Path) -> None:
     session = svc.open(path)
     t1 = svc.add_teacher(session, "Bruno")
     g1 = svc.add_group(session, "7B", 20)
-    teacher0 = next(int(r.cells[0]) for r in svc.tables(session).teachers.rows)
-    group0 = next(int(r.cells[0]) for r in svc.tables(session).groups.rows)
+    teacher0 = next(int(r.key) for r in svc.tables(session).teachers.rows)
+    group0 = next(int(r.key) for r in svc.tables(session).groups.rows)
 
     ids = svc.add_load(session, [group0, g1], "Banda", [teacher0, t1], sessions=1)
     assert len(ids) == 1
@@ -208,6 +209,45 @@ def test_materia_primera_clase(tmp_path: Path) -> None:
     # Persiste la lista de materias.
     svc.save(session)
     assert "Filosofía" in {r.cells[0] for r in svc.tables(svc.open(path)).subjects.rows}
+
+
+def test_datos_maestros_estilo_untis(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+
+    # Docente: nombre completo, e-mail y sección; grupo: sección y aula propia.
+    svc.set_resource_info(session, 0, "full_name", "Acero Rondero Luis Carlos")
+    svc.set_resource_info(session, 0, "email", "lacero@colegio.edu.co")
+    svc.set_resource_info(session, 0, "section", "P")
+    svc.set_resource_info(session, 1, "home_room", "P 25")
+    # Materia: color (para pintar el horario) y sección.
+    svc.set_subject_info(session, "Matemáticas", "color", "#f4a261")
+    svc.set_subject_info(session, "Matemáticas", "section", "P")
+
+    tables = svc.tables(session)
+    teacher = tables.teachers.rows[0]
+    assert teacher.cells[1] == "Acero Rondero Luis Carlos"
+    assert teacher.cells[2] == "lacero@colegio.edu.co"
+    assert teacher.cells[3] == "P"
+    assert tables.groups.rows[0].cells[3] == "P 25"  # aula propia
+    mate = next(r for r in tables.subjects.rows if r.cells[0] == "Matemáticas")
+    assert mate.cells[3] == "#f4a261"
+    assert svc.subject_colors(session) == {"Matemáticas": "#f4a261"}
+
+    # Persiste al guardar/reabrir, y el rename de materia migra sus datos.
+    svc.save(session)
+    reopened = svc.open(path)
+    assert svc.subject_colors(reopened) == {"Matemáticas": "#f4a261"}
+    svc.rename_subject(reopened, "Matemáticas", "Cálculo")
+    assert svc.subject_colors(reopened) == {"Cálculo": "#f4a261"}
+
+    # Campo inválido sobre entidad inexistente -> error controlado.
+    with pytest.raises(ConfigError):
+        svc.set_resource_info(session, 999, "email", "x@y.z")
+    with pytest.raises(ConfigError):
+        svc.set_subject_info(session, "NoExiste", "color", "#fff")
 
 
 def test_add_load_rechaza_ids_invalidos(tmp_path: Path) -> None:

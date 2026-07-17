@@ -155,7 +155,53 @@ class EngineService:
 
     # --- consultas (modelos de vista) ----------------------------------- #
     def tables(self, session: Session) -> EntityTables:
-        return entity_tables(session.project.problem, session.project.subjects)
+        project = session.project
+        return entity_tables(
+            project.problem, project.subjects, project.resource_info, project.subject_info
+        )
+
+    # --- datos maestros estilo Untis (Fase 7) --------------------------- #
+    def set_resource_info(self, session: Session, resource_id: int, field: str, value: str) -> None:
+        """Fija un campo maestro de un recurso (nombre completo, e-mail, sección...)."""
+        if not any(int(r.id) == resource_id for r in session.project.problem.resources):
+            raise ConfigError(f"recurso inexistente: {resource_id}")
+        info = {k: dict(v) for k, v in session.project.resource_info.items()}
+        entry = info.setdefault(resource_id, {})
+        value = value.strip()
+        if value:
+            entry[field] = value
+        else:
+            entry.pop(field, None)
+        if not entry:
+            info.pop(resource_id, None)
+        session.project = replace(session.project, resource_info=info)
+        session.dirty = True
+
+    def set_subject_info(self, session: Session, subject: str, field: str, value: str) -> None:
+        """Fija un campo maestro de una materia (nombre completo, sección, color)."""
+        if subject not in session.project.subjects and subject not in self._derived_subjects(
+            session
+        ):
+            raise ConfigError(f"materia inexistente: {subject}")
+        info = {k: dict(v) for k, v in session.project.subject_info.items()}
+        entry = info.setdefault(subject, {})
+        value = value.strip()
+        if value:
+            entry[field] = value
+        else:
+            entry.pop(field, None)
+        if not entry:
+            info.pop(subject, None)
+        session.project = replace(session.project, subject_info=info)
+        session.dirty = True
+
+    def subject_colors(self, session: Session) -> dict[str, str]:
+        """Color configurado por materia (para pintar el horario, como Untis)."""
+        return {
+            name: info["color"]
+            for name, info in session.project.subject_info.items()
+            if info.get("color")
+        }
 
     def focus_options(self, session: Session) -> tuple[FocusOption, ...]:
         return focus_options(session.project.problem)
@@ -691,8 +737,12 @@ class EngineService:
         )
         if not resources or not tasks:
             raise ConfigError("no se puede eliminar: dejaría el proyecto sin recursos o sin clases")
-        session.project = self._structural_change(
-            project, replace(problem, resources=resources, tasks=tasks)
+        availability = {k: v for k, v in project.availability.items() if k != resource_id}
+        resource_info = {k: v for k, v in project.resource_info.items() if k != resource_id}
+        session.project = replace(
+            self._structural_change(project, replace(problem, resources=resources, tasks=tasks)),
+            availability=availability,
+            resource_info=resource_info,
         )
         session.dirty = True
 
@@ -794,9 +844,11 @@ class EngineService:
             else t
             for t in project.problem.tasks
         )
+        subject_info = {(new if k == old else k): v for k, v in project.subject_info.items()}
         session.project = replace(
             self._structural_change(project, replace(project.problem, tasks=tasks)),
             subjects=subjects if old in project.subjects else project.subjects,
+            subject_info=subject_info,
         )
         session.dirty = True
 
@@ -808,8 +860,11 @@ class EngineService:
         if not keep:
             raise ConfigError("no se puede eliminar: dejaría el proyecto sin clases")
         subjects = tuple(s for s in project.subjects if s != subject)
+        subject_info = {k: v for k, v in project.subject_info.items() if k != subject}
         session.project = replace(
-            self._structural_change(project, replace(problem, tasks=keep)), subjects=subjects
+            self._structural_change(project, replace(problem, tasks=keep)),
+            subjects=subjects,
+            subject_info=subject_info,
         )
         session.dirty = True
 

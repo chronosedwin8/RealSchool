@@ -261,6 +261,20 @@ class EngineBridge(QObject):
         self._after_edit()
         self._announce("success", f"Materia añadida: {name}")
 
+    # --- datos maestros estilo Untis ------------------------------------ #
+    def set_resource_info(self, resource_id: int, field: str, value: str) -> bool:
+        self._service.set_resource_info(self.session, resource_id, field, value)
+        self._after_edit()
+        return True
+
+    def set_subject_info(self, subject: str, field: str, value: str) -> bool:
+        self._service.set_subject_info(self.session, subject, field, value)
+        self._after_edit()
+        return True
+
+    def subject_colors(self) -> dict[str, str]:
+        return self._service.subject_colors(self.session)
+
     def rename_subject(self, old: str, new: str) -> bool:
         self._service.rename_subject(self.session, old, new)
         self._after_edit()

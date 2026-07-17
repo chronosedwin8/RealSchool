@@ -1,17 +1,20 @@
-"""Módulo 3 · Data Manager: ingreso de datos del proyecto (tablas editables).
+"""Módulo 3 · Data Manager: datos maestros estilo Untis.
 
-Pestañas Docentes/Aulas/Grupos/Materias como DataGrids: **Añadir** crea una fila
-nueva con un nombre por defecto lista para editar en la propia tabla (doble-clic),
-**Eliminar** quita la seleccionada, y las celdas se editan en sitio. La carga
-horaria (clases) se ingresa aparte, con estos datos ya cargados. Todo enruta a la
-Fachada; la UI no valida reglas.
+Pestañas Docentes/Aulas/Grupos/Materias como las ventanas de datos de Untis:
+**Abreviatura + Nombre completo** y los campos de cada entidad (e-mail y sección
+del docente; sección y aula propia del grupo; capacidad y aula alternativa del
+aula; sección y **color** de la materia). Todo se edita **en la celda**; *Nuevo*
+crea la fila lista para escribir; el selector de registro salta a una fila. La
+UI no valida reglas: cada edición se enruta a la Fachada por su campo semántico.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QColorDialog,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -35,8 +38,8 @@ from ..models import EntityTableModel
 
 _KINDS = ("teacher", "room", "group", "subject")
 _ID_ROLE = int(Qt.ItemDataRole.UserRole)
-# Columna del nombre y columnas editables adicionales, por tipo.
-_NAME_COL = {"teacher": 1, "room": 1, "group": 1, "subject": 0}
+#: Columnas calculadas por el motor (no editables).
+_READONLY_FIELDS = {"classes", "availability", "sessions", "teachers"}
 
 
 class _LoadDialog(QDialog):
@@ -74,7 +77,10 @@ class _LoadDialog(QDialog):
         widget.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         widget.setMaximumHeight(120)
         for row in table.rows:
-            widget.addItem(row.cells[1] if len(row.cells) > 1 else row.cells[0])
+            label = row.cells[0]
+            if len(row.cells) > 1 and row.cells[1]:
+                label = f"{row.cells[0]} — {row.cells[1]}"
+            widget.addItem(label)
             widget.item(widget.count() - 1).setData(_ID_ROLE, int(row.key))
         return widget
 
@@ -93,7 +99,7 @@ class _LoadDialog(QDialog):
 
 
 class DataManagerModule(QWidget):
-    """Ingreso y edición de las entidades del proyecto (docentes/aulas/grupos/materias)."""
+    """Ventanas de datos maestros (docentes/aulas/grupos/materias), estilo Untis."""
 
     def __init__(self, bridge: EngineBridge) -> None:
         super().__init__()
@@ -102,15 +108,23 @@ class DataManagerModule(QWidget):
         self._tabs = QTabWidget()
         self._views: dict[str, QTableView] = {}
 
-        self._add_btn = QPushButton("+ Añadir")
+        # Selector de registro (como el combo superior de Untis).
+        self._record = QComboBox()
+        self._record.setMinimumWidth(180)
+        self._record.activated.connect(self._jump_to_record)
+
+        self._add_btn = QPushButton("Nuevo")
         self._add_btn.clicked.connect(self._on_add)
         del_btn = QPushButton("Eliminar")
         del_btn.clicked.connect(self._on_delete)
         load_btn = QPushButton("Añadir carga (clase)…")
         load_btn.clicked.connect(self._on_add_load)
-        self._hint = QLabel("Doble-clic en una celda para editar.")
+        self._hint = QLabel(
+            "Doble-clic en una celda para editar · en Materias, el Color abre la paleta."
+        )
         self._hint.setStyleSheet("color: #64748b;")
         toolbar = QHBoxLayout()
+        toolbar.addWidget(self._record)
         toolbar.addWidget(self._add_btn)
         toolbar.addWidget(del_btn)
         toolbar.addWidget(load_btn)
@@ -120,7 +134,7 @@ class DataManagerModule(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(toolbar)
         layout.addWidget(self._tabs)
-        self._tabs.currentChanged.connect(self._update_add_label)
+        self._tabs.currentChanged.connect(self._on_tab_changed)
         bridge.session_changed.connect(self.refresh)
 
     def refresh(self) -> None:
@@ -128,6 +142,7 @@ class DataManagerModule(QWidget):
             return
         current = self._tabs.currentIndex()
         self._tables = self._bridge.tables()
+        self._tabs.blockSignals(True)
         self._tabs.clear()
         self._views.clear()
         for table in self._tables.as_tuple():
@@ -138,29 +153,46 @@ class DataManagerModule(QWidget):
             view.resizeColumnsToContents()
             view.horizontalHeader().setStretchLastSection(True)
             view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+            view.doubleClicked.connect(lambda index, k=table.kind: self._maybe_pick_color(k, index))
             self._tabs.addTab(view, f"{table.title} ({len(table.rows)})")
             self._views[table.kind] = view
+        self._tabs.blockSignals(False)
         if 0 <= current < self._tabs.count():
             self._tabs.setCurrentIndex(current)
-        self._update_add_label()
+        self._on_tab_changed()
 
+    # --- selector de registro y pestañas -------------------------------- #
     def _current_kind(self) -> str:
         index = self._tabs.currentIndex()
         return _KINDS[index] if 0 <= index < len(_KINDS) else "teacher"
-
-    def _update_add_label(self) -> None:
-        label = {
-            "teacher": "+ Añadir docente",
-            "room": "+ Añadir aula",
-            "group": "+ Añadir grupo",
-            "subject": "+ Añadir materia",
-        }
-        self._add_btn.setText(label.get(self._current_kind(), "+ Añadir"))
 
     def _table_of(self, kind: str) -> EntityTable | None:
         if self._tables is None:
             return None
         return {t.kind: t for t in self._tables.as_tuple()}.get(kind)
+
+    def _on_tab_changed(self) -> None:
+        labels = {
+            "teacher": "Nuevo docente",
+            "room": "Nueva aula",
+            "group": "Nuevo grupo",
+            "subject": "Nueva materia",
+        }
+        self._add_btn.setText(labels.get(self._current_kind(), "Nuevo"))
+        table = self._table_of(self._current_kind())
+        self._record.clear()
+        if table is not None:
+            for i, row in enumerate(table.rows):
+                self._record.addItem(row.cells[0], i)
+
+    def _jump_to_record(self, index: int) -> None:
+        view = self._views.get(self._current_kind())
+        row = self._record.itemData(index)
+        model = view.model() if view is not None else None
+        if view is None or model is None or not isinstance(row, int):
+            return
+        view.selectRow(row)
+        view.scrollTo(model.index(row, 0))
 
     def _selected_key(self) -> str | None:
         view = self._views.get(self._current_kind())
@@ -174,28 +206,27 @@ class DataManagerModule(QWidget):
         return table.rows[row].key if 0 <= row < len(table.rows) else None
 
     def _default_name(self, base: str) -> str:
-        existing = set()
+        existing: set[str] = set()
         table = self._table_of(self._current_kind())
         if table is not None:
-            col = _NAME_COL[self._current_kind()]
-            existing = {r.cells[col] for r in table.rows}
+            existing = {r.cells[0] for r in table.rows}
         n = 1
-        while f"{base} {n}" in existing:
+        while f"{base}{n}" in existing:
             n += 1
-        return f"{base} {n}"
+        return f"{base}{n}"
 
-    # --- alta / baja ---------------------------------------------------- #
+    # --- alta / baja ----------------------------------------------------- #
     def _on_add(self) -> None:
         kind = self._current_kind()
         try:
             if kind == "teacher":
-                self._bridge.add_teacher(self._default_name("Docente"))
+                self._bridge.add_teacher(self._default_name("DOC"))
             elif kind == "room":
-                self._bridge.add_room(self._default_name("Aula"), 30)
+                self._bridge.add_room(self._default_name("AULA"), 30)
             elif kind == "group":
-                self._bridge.add_group(self._default_name("Grupo"), 30)
+                self._bridge.add_group(self._default_name("GRUPO"), 30)
             else:
-                self._bridge.add_subject(self._default_name("Materia"))
+                self._bridge.add_subject(self._default_name("MAT"))
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo añadir", str(exc))
             return
@@ -206,7 +237,7 @@ class DataManagerModule(QWidget):
         model = view.model() if view is not None else None
         if view is None or model is None or model.rowCount() == 0:
             return
-        index = model.index(model.rowCount() - 1, _NAME_COL[kind])
+        index = model.index(model.rowCount() - 1, 0)
         view.setCurrentIndex(index)
         view.scrollToBottom()
         view.edit(index)
@@ -252,43 +283,50 @@ class DataManagerModule(QWidget):
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo añadir la carga", str(exc))
 
-    # --- modelos / edición en celda ------------------------------------- #
+    # --- modelos / edición en celda -------------------------------------- #
     def _model_for(self, table: EntityTable) -> EntityTableModel:
-        if table.kind == "teacher":
-            return EntityTableModel(table, editable=frozenset({1}), on_edit=self._edit_resource)
-        if table.kind == "group":
-            return EntityTableModel(table, editable=frozenset({1, 2}), on_edit=self._edit_group)
-        if table.kind == "room":
-            return EntityTableModel(table, editable=frozenset({1, 2}), on_edit=self._edit_room)
-        return EntityTableModel(table, editable=frozenset({0}), on_edit=self._edit_subject)
+        editable = frozenset(
+            i
+            for i, field in enumerate(table.fields)
+            if field not in _READONLY_FIELDS and field != "color"
+        )
 
-    def _edit_resource(self, key: str, column: int, value: str) -> bool:
+        def on_edit(key: str, col: int, val: str, *, _table: EntityTable = table) -> bool:
+            return self._on_cell_edit(_table.kind, _table, key, col, val)
+
+        return EntityTableModel(table, editable=editable, on_edit=on_edit)
+
+    def _on_cell_edit(
+        self, kind: str, table: EntityTable, key: str, column: int, value: str
+    ) -> bool:
+        field = table.fields[column] if column < len(table.fields) else ""
         value = value.strip()
-        return bool(value) and self._bridge.rename_resource(int(key), value)
-
-    def _edit_group(self, key: str, column: int, value: str) -> bool:
-        if column == 1:
-            return self._edit_resource(key, column, value)
         try:
-            size = int(value)
-        except ValueError:
+            if field == "abbrev":
+                if not value:
+                    return False
+                if kind == "subject":
+                    return self._bridge.rename_subject(key, value)
+                return self._bridge.rename_resource(int(key), value)
+            if field == "seats":
+                seats = int(value)
+                return seats >= 1 and self._bridge.set_room_seats(int(key), seats)
+            if field == "size":
+                size = int(value)
+                return size >= 1 and self._bridge.set_group_size(int(key), size)
+            if kind == "subject":
+                return self._bridge.set_subject_info(key, field, value)
+            return self._bridge.set_resource_info(int(key), field, value)
+        except ConfigError, ValueError:
             return False
-        return size >= 1 and self._bridge.set_group_size(int(key), size)
 
-    def _edit_room(self, key: str, column: int, value: str) -> bool:
-        if column == 1:
-            return self._edit_resource(key, column, value)
-        try:
-            seats = int(value)
-        except ValueError:
-            return False
-        return seats >= 1 and self._bridge.set_room_seats(int(key), seats)
-
-    def _edit_subject(self, key: str, column: int, value: str) -> bool:
-        value = value.strip()
-        if not value or value == key:
-            return False
-        try:
-            return self._bridge.rename_subject(key, value)
-        except ConfigError:
-            return False
+    def _maybe_pick_color(self, kind: str, index: QModelIndex) -> None:
+        table = self._table_of(kind)
+        if table is None or kind != "subject" or not index.isValid():
+            return
+        if index.column() >= len(table.fields) or table.fields[index.column()] != "color":
+            return
+        row = table.rows[index.row()]
+        color = QColorDialog.getColor(parent=self, title=f"Color de {row.cells[0]}")
+        if color.isValid():
+            self._bridge.set_subject_info(row.key, "color", color.name())

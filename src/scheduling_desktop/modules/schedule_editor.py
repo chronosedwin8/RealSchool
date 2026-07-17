@@ -194,6 +194,8 @@ class ScheduleEditorModule(QWidget):
         layout.addLayout(top)
         layout.addLayout(center, stretch=1)
 
+        # Colores de materia configurados (Datos -> Materias), como Untis.
+        self._colors: dict[str, str] = {}
         # Estado del arrastre en curso.
         self._view_model: TimetableView | None = None
         self._drag_task: int | None = None
@@ -390,6 +392,7 @@ class ScheduleEditorModule(QWidget):
         if not self._bridge.has_session or self._focus.count() == 0:
             self._view_model = None
             return
+        self._colors = self._bridge.subject_colors()
         mosaic = self._mosaic_btn.isChecked()
         self._focus.setEnabled(not mosaic)
         if mosaic:
@@ -405,6 +408,11 @@ class ScheduleEditorModule(QWidget):
         self._draw_reserved(focus_id, view)
         for cell in view.cells:
             self._draw_cell(view, cell)
+
+    def _color_for(self, subject: str) -> QColor:
+        """Color de la materia: el configurado en Datos > Materias, o uno estable."""
+        stored = self._colors.get(subject)
+        return QColor(stored) if stored else subject_color(subject)
 
     def _draw_mosaic(self) -> None:
         """Horarios de varios grupos a la vez, legibles (con encabezados y materia)."""
@@ -440,8 +448,8 @@ class ScheduleEditorModule(QWidget):
                 y = oy + _MHEAD + cell.period * _MH
                 self._scene.addRect(
                     QRectF(x + 1, y + 1, _MW - 2, cell.duration * _MH - 2),
-                    QPen(subject_color(cell.subject).darker(140)),
-                    QBrush(subject_color(cell.subject)),
+                    QPen(self._color_for(cell.subject).darker(140)),
+                    QBrush(self._color_for(cell.subject)),
                 )
                 text = self._scene.addText("")
                 text.setHtml(f"<b>{cell.subject[:8]}</b><br>{cell.room[:8]}")
@@ -504,7 +512,7 @@ class ScheduleEditorModule(QWidget):
         x = _ROWHEAD + cell.day * _CELL_W
         y = _HEAD + cell.period * _CELL_H
         rect = QRectF(x + 3, y + 3, _CELL_W - 6, cell.duration * _CELL_H - 6)
-        fill = subject_color(cell.subject)
+        fill = self._color_for(cell.subject)
         border = QPen(_CONFLICT if cell.conflict else fill.darker(140))
         border.setWidth(3 if cell.conflict else 1)
         item = self._scene.addRect(rect, border, QBrush(fill))
