@@ -385,6 +385,19 @@ class ConstraintRow:
 
 
 # --------------------------------------------------------------------------- #
+# Informes (Reports)
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
+class ReportTable:
+    """Un informe tabular listo para mostrar o exportar (CSV/HTML)."""
+
+    key: str
+    title: str
+    columns: tuple[str, ...]
+    rows: tuple[tuple[str, ...], ...]
+
+
+# --------------------------------------------------------------------------- #
 # Resultado de una optimización (Optimization Console)
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)

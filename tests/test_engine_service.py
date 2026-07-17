@@ -184,6 +184,48 @@ def test_optimize_devuelve_outcome_y_ubica_las_clases(tmp_path: Path) -> None:
     assert len({(c.day, c.period) for c in view.cells}) == 2
 
 
+def test_move_class_reubica_y_reoptimiza(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    svc.optimize(session, timeout=10.0)
+
+    # Mover la clase 0 al día 1, período 2 (libre en la rejilla 2x3).
+    outcome = svc.move_class(session, 0, 1, 2)
+    assert outcome.solved is True
+    focus = next(o for o in svc.focus_options(session) if o.kind == "teacher")
+    view = svc.timetable(session, focus.resource_id)
+    moved = next(c for c in view.cells if c.task_id == 0)
+    assert (moved.day, moved.period) == (1, 2)
+
+
+def test_move_class_a_periodo_invalido_no_cambia(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    svc.optimize(session, timeout=10.0)
+    before = session.project.solution
+    outcome = svc.move_class(session, 0, 9, 0)  # día fuera de rango
+    assert outcome.solved is False
+    assert session.project.solution is before  # la sesión no cambió
+
+
+def test_reports_del_horario(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    # Sin solución: un aviso.
+    assert svc.reports(session)[0].key == "empty"
+    svc.optimize(session, timeout=10.0)
+    reports = {r.key: r for r in svc.reports(session)}
+    assert set(reports) == {"teacher_load", "room_usage", "quality"}
+    assert reports["teacher_load"].columns == ("Docente", "Clases", "Períodos")
+    assert reports["teacher_load"].rows  # hay docentes con carga
+
+
 def test_optimize_infactible_no_lanza(tmp_path: Path) -> None:
     # Docente sin disponibilidad para ninguna de sus clases => infactible.
     problem = SchedulingProblem(

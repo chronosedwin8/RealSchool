@@ -14,6 +14,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, Signal
 
 from scheduling_platform.application import (
+    BjsProject,
     CancelToken,
     ConstraintRow,
     DashboardStats,
@@ -21,6 +22,7 @@ from scheduling_platform.application import (
     EntityTables,
     FocusOption,
     ProgressEvent,
+    ReportTable,
     Session,
     SolveOutcome,
     TimetableView,
@@ -87,6 +89,7 @@ class EngineBridge(QObject):
         self._session: Session | None = None
         self._cancel = CancelToken()
         self._worker: SolveWorker | None = None
+        self._undo_stack: list[BjsProject] = []
 
     # --- sesión --------------------------------------------------------- #
     @property
@@ -105,6 +108,7 @@ class EngineBridge(QObject):
 
     def open_path(self, path: str | Path) -> None:
         self._session = self._service.open(path)
+        self._undo_stack.clear()
         self.session_opened.emit()
         self.session_changed.emit()
         self.dirty_changed.emit(False)
@@ -133,6 +137,9 @@ class EngineBridge(QObject):
 
     def constraints_catalog(self) -> tuple[ConstraintRow, ...]:
         return self._service.constraints_catalog(self.session)
+
+    def reports(self) -> tuple[ReportTable, ...]:
+        return self._service.reports(self.session)
 
     def available_solvers(self) -> tuple[str, ...]:
         return self._service.available_solvers()
@@ -197,6 +204,33 @@ class EngineBridge(QObject):
         """Solicita detener la búsqueda de forma cooperativa."""
         self._cancel.cancel()
         self.status_message.emit("Cancelando…")
+
+    # --- edición del horario (drag&drop + deshacer) --------------------- #
+    def move_class(self, task_id: int, day: int, period: int) -> SolveOutcome:
+        """Mueve una clase y reoptimiza; apila el estado previo para deshacer."""
+        before = self.session.project
+        outcome = self._service.move_class(self.session, task_id, day, period)
+        if outcome.solved:
+            self._undo_stack.append(before)
+            self.dirty_changed.emit(True)
+            self.session_changed.emit()
+        self.status_message.emit(outcome.message)
+        return outcome
+
+    def undo(self) -> bool:
+        """Deshace el último movimiento restaurando el estado previo."""
+        if not self._undo_stack:
+            return False
+        self.session.project = self._undo_stack.pop()
+        self.session.dirty = True
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+        self.status_message.emit("Movimiento deshecho")
+        return True
+
+    @property
+    def can_undo(self) -> bool:
+        return bool(self._undo_stack)
 
     def _on_solved(self, outcome: SolveOutcome) -> None:
         if outcome.solved:

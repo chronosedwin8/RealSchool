@@ -27,6 +27,7 @@ from .modules import (
     PAGE_DASHBOARD,
     PAGE_DATA,
     PAGE_OPTIMIZE,
+    PAGE_REPORTS,
     PAGE_SCHEDULE,
     PAGE_VALIDATION,
 )
@@ -35,6 +36,7 @@ from .modules.dashboard import DashboardModule
 from .modules.data_manager import DataManagerModule
 from .modules.explorer import ExplorerTree
 from .modules.optimization_console import OptimizationConsoleModule
+from .modules.reports import ReportsModule
 from .modules.schedule_editor import ScheduleEditorModule
 from .modules.validation_center import ValidationCenterModule
 
@@ -55,6 +57,7 @@ class MainWindow(QMainWindow):
         self._schedule = ScheduleEditorModule(self._bridge)
         self._constraints = ConstraintManagerModule(self._bridge)
         self._validation = ValidationCenterModule(self._bridge)
+        self._reports = ReportsModule(self._bridge)
         self._optimize = OptimizationConsoleModule(self._bridge)
 
         self._stack = QStackedWidget()
@@ -65,6 +68,7 @@ class MainWindow(QMainWindow):
             (PAGE_SCHEDULE, self._schedule),
             (PAGE_CONSTRAINTS, self._constraints),
             (PAGE_VALIDATION, self._validation),
+            (PAGE_REPORTS, self._reports),
             (PAGE_OPTIMIZE, self._optimize),
         ):
             self._pages[page] = self._stack.addWidget(widget)
@@ -114,6 +118,7 @@ class MainWindow(QMainWindow):
             ("Horario", PAGE_SCHEDULE),
             ("Restricciones", PAGE_CONSTRAINTS),
             ("Validación", PAGE_VALIDATION),
+            ("Informes", PAGE_REPORTS),
             ("Optimización", PAGE_OPTIMIZE),
         ):
             action = QAction(label, self)
@@ -140,6 +145,7 @@ class MainWindow(QMainWindow):
             ("Horario", QStyle.StandardPixmap.SP_FileDialogDetailedView, PAGE_SCHEDULE),
             ("Restricciones", QStyle.StandardPixmap.SP_FileDialogContentsView, PAGE_CONSTRAINTS),
             ("Validación", QStyle.StandardPixmap.SP_MessageBoxWarning, PAGE_VALIDATION),
+            ("Informes", QStyle.StandardPixmap.SP_FileDialogInfoView, PAGE_REPORTS),
             ("Optimizar", QStyle.StandardPixmap.SP_MediaPlay, PAGE_OPTIMIZE),
         )
         for label, pixmap, page in nav:
@@ -178,6 +184,7 @@ class MainWindow(QMainWindow):
             self._schedule,
             self._constraints,
             self._validation,
+            self._reports,
             self._optimize,
         ):
             module.refresh()

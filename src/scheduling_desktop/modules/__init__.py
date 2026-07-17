@@ -8,6 +8,7 @@ PAGE_DATA = "data"
 PAGE_SCHEDULE = "schedule"
 PAGE_CONSTRAINTS = "constraints"
 PAGE_VALIDATION = "validation"
+PAGE_REPORTS = "reports"
 PAGE_OPTIMIZE = "optimize"
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "PAGE_DASHBOARD",
     "PAGE_DATA",
     "PAGE_OPTIMIZE",
+    "PAGE_REPORTS",
     "PAGE_SCHEDULE",
     "PAGE_VALIDATION",
 ]

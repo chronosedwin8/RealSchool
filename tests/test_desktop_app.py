@@ -204,3 +204,56 @@ def test_validation_center_lista_y_navega(qapp: QApplication, tmp_path: Path) ->
     assert first is not None
     vc._on_item(first, 0)
     assert pages  # navegar dispara la señal a un módulo
+
+
+def test_mover_clase_y_deshacer(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    MainWindow(bridge)
+    bridge.open_path(path)
+    worker = SolveWorker(
+        bridge._service,
+        bridge.session,
+        solver="ortools_cpsat",
+        seed=42,
+        timeout=10.0,
+        structural_only=False,
+        cancel=bridge._cancel,
+    )
+    worker.run()
+
+    focus = next(o for o in bridge.focus_options() if o.kind == "teacher")
+    cell = bridge.timetable(focus.resource_id).cells[0]
+    occupied = {(c.day, c.period) for c in bridge.timetable(focus.resource_id).cells}
+    target = next((d, p) for d in range(2) for p in range(3) if (d, p) not in occupied)
+    outcome = bridge.move_class(cell.task_id, target[0], target[1])
+    assert outcome.solved is True
+    assert bridge.can_undo is True
+    moved = next(c for c in bridge.timetable(focus.resource_id).cells if c.task_id == cell.task_id)
+    assert (moved.day, moved.period) == target
+
+    assert bridge.undo() is True
+    back = next(c for c in bridge.timetable(focus.resource_id).cells if c.task_id == cell.task_id)
+    assert (back.day, back.period) == (cell.day, cell.period)
+
+
+def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    worker = SolveWorker(
+        bridge._service,
+        bridge.session,
+        solver="ortools_cpsat",
+        seed=42,
+        timeout=10.0,
+        structural_only=False,
+        cancel=bridge._cancel,
+    )
+    worker.run()
+    win._reports.refresh()
+    assert win._reports._picker.count() == 3
+    assert win._reports._table.rowCount() >= 1

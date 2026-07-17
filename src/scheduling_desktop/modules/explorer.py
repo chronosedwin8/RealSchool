@@ -16,6 +16,7 @@ from . import (
     PAGE_DASHBOARD,
     PAGE_DATA,
     PAGE_OPTIMIZE,
+    PAGE_REPORTS,
     PAGE_SCHEDULE,
     PAGE_VALIDATION,
 )
@@ -55,6 +56,7 @@ class ExplorerTree(QTreeWidget):
         self._leaf(root, f"Horario ({stats.tasks} clases)", PAGE_SCHEDULE)
         self._leaf(root, "Restricciones", PAGE_CONSTRAINTS)
         self._leaf(root, "Validación", PAGE_VALIDATION)
+        self._leaf(root, "Informes", PAGE_REPORTS)
         self._leaf(root, "Optimización", PAGE_OPTIMIZE)
         self.expandAll()
 

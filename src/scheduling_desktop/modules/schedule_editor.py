@@ -1,21 +1,23 @@
-"""Módulo 4 · Schedule Editor: la rejilla semanal del horario (solo vista).
+"""Módulo 4 · Schedule Editor: la rejilla semanal del horario con drag&drop.
 
 Dibuja la rejilla día x período (``QGraphicsView``) del recurso en foco
-(docente/grupo/aula); los conflictos se pintan en rojo. v1 es de solo lectura;
-el drag&drop con reoptimización llega en un milestone posterior. Toda la
-ubicación de clases la calcula el motor (``TimetableView``).
+(docente/grupo/aula); los conflictos se pintan en rojo. Arrastrar una clase a
+otra celda pide al motor **reubicarla y reoptimizar** (``move_class``); si no
+cabe, el horario no cambia. *Deshacer* revierte el último movimiento. La UI no
+calcula nada del horario: todo viene de ``TimetableView`` y ``move_class``.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -35,8 +37,46 @@ _HEADER_BG = QColor("#dbe4f0")
 _INK = QColor("#0f172a")
 
 
+def _cell_at(x: float, y: float) -> tuple[int, int]:
+    """(día, período) de una posición de escena; negativos si cae en cabeceras."""
+    return int((x - _ROWHEAD) // _CELL_W), int((y - _HEAD) // _CELL_H)
+
+
+class _TimetableView(QGraphicsView):
+    """Vista que traduce un arrastre de clase en una petición de mover."""
+
+    move_requested = Signal(int, int, int)  # task_id, día, período
+
+    def __init__(self, scene: QGraphicsScene) -> None:
+        super().__init__(scene)
+        self._drag_task: int | None = None
+        self._from: tuple[int, int] = (-1, -1)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        pos = self.mapToScene(event.position().toPoint())
+        scene = self.scene()
+        self._drag_task = None
+        if scene is not None:
+            for item in scene.items(pos):
+                data = item.data(0)
+                if isinstance(data, int):
+                    self._drag_task = data
+                    self._from = _cell_at(pos.x(), pos.y())
+                    break
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._drag_task is not None:
+            pos = self.mapToScene(event.position().toPoint())
+            day, period = _cell_at(pos.x(), pos.y())
+            if day >= 0 and period >= 0 and (day, period) != self._from:
+                self.move_requested.emit(self._drag_task, day, period)
+            self._drag_task = None
+        super().mouseReleaseEvent(event)
+
+
 class ScheduleEditorModule(QWidget):
-    """Vista semanal del horario por docente/grupo/aula."""
+    """Vista semanal del horario por docente/grupo/aula con drag&drop."""
 
     def __init__(self, bridge: EngineBridge) -> None:
         super().__init__()
@@ -44,13 +84,22 @@ class ScheduleEditorModule(QWidget):
         self._focus = QComboBox()
         self._focus.currentIndexChanged.connect(self._redraw)
 
+        self._undo_btn = QPushButton("Deshacer")
+        self._undo_btn.clicked.connect(self._on_undo)
+        self._undo_btn.setEnabled(False)
+        self._hint = QLabel("Arrastra una clase a otra celda para moverla.")
+        self._hint.setStyleSheet("color: #64748b;")
+
         top = QHBoxLayout()
         top.addWidget(QLabel("Ver por:"))
         top.addWidget(self._focus, stretch=1)
+        top.addWidget(self._hint)
+        top.addWidget(self._undo_btn)
 
         self._scene = QGraphicsScene()
-        self._view = QGraphicsView(self._scene)
+        self._view = _TimetableView(self._scene)
         self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._view.move_requested.connect(self._on_move)
 
         layout = QVBoxLayout(self)
         layout.addLayout(top)
@@ -72,7 +121,14 @@ class ScheduleEditorModule(QWidget):
         index = self._focus.findData(previous)
         self._focus.setCurrentIndex(index if index >= 0 else 0)
         self._focus.blockSignals(False)
+        self._undo_btn.setEnabled(self._bridge.can_undo)
         self._redraw()
+
+    def _on_move(self, task_id: int, day: int, period: int) -> None:
+        self._bridge.move_class(task_id, day, period)  # el puente emite refresh
+
+    def _on_undo(self) -> None:
+        self._bridge.undo()
 
     def _redraw(self) -> None:
         self._scene.clear()
