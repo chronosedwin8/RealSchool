@@ -207,6 +207,34 @@ class EngineService:
     def available_solvers(self) -> tuple[str, ...]:
         return SOLVER_NAMES
 
+    # --- configuración del motor (Settings) ----------------------------- #
+    def engine_settings(self, session: Session) -> EngineConfig:
+        return session.project.solver_config
+
+    def update_engine_settings(
+        self,
+        session: Session,
+        *,
+        default_solver: str | None = None,
+        threads: int | None = None,
+        max_time_seconds: float | None = None,
+        random_seed: int | None = None,
+    ) -> None:
+        """Actualiza la configuración del motor del proyecto (solver, hilos, tiempo)."""
+        cfg = session.project.solver_config
+        new = replace(
+            cfg,
+            default_solver=default_solver if default_solver is not None else cfg.default_solver,
+            threads=threads if threads is not None else cfg.threads,
+            max_time_seconds=max_time_seconds
+            if max_time_seconds is not None
+            else cfg.max_time_seconds,
+            random_seed=random_seed if random_seed is not None else cfg.random_seed,
+        )
+        new.validate()
+        session.project = replace(session.project, solver_config=new)
+        session.dirty = True
+
     def reports(self, session: Session) -> tuple[ReportTable, ...]:
         """Informes del horario: carga docente, uso de aulas y resumen de calidad."""
         project = session.project

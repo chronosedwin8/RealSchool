@@ -15,11 +15,16 @@ from . import (
     PAGE_CONSTRAINTS,
     PAGE_DASHBOARD,
     PAGE_DATA,
+    PAGE_HELP,
     PAGE_IMPORT_EXPORT,
+    PAGE_LOGS,
+    PAGE_NOTIFICATIONS,
     PAGE_OPTIMIZE,
+    PAGE_PLUGINS,
     PAGE_PROJECT,
     PAGE_REPORTS,
     PAGE_SCHEDULE,
+    PAGE_SETTINGS,
     PAGE_VALIDATION,
 )
 
@@ -62,6 +67,13 @@ class ExplorerTree(QTreeWidget):
         self._leaf(root, "Importar / Exportar", PAGE_IMPORT_EXPORT)
         self._leaf(root, "Proyecto y versiones", PAGE_PROJECT)
         self._leaf(root, "Optimización", PAGE_OPTIMIZE)
+        plataforma = QTreeWidgetItem(["Plataforma"])
+        root.addChild(plataforma)
+        self._leaf(plataforma, "Configuración", PAGE_SETTINGS)
+        self._leaf(plataforma, "Extensiones", PAGE_PLUGINS)
+        self._leaf(plataforma, "Registro (logs)", PAGE_LOGS)
+        self._leaf(plataforma, "Notificaciones", PAGE_NOTIFICATIONS)
+        self._leaf(plataforma, "Ayuda", PAGE_HELP)
         self.expandAll()
 
     def _leaf(self, parent: QTreeWidgetItem, label: str, page: str) -> None:

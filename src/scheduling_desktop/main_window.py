@@ -26,22 +26,32 @@ from .modules import (
     PAGE_CONSTRAINTS,
     PAGE_DASHBOARD,
     PAGE_DATA,
+    PAGE_HELP,
     PAGE_IMPORT_EXPORT,
+    PAGE_LOGS,
+    PAGE_NOTIFICATIONS,
     PAGE_OPTIMIZE,
+    PAGE_PLUGINS,
     PAGE_PROJECT,
     PAGE_REPORTS,
     PAGE_SCHEDULE,
+    PAGE_SETTINGS,
     PAGE_VALIDATION,
 )
 from .modules.constraint_manager import ConstraintManagerModule
 from .modules.dashboard import DashboardModule
 from .modules.data_manager import DataManagerModule
 from .modules.explorer import ExplorerTree
+from .modules.help_center import HelpCenterModule
 from .modules.import_export import ImportExportModule
+from .modules.log_viewer import LogViewerModule
+from .modules.notification_center import NotificationCenterModule
 from .modules.optimization_console import OptimizationConsoleModule
+from .modules.plugin_manager import PluginManagerModule
 from .modules.project_manager import ProjectManagerModule
 from .modules.reports import ReportsModule
 from .modules.schedule_editor import ScheduleEditorModule
+from .modules.settings import SettingsModule
 from .modules.validation_center import ValidationCenterModule
 
 _FILTER = "Proyecto RealSchool (*.bjs)"
@@ -64,6 +74,11 @@ class MainWindow(QMainWindow):
         self._reports = ReportsModule(self._bridge)
         self._import_export = ImportExportModule(self._bridge)
         self._project = ProjectManagerModule(self._bridge)
+        self._settings = SettingsModule(self._bridge)
+        self._plugins = PluginManagerModule(self._bridge)
+        self._logs = LogViewerModule(self._bridge)
+        self._notifications = NotificationCenterModule(self._bridge)
+        self._help = HelpCenterModule(self._bridge)
         self._optimize = OptimizationConsoleModule(self._bridge)
 
         self._stack = QStackedWidget()
@@ -77,6 +92,11 @@ class MainWindow(QMainWindow):
             (PAGE_REPORTS, self._reports),
             (PAGE_IMPORT_EXPORT, self._import_export),
             (PAGE_PROJECT, self._project),
+            (PAGE_SETTINGS, self._settings),
+            (PAGE_PLUGINS, self._plugins),
+            (PAGE_LOGS, self._logs),
+            (PAGE_NOTIFICATIONS, self._notifications),
+            (PAGE_HELP, self._help),
             (PAGE_OPTIMIZE, self._optimize),
         ):
             self._pages[page] = self._stack.addWidget(widget)
@@ -130,6 +150,11 @@ class MainWindow(QMainWindow):
             ("Importar/Exportar", PAGE_IMPORT_EXPORT),
             ("Proyecto", PAGE_PROJECT),
             ("Optimización", PAGE_OPTIMIZE),
+            ("Configuración", PAGE_SETTINGS),
+            ("Extensiones", PAGE_PLUGINS),
+            ("Registro (logs)", PAGE_LOGS),
+            ("Notificaciones", PAGE_NOTIFICATIONS),
+            ("Ayuda", PAGE_HELP),
         ):
             action = QAction(label, self)
             action.triggered.connect(lambda _checked=False, p=page: self.show_page(p))
@@ -199,6 +224,11 @@ class MainWindow(QMainWindow):
             self._reports,
             self._import_export,
             self._project,
+            self._settings,
+            self._plugins,
+            self._logs,
+            self._notifications,
+            self._help,
             self._optimize,
         ):
             module.refresh()

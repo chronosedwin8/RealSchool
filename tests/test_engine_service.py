@@ -359,3 +359,25 @@ def test_cancel_token_como_should_stop() -> None:
 def test_available_solvers() -> None:
     solvers = EngineService().available_solvers()
     assert "ortools_cpsat" in solvers
+
+
+def test_engine_settings_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    svc.update_engine_settings(session, threads=4, max_time_seconds=120.0, random_seed=7)
+    svc.save(session)
+    cfg = svc.engine_settings(svc.open(path))
+    assert cfg.threads == 4
+    assert cfg.max_time_seconds == 120.0
+    assert cfg.random_seed == 7
+
+
+def test_engine_settings_invalido(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    with pytest.raises(ConfigError):
+        svc.update_engine_settings(session, default_solver="inexistente")

@@ -12,15 +12,25 @@ PAGE_REPORTS = "reports"
 PAGE_IMPORT_EXPORT = "import_export"
 PAGE_PROJECT = "project"
 PAGE_OPTIMIZE = "optimize"
+PAGE_SETTINGS = "settings"
+PAGE_PLUGINS = "plugins"
+PAGE_LOGS = "logs"
+PAGE_NOTIFICATIONS = "notifications"
+PAGE_HELP = "help"
 
 __all__ = [
     "PAGE_CONSTRAINTS",
     "PAGE_DASHBOARD",
     "PAGE_DATA",
+    "PAGE_HELP",
     "PAGE_IMPORT_EXPORT",
+    "PAGE_LOGS",
+    "PAGE_NOTIFICATIONS",
     "PAGE_OPTIMIZE",
+    "PAGE_PLUGINS",
     "PAGE_PROJECT",
     "PAGE_REPORTS",
     "PAGE_SCHEDULE",
+    "PAGE_SETTINGS",
     "PAGE_VALIDATION",
 ]

@@ -18,6 +18,7 @@ from scheduling_platform.application import (
     CancelToken,
     ConstraintRow,
     DashboardStats,
+    EngineConfig,
     EngineService,
     EntityTables,
     FocusOption,
@@ -81,6 +82,7 @@ class EngineBridge(QObject):
     session_changed = Signal()
     dirty_changed = Signal(bool)
     status_message = Signal(str)
+    notification = Signal(str, str)  # nivel ("info"/"success"/"error"), texto
     solve_progress = Signal(int, str)
     solve_finished = Signal(object)
 
@@ -113,12 +115,12 @@ class EngineBridge(QObject):
         self.session_opened.emit()
         self.session_changed.emit()
         self.dirty_changed.emit(False)
-        self.status_message.emit(f"Proyecto abierto: {Path(path).name}")
+        self._announce("info", f"Proyecto abierto: {Path(path).name}")
 
     def save(self, path: str | Path | None = None) -> None:
         self._service.save(self.session, path)
         self.dirty_changed.emit(False)
-        self.status_message.emit("Proyecto guardado")
+        self._announce("success", "Proyecto guardado")
 
     # --- import / export / versiones ------------------------------------ #
     def import_untis(self, xml_path: str | Path, dest_bjs: str | Path) -> None:
@@ -128,20 +130,46 @@ class EngineBridge(QObject):
         self.session_opened.emit()
         self.session_changed.emit()
         self.dirty_changed.emit(False)
-        self.status_message.emit(f"Importado desde Untis: {Path(xml_path).name}")
+        self._announce("success", f"Importado desde Untis: {Path(xml_path).name}")
 
     def export_json(self, dest_file: str | Path) -> None:
         self._service.export_json(self.session, dest_file)
-        self.status_message.emit(f"Exportado a JSON: {Path(dest_file).name}")
+        self._announce("success", f"Exportado a JSON: {Path(dest_file).name}")
 
     def snapshot(self) -> Path:
         dest = self._service.snapshot(self.session)
         self.dirty_changed.emit(False)
-        self.status_message.emit(f"Versión creada: {dest.name}")
+        self._announce("success", f"Versión creada: {dest.name}")
         return dest
 
     def list_snapshots(self) -> tuple[Path, ...]:
         return self._service.list_snapshots(self.session)
+
+    # --- configuración del motor (Settings) ----------------------------- #
+    def engine_settings(self) -> EngineConfig:
+        return self._service.engine_settings(self.session)
+
+    def update_engine_settings(
+        self,
+        *,
+        default_solver: str | None = None,
+        threads: int | None = None,
+        max_time_seconds: float | None = None,
+        random_seed: int | None = None,
+    ) -> None:
+        self._service.update_engine_settings(
+            self.session,
+            default_solver=default_solver,
+            threads=threads,
+            max_time_seconds=max_time_seconds,
+            random_seed=random_seed,
+        )
+        self.dirty_changed.emit(True)
+        self._announce("info", "Configuración del motor actualizada")
+
+    def _announce(self, level: str, text: str) -> None:
+        self.status_message.emit(text)
+        self.notification.emit(level, text)
 
     # --- consultas (delegan en la Fachada) ------------------------------ #
     def tables(self) -> EntityTables:
@@ -263,4 +291,7 @@ class EngineBridge(QObject):
         if outcome.solved:
             self.dirty_changed.emit(True)
             self.session_changed.emit()
+            self._announce("success", f"Optimización terminada: {outcome.message}")
+        else:
+            self._announce("error", f"Optimización sin éxito: {outcome.message}")
         self.solve_finished.emit(outcome)

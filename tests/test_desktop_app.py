@@ -270,6 +270,29 @@ def test_drag_feedback_verde_rojo(qapp: QApplication, tmp_path: Path) -> None:
     assert not editor._overlays  # y limpia el estado del arrastre
 
 
+def test_plataforma_m5(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+
+    # Settings guarda la configuración vía la Fachada.
+    win._settings.refresh()
+    win._settings._threads.setValue(3)
+    win._settings._apply()
+    assert bridge.engine_settings().threads == 3
+
+    # Plugin Manager: inventario poblado.
+    win._plugins.refresh()
+    assert win._plugins._tree.topLevelItemCount() == 3
+
+    # Notificaciones y logs reciben eventos al guardar.
+    bridge.save(path)
+    assert win._notifications._list.count() >= 1
+    assert win._logs._lines
+
+
 def test_project_manager_crea_version(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)
