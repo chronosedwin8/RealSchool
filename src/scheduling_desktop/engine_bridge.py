@@ -216,6 +216,38 @@ class EngineBridge(QObject):
         self.status_message.emit(f"Hora {estado} (día {day + 1}, período {period + 1})")
         return blocked
 
+    # --- desiderata (bloqueos por período o por reloj) ------------------ #
+    def block_kind(self, resource_id: int) -> str:
+        return self._service.block_kind(self.session, resource_id)
+
+    def clock_range(self) -> tuple[int, int]:
+        return self._service.clock_range(self.session)
+
+    def set_blocked(self, resource_id: int, cells: set[tuple[int, int]]) -> None:
+        self._service.set_blocked(self.session, resource_id, cells)
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+
+    def teacher_time_blocks(self, resource_id: int) -> frozenset[tuple[int, int]]:
+        return self._service.teacher_time_blocks(self.session, resource_id)
+
+    def toggle_time_block(self, resource_id: int, day: int, hour: int) -> bool:
+        blocked = self._service.toggle_time_block(self.session, resource_id, day, hour)
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+        return blocked
+
+    def set_time_blocks(self, resource_id: int, cells: set[tuple[int, int]]) -> None:
+        self._service.set_time_blocks(self.session, resource_id, cells)
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+
+    def copy_blocks(self, source_id: int, target_ids: list[int]) -> int:
+        applied = self._service.copy_blocks(self.session, source_id, target_ids)
+        self._after_edit()
+        self._announce("success", f"Bloqueos copiados a {applied} recurso(s)")
+        return applied
+
     # --- ventana de almuerzo -------------------------------------------- #
     def lunch_window(self) -> LunchWindow | None:
         return self._service.lunch_window(self.session)

@@ -562,14 +562,16 @@ def test_bloqueo_de_horas_persiste_y_manda(tmp_path: Path) -> None:
     assert svc.move_class(reopened, 0, 0, 0).solved is False
 
 
-def test_can_block_solo_docentes_y_grupos(tmp_path: Path) -> None:
+def test_block_kind_por_tipo_de_recurso(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)
     svc = EngineService()
     session = svc.open(path)
-    assert svc.can_block(session, 0) is True  # docente
-    assert svc.can_block(session, 1) is True  # grupo
-    assert svc.can_block(session, 2) is False  # aula
+    # Docentes por reloj; grupos y aulas por período (todos se pueden bloquear).
+    assert svc.block_kind(session, 0) == "clock"  # docente
+    assert svc.block_kind(session, 1) == "period"  # grupo
+    assert svc.block_kind(session, 2) == "period"  # aula
+    assert all(svc.can_block(session, r) for r in (0, 1, 2))
 
 
 def test_toggle_block(tmp_path: Path) -> None:
@@ -907,6 +909,52 @@ def test_semana_lectiva_autogenera_horas(tmp_path: Path) -> None:
     assert (periods[0].start, periods[0].end) == ("07:00", "07:45")
     assert (periods[1].start, periods[1].end) == ("07:50", "08:35")
     assert (periods[3].start, periods[3].end) == ("09:30", "10:15")
+
+
+def test_bloqueo_por_reloj_de_docente(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    # Semana con horas: P0 07:00-08:00, P1 08:00-09:00, P2 09:00-10:00.
+    w = svc.add_school_week(session, "Primaria", max_periods=3)
+    svc.set_school_week_period(session, w, 0, "07:00", "08:00")
+    svc.generate_school_week_times(session, w, 60)
+    svc.apply_school_weeks_to_grid(session)
+    per_day = svc.grid_size(session)[1]
+
+    tid = next(int(r.key) for r in svc.tables(session).teachers.rows)
+    assert svc.block_kind(session, tid) == "clock"
+    for les in svc.lessons(session, teacher_id=tid):
+        svc.set_lesson_school_week(session, list(les.task_ids), w)
+
+    # Bloquear al docente el lunes de 08:00 a 09:00 (hora 8) -> bloquea P1 del lunes.
+    assert svc.toggle_time_block(session, tid, 0, 8) is True
+    eff = svc._effective_problem(session.project)
+    tag = svc._unique_tag_of(session.project.problem, tid, "teacher")
+    task = next(t for t in eff.tasks if any(r.tag == tag for r in t.requirements))
+    monday = {int(s) % per_day for s in (task.allowed_starts or set()) if int(s) < per_day}
+    assert 1 not in monday  # P1 del lunes (08:00-09:00) bloqueado
+    assert 0 in monday and 2 in monday  # P0 y P2 siguen libres
+
+
+def test_copiar_desiderata_a_recursos_del_mismo_tipo(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    g1 = next(int(r.key) for r in svc.tables(session).groups.rows)
+    g2 = svc.add_group(session, "10B", 25)
+    g3 = svc.add_group(session, "10C", 25)
+    t1 = next(int(r.key) for r in svc.tables(session).teachers.rows)
+
+    # Bloqueos por período en el grupo fuente.
+    svc.set_blocked(session, g1, {(0, 2), (0, 3), (1, 2)})
+    n = svc.copy_blocks(session, g1, [g2, g3, t1])  # t1 es docente: se ignora
+    assert n == 2  # solo los dos grupos
+    assert svc.availability(session, g2) == svc.availability(session, g1)
+    assert svc.availability(session, g3) == svc.availability(session, g1)
+    assert svc.availability(session, t1) == frozenset()  # el docente no recibió nada
 
 
 def test_aplicar_semana_lectiva_ajusta_la_rejilla(tmp_path: Path) -> None:

@@ -647,9 +647,23 @@ class EngineService:
         return frozenset(session.project.availability.get(resource_id, ()))
 
     def can_block(self, session: Session, resource_id: int) -> bool:
-        """Solo docentes y grupos se bloquean (portan un tag único requerible)."""
+        """Docentes, grupos y aulas se pueden bloquear (portan un tag único)."""
+        return self.block_kind(session, resource_id) != ""
+
+    def block_kind(self, session: Session, resource_id: int) -> str:
+        """Modo de bloqueo del recurso: 'clock' (docentes) o 'period' (grupos/aulas).
+
+        Los docentes se bloquean por **hora de reloj** (pueden dar clases en varias
+        semanas lectivas con horas distintas); los grupos y aulas, por **período**.
+        """
         res = next((r for r in session.project.problem.resources if int(r.id) == resource_id), None)
-        return res is not None and ("teacher" in res.tags or "group" in res.tags)
+        if res is None:
+            return ""
+        if "teacher" in res.tags:
+            return "clock"
+        if "group" in res.tags or "room" in res.tags:
+            return "period"
+        return ""
 
     def set_blocked(self, session: Session, resource_id: int, slots: set[tuple[int, int]]) -> None:
         """Fija el conjunto de horas bloqueadas de un recurso (reemplaza)."""
@@ -673,6 +687,99 @@ class EngineService:
             blocked = True
         self.set_blocked(session, resource_id, current)
         return blocked
+
+    # --- bloqueo por hora de reloj de docentes (Fase 7 E3) -------------- #
+    def clock_range(self, session: Session) -> tuple[int, int]:
+        """Rango de horas (inicio, fin) para la rejilla de desiderata de docentes.
+
+        Se deriva de las horas de reloj de las semanas lectivas; las columnas son
+        las horas ``inicio..fin-1``. Sin semanas con horas, usa 7..18 por defecto.
+        """
+        return self._clock_range(session.project)
+
+    @staticmethod
+    def _clock_range(project: BjsProject) -> tuple[int, int]:
+        low, high = 24, 0
+        for week in project.school_weeks:
+            for period in week.periods:
+                for clock in (period.start, period.end):
+                    if not clock:
+                        continue
+                    try:
+                        minutes = _parse_clock(clock)
+                    except ConfigError:
+                        continue
+                    low = min(low, minutes // 60)
+                    high = max(high, -(-minutes // 60))  # ceil a la hora
+        if low >= high:
+            return 7, 18
+        return low, high
+
+    def teacher_time_blocks(self, session: Session, resource_id: int) -> frozenset[tuple[int, int]]:
+        """Horas de reloj (día, hora) BLOQUEADAS de un docente."""
+        return frozenset(session.project.time_blocks.get(resource_id, ()))
+
+    def set_time_blocks(
+        self, session: Session, resource_id: int, cells: set[tuple[int, int]]
+    ) -> None:
+        """Fija las horas de reloj bloqueadas de un docente (reemplaza)."""
+        blocks = dict(session.project.time_blocks)
+        if cells:
+            blocks[resource_id] = tuple(sorted(cells))
+        else:
+            blocks.pop(resource_id, None)
+        session.project = replace(session.project, time_blocks=blocks)
+        session.dirty = True
+
+    def toggle_time_block(self, session: Session, resource_id: int, day: int, hour: int) -> bool:
+        """Alterna el bloqueo de una hora de reloj; devuelve el nuevo estado."""
+        current = set(self.teacher_time_blocks(session, resource_id))
+        cell = (day, hour)
+        if cell in current:
+            current.discard(cell)
+            blocked = False
+        else:
+            current.add(cell)
+            blocked = True
+        self.set_time_blocks(session, resource_id, current)
+        return blocked
+
+    def copy_blocks(self, session: Session, source_id: int, target_ids: list[int]) -> int:
+        """Copia la desiderata del recurso fuente a otros del **mismo tipo**.
+
+        Grupos/aulas copian sus horas por período; docentes, sus horas por reloj.
+        Devuelve cuántos recursos recibieron la copia.
+        """
+        kind = self.block_kind(session, source_id)
+        applied = 0
+        if kind == "period":
+            source = session.project.availability.get(source_id, ())
+            layer = dict(session.project.availability)
+            for tid in target_ids:
+                if tid == source_id or self.block_kind(session, tid) != "period":
+                    continue
+                if source:
+                    layer[tid] = source
+                else:
+                    layer.pop(tid, None)
+                applied += 1
+            session.project = replace(session.project, availability=layer)
+        elif kind == "clock":
+            source = session.project.time_blocks.get(source_id, ())
+            blocks = dict(session.project.time_blocks)
+            for tid in target_ids:
+                if tid == source_id or self.block_kind(session, tid) != "clock":
+                    continue
+                if source:
+                    blocks[tid] = source
+                else:
+                    blocks.pop(tid, None)
+                applied += 1
+            session.project = replace(session.project, time_blocks=blocks)
+        else:
+            raise ConfigError("el recurso fuente no admite bloqueos")
+        session.dirty = True
+        return applied
 
     # --- ventana de almuerzo (Fase 7 E2) -------------------------------- #
     def lunch_window(self, session: Session) -> LunchWindow | None:
@@ -744,7 +851,10 @@ class EngineService:
         week_blocked: dict[int, set[int]] = {}
         weeks = project.school_weeks
         uses_weeks = weeks and any(t.attribute("school_week", -1) >= 0 for t in problem.tasks)
-        if not tag_blocked and not uses_weeks:
+        # Docentes: bloqueos por reloj traducidos a slots por (tag, semana) + días
+        # completos (para "solo 3 días a la semana").
+        clock_by_tag_week, full_day_by_tag = self._teacher_clock_maps(project, segments)
+        if not tag_blocked and not uses_weeks and not clock_by_tag_week and not full_day_by_tag:
             return problem
 
         def blocked_for(task: Task) -> set[int]:
@@ -756,6 +866,11 @@ class EngineService:
                 if widx not in week_blocked:
                     week_blocked[widx] = self._week_blocked(weeks[widx], segments)
                 blocked |= week_blocked[widx]
+            for req in task.requirements:
+                for day in full_day_by_tag.get(req.tag, ()):
+                    if 0 <= day < len(segments):
+                        blocked |= set(range(int(segments[day].start), int(segments[day].end)))
+                blocked |= clock_by_tag_week.get((req.tag, widx), set())
             return blocked
 
         new_tasks: list[Task] = []
@@ -771,6 +886,62 @@ class EngineService:
             )
             new_tasks.append(replace(task, allowed_starts=allowed))
         return replace(problem, tasks=tuple(new_tasks))
+
+    def _teacher_clock_maps(
+        self, project: BjsProject, segments: tuple[Segment, ...]
+    ) -> tuple[dict[tuple[str, int], set[int]], dict[str, set[int]]]:
+        """Traduce los bloqueos por reloj de los docentes a slots por período.
+
+        Devuelve ``(clock_by_tag_week, full_day_by_tag)``: el primero mapea
+        ``(tag_docente, índice_semana)`` a los slots lineales cuyo período (en esa
+        semana) solapa una hora bloqueada; el segundo, los días totalmente
+        bloqueados por docente (bloqueo por día, sin depender de la semana).
+        """
+        by_tag: dict[str, dict[int, set[int]]] = {}
+        for rid, cells in project.time_blocks.items():
+            res = next((r for r in project.problem.resources if int(r.id) == rid), None)
+            if res is None or "teacher" not in res.tags:
+                continue
+            tag = next((t for t in res.tags if t.startswith("teacher#")), None)
+            if tag is None:
+                continue
+            day_map = by_tag.setdefault(tag, {})
+            for day, hour in cells:
+                day_map.setdefault(day, set()).add(hour)
+        if not by_tag:
+            return {}, {}
+
+        low, high = self._clock_range(project)
+        full_hours = set(range(low, high))
+        full_day_by_tag = {
+            tag: {day for day, hours in day_map.items() if full_hours and full_hours <= hours}
+            for tag, day_map in by_tag.items()
+        }
+        full_day_by_tag = {tag: days for tag, days in full_day_by_tag.items() if days}
+
+        clock_by_tag_week: dict[tuple[str, int], set[int]] = {}
+        for tag, day_map in by_tag.items():
+            for widx, week in enumerate(project.school_weeks):
+                slots: set[int] = set()
+                for day, seg in enumerate(segments):
+                    hours = day_map.get(day)
+                    if not hours:
+                        continue
+                    for period in range(seg.length):
+                        if period >= len(week.periods):
+                            continue
+                        start, end = week.periods[period].start, week.periods[period].end
+                        if not (start and end):
+                            continue
+                        try:
+                            s_min, e_min = _parse_clock(start), _parse_clock(end)
+                        except ConfigError:
+                            continue
+                        if any(s_min < (h + 1) * 60 and e_min > h * 60 for h in hours):
+                            slots.add(int(seg.start) + period)
+                if slots:
+                    clock_by_tag_week[(tag, widx)] = slots
+        return clock_by_tag_week, full_day_by_tag
 
     # --- CRUD de entidades y carga horaria (Fase 7 E4) ------------------ #
     def add_teacher(self, session: Session, name: str) -> int:

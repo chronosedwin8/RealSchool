@@ -28,6 +28,7 @@ from .modules import (
     PAGE_CONSTRAINTS,
     PAGE_DASHBOARD,
     PAGE_DATA,
+    PAGE_DESIDERATA,
     PAGE_HELP,
     PAGE_IMPORT_EXPORT,
     PAGE_LOAD,
@@ -45,6 +46,7 @@ from .modules import (
 from .modules.constraint_manager import ConstraintManagerModule
 from .modules.dashboard import DashboardModule
 from .modules.data_manager import DataManagerModule
+from .modules.desiderata import DesiderataModule
 from .modules.help_center import HelpCenterModule
 from .modules.import_export import ImportExportModule
 from .modules.lessons import LessonsModule
@@ -75,6 +77,7 @@ class MainWindow(QMainWindow):
         self._data = DataManagerModule(self._bridge)
         self._lessons = LessonsModule(self._bridge)
         self._school_week = SchoolWeekModule(self._bridge)
+        self._desiderata = DesiderataModule(self._bridge)
         self._schedule = ScheduleEditorModule(self._bridge)
         self._constraints = ConstraintManagerModule(self._bridge)
         self._validation = ValidationCenterModule(self._bridge)
@@ -99,6 +102,7 @@ class MainWindow(QMainWindow):
             PAGE_DATA: (self._data, "Datos maestros"),
             PAGE_LOAD: (self._lessons, "Carga (lecciones)"),
             PAGE_SCHOOL_WEEK: (self._school_week, "Semana lectiva"),
+            PAGE_DESIDERATA: (self._desiderata, "Desiderata (bloqueos)"),
             PAGE_SCHEDULE: (self._schedule, "Horario"),
             PAGE_CONSTRAINTS: (self._constraints, "Restricciones"),
             PAGE_VALIDATION: (self._validation, "Validación"),
@@ -151,6 +155,7 @@ class MainWindow(QMainWindow):
             ("Datos maestros", PAGE_DATA),
             ("Carga (lecciones)", PAGE_LOAD),
             ("Semana lectiva", PAGE_SCHOOL_WEEK),
+            ("Desiderata (bloqueos)", PAGE_DESIDERATA),
             ("Horario", PAGE_SCHEDULE),
             ("Restricciones", PAGE_CONSTRAINTS),
             ("Validación", PAGE_VALIDATION),
@@ -198,6 +203,7 @@ class MainWindow(QMainWindow):
             ("Datos", QStyle.StandardPixmap.SP_FileDialogListView, PAGE_DATA),
             ("Carga", QStyle.StandardPixmap.SP_FileDialogNewFolder, PAGE_LOAD),
             ("Semana", QStyle.StandardPixmap.SP_FileDialogListView, PAGE_SCHOOL_WEEK),
+            ("Bloqueos", QStyle.StandardPixmap.SP_DialogCancelButton, PAGE_DESIDERATA),
             ("Horario", QStyle.StandardPixmap.SP_FileDialogDetailedView, PAGE_SCHEDULE),
             ("Restricciones", QStyle.StandardPixmap.SP_FileDialogContentsView, PAGE_CONSTRAINTS),
             ("Validación", QStyle.StandardPixmap.SP_MessageBoxWarning, PAGE_VALIDATION),

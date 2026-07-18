@@ -46,6 +46,15 @@ el usuario define un marco mayor y quiere que el horario lo adopte,
 "Aplicar al horario" con confirmación): borra la solución (hay que reoptimizar) y
 limpia los `allowed_starts` transitorios; nunca ocurre en silencio al editar.
 
+### 3.c Desiderata (bloqueos) por período y por reloj
+Los **grupos y aulas** se bloquean por **período** (reutiliza `availability` de
+E1: P3 recreo, P9 almuerzo...). Los **docentes** por **hora de reloj** (nuevo
+`time_blocks`: día x hora), porque pueden dar clases en semanas lectivas con horas
+distintas; `_effective_problem` traduce esas horas a períodos por clase según la
+semana de la clase (solape de intervalos) y bloquea días completos para "solo N
+días a la semana". La desiderata de un recurso se **copia** a otros del mismo tipo
+(`copy_blocks`), como replicar el esquema de 6A en 6B/6C/6D.
+
 ### 4. Interfaz
 Un módulo **Semana lectiva** edita el marco (rejilla período×franja, recreos por
 clic, horas de reloj editables, altas/renombrado/borrado por sección). La **Carga

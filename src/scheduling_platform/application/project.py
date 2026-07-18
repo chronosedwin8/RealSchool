@@ -46,9 +46,15 @@ _LUNCH = "lunch.json"
 _SUBJECTS = "subjects.json"
 _DIRECTORY = "directory.json"
 _SCHOOLWEEKS = "schoolweeks.json"
+_TIMEBLOCKS = "timeblocks.json"
 
 #: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
 Availability = dict[int, tuple[tuple[int, int], ...]]
+#: Bloqueos por reloj (docentes): recurso -> tupla de (día, hora) no disponibles.
+#: Los docentes pueden dar clases en varias semanas lectivas donde el mismo
+#: período tiene horas distintas, así que su desiderata se define por hora de
+#: reloj (no por período) y se traduce a períodos por clase (Fase 7 E3).
+TimeBlocks = dict[int, tuple[tuple[int, int], ...]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +221,8 @@ class BjsProject:
     #: Semanas lectivas (marcos horarios por sección, Fase 7 E3). Cada lección se
     #: asigna a una por su índice (atributo ``school_week`` de sus clases).
     school_weeks: tuple[SchoolWeek, ...] = ()
+    #: Bloqueos por hora de reloj de los docentes (día, hora), ver ``TimeBlocks``.
+    time_blocks: TimeBlocks = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -260,6 +268,8 @@ def save_project(path: str | Path, project: BjsProject) -> None:
         }
     if project.school_weeks:
         entries[_SCHOOLWEEKS] = _school_weeks_doc(project.school_weeks)
+    if project.time_blocks:
+        entries[_TIMEBLOCKS] = _slots_doc(project.time_blocks)
     pack(path, entries, project.manifest)
 
 
@@ -302,6 +312,7 @@ def open_project(path: str | Path) -> BjsProject:
             for k, v in entries.get(_DIRECTORY, {}).get("subjects", {}).items()
         },
         school_weeks=_read_school_weeks(entries),
+        time_blocks=_read_slots(entries, _TIMEBLOCKS),
     )
 
 

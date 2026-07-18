@@ -583,9 +583,10 @@ def test_bloquear_hora_desde_el_editor(qapp: QApplication, tmp_path: Path) -> No
     assert (0, 2) in bridge.blocked_hours(focus.resource_id)
     editor.refresh()  # repinta con la celda bloqueada (no lanza)
 
-    # Un aula no se puede bloquear.
+    # Las aulas también se pueden bloquear (por período), como grupos.
     room = next(o for o in bridge.focus_options() if o.kind == "room")
-    assert bridge.can_block(room.resource_id) is False
+    assert bridge.can_block(room.resource_id) is True
+    assert bridge.block_kind(room.resource_id) == "period"
 
 
 def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
@@ -607,6 +608,37 @@ def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
     win._reports.refresh()
     assert win._reports._picker.count() == 3
     assert win._reports._table.rowCount() >= 1
+
+
+def test_desiderata_module_bloquea_y_copia(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    d = win._desiderata
+    d.refresh()
+    qapp.processEvents()
+
+    # Grupo: rejilla por período; clic bloquea y clic en cabecera bloquea la columna.
+    gi = next(i for i in range(d._resource.count()) if "Grupo" in d._resource.itemText(i))
+    d._resource.setCurrentIndex(gi)
+    qapp.processEvents()
+    gid = d._current()
+    assert bridge.block_kind(gid) == "period"
+    d._on_cell_clicked(0, 2)
+    assert (0, 2) in bridge.blocked_hours(gid)
+    d._on_col_clicked(4)  # bloquea el período P5 todos los días
+    assert all((day, 4) in bridge.blocked_hours(gid) for day in range(d._table.rowCount()))
+
+    # Docente: rejilla por hora de reloj; fila bloquea el día entero.
+    ti = next(i for i in range(d._resource.count()) if "Docente" in d._resource.itemText(i))
+    d._resource.setCurrentIndex(ti)
+    qapp.processEvents()
+    tid = d._current()
+    assert bridge.block_kind(tid) == "clock"
+    d._on_row_clicked(1)  # martes entero
+    assert len([c for c in bridge.teacher_time_blocks(tid) if c[0] == 1]) == d._table.columnCount()
 
 
 def test_semana_lectiva_module_edita_el_marco(qapp: QApplication, tmp_path: Path) -> None:
