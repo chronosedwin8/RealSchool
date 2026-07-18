@@ -43,13 +43,15 @@ from scheduling_platform.application import ConfigError, EntityTable, LessonRow
 from ..engine_bridge import EngineBridge
 
 _ID_ROLE = int(Qt.ItemDataRole.UserRole)
-_COLUMNS = ("N.lec", "HHs", "Profesores", "Materia", "Grupo(s)", "Aulas")
-_HHS_COL = 1
-_TEACHERS_COL = 2
-_SUBJECT_COL = 3
-_GROUPS_COL = 4
-_ROOMS_COL = 5
+_COLUMNS = ("N.lec", "Semana lect.", "HHs", "Profesores", "Materia", "Grupo(s)", "Aulas")
+_WEEK_COL = 1
+_HHS_COL = 2
+_TEACHERS_COL = 3
+_SUBJECT_COL = 4
+_GROUPS_COL = 5
+_ROOMS_COL = 6
 _PLACEHOLDER = QColor("#94a3b8")
+_NO_WEEK = "(ninguna)"
 
 
 @dataclass
@@ -61,6 +63,7 @@ class _Pending:
     teachers: list[int] = field(default_factory=list)
     groups: list[int] = field(default_factory=list)
     rooms: list[int] = field(default_factory=list)
+    school_week: int = -1
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,38 @@ class _SubjectDelegate(QStyledItemDelegate):
     def setEditorData(self, editor: QWidget, index: QModelIndex | QPersistentModelIndex) -> None:
         if isinstance(editor, QComboBox):
             editor.setCurrentText(str(index.data() or ""))
+
+    def setModelData(
+        self,
+        editor: QWidget,
+        model: QAbstractItemModel,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        if isinstance(editor, QComboBox):
+            model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+
+
+class _WeekDelegate(QStyledItemDelegate):
+    """Editor de la columna Semana lect.: combo con las semanas lectivas creadas."""
+
+    def __init__(self, weeks: Callable[[], list[str]], parent: QWidget) -> None:
+        super().__init__(parent)
+        self._weeks = weeks
+
+    def createEditor(
+        self,
+        parent: QWidget,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QWidget:
+        combo = QComboBox(parent)
+        combo.addItem(_NO_WEEK)
+        combo.addItems(self._weeks())
+        return combo
+
+    def setEditorData(self, editor: QWidget, index: QModelIndex | QPersistentModelIndex) -> None:
+        if isinstance(editor, QComboBox):
+            editor.setCurrentText(str(index.data() or _NO_WEEK))
 
     def setModelData(
         self,
@@ -285,6 +320,10 @@ class LessonsModule(QWidget):
         self._table.setItemDelegateForColumn(
             _SUBJECT_COL, _SubjectDelegate(self._subject_names, self._table)
         )
+        # La celda Semana lect. escoge de las semanas lectivas creadas.
+        self._table.setItemDelegateForColumn(
+            _WEEK_COL, _WeekDelegate(self._week_names, self._table)
+        )
 
         layout = QVBoxLayout(self)
         layout.addLayout(top)
@@ -381,6 +420,7 @@ class LessonsModule(QWidget):
                 nlec = str(lesson.task_ids[0])
             cells = (
                 nlec,
+                "" if entry.kind == "sub" else self._week_label(lesson.school_week),
                 "" if entry.kind == "sub" else str(lesson.hours),
                 ", ".join(lesson.teachers),
                 lesson.subject,
@@ -389,7 +429,9 @@ class LessonsModule(QWidget):
             )
             for col, text in enumerate(cells):
                 item = QTableWidgetItem(text)
-                editable = col == _SUBJECT_COL or (col == _HHS_COL and entry.kind != "sub")
+                editable = col == _SUBJECT_COL or (
+                    col in (_HHS_COL, _WEEK_COL) and entry.kind != "sub"
+                )
                 if not editable:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self._table.setItem(i, col, item)
@@ -408,8 +450,10 @@ class LessonsModule(QWidget):
     def _render_blank_row(self, row: int) -> None:
         """La fila (*) de alta: se escribe/elige en ella y la lección se crea."""
         names = self._names_of
+        week = self._pending.school_week
         cells = (
             "*",
+            self._week_label(week) if week >= 0 else _NO_WEEK,
             str(self._pending.hours),
             names("teacher", self._pending.teachers) or "(doble-clic: docentes)",
             self._pending.subject,
@@ -418,7 +462,7 @@ class LessonsModule(QWidget):
         )
         for col, text in enumerate(cells):
             item = QTableWidgetItem(text)
-            if col in (_HHS_COL, _SUBJECT_COL):
+            if col in (_HHS_COL, _SUBJECT_COL, _WEEK_COL):
                 pass  # editable
             else:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -431,6 +475,17 @@ class LessonsModule(QWidget):
         if not self._bridge.has_session:
             return []
         return [r.cells[0] for r in self._bridge.tables().subjects.rows]
+
+    def _week_names(self) -> list[str]:
+        """Las semanas lectivas creadas, para el combo de la celda Semana lect."""
+        if not self._bridge.has_session:
+            return []
+        return [w.name for w in self._bridge.school_weeks()]
+
+    def _week_label(self, index: int) -> str:
+        """Nombre de la semana lectiva por índice ('—' si ninguna)."""
+        weeks = self._bridge.school_weeks() if self._bridge.has_session else ()
+        return weeks[index].name if 0 <= index < len(weeks) else "—"
 
     def _names_of(self, kind: str, ids: list[int]) -> str:
         tables = self._bridge.tables()
@@ -452,10 +507,21 @@ class LessonsModule(QWidget):
             self._reload_grid()
             return
         try:
-            self._bridge.add_load(p.groups, p.subject, p.teachers, p.hours, p.rooms or None)
+            self._bridge.add_load(
+                p.groups, p.subject, p.teachers, p.hours, p.rooms or None, p.school_week
+            )
             self._reset_pending()
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo crear la lección", str(exc))
+
+    def _week_index(self, name: str) -> int:
+        """Índice de una semana lectiva por su nombre (-1 = ninguna)."""
+        if not self._bridge.has_session or name in (_NO_WEEK, "—", ""):
+            return -1
+        for i, week in enumerate(self._bridge.school_weeks()):
+            if week.name == name:
+                return i
+        return -1
 
     # --- acciones -------------------------------------------------------- #
     def _selected_lessons(self) -> list[LessonRow]:
@@ -645,11 +711,23 @@ class LessonsModule(QWidget):
                 with contextlib.suppress(ValueError):
                     self._pending.hours = max(1, int(item.text()))
                 self._reload_grid()
+            elif item.column() == _WEEK_COL:
+                self._pending.school_week = self._week_index(item.text().strip())
+                self._reload_grid()
             return
         if not 0 <= row < len(self._display):
             return
         lesson = self._display[row].lesson
-        if item.column() == _HHS_COL:
+        if item.column() == _WEEK_COL:
+            index = self._week_index(item.text().strip())
+            if index == lesson.school_week:
+                return
+            try:
+                self._bridge.set_lesson_school_week(list(lesson.task_ids), index)
+            except ConfigError as exc:
+                QMessageBox.warning(self, "Semana lectiva no válida", str(exc))
+                self._reload_grid()
+        elif item.column() == _HHS_COL:
             try:
                 hours = int(item.text())
             except ValueError:

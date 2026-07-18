@@ -294,6 +294,8 @@ def test_data_manager_crud_y_carga(qapp: QApplication, tmp_path: Path) -> None:
 def test_celda_materia_ofrece_las_materias_creadas(qapp: QApplication, tmp_path: Path) -> None:
     from PySide6.QtWidgets import QComboBox, QStyleOptionViewItem
 
+    from scheduling_desktop.modules.lessons import _SUBJECT_COL
+
     path = tmp_path / "demo.bjs"
     _make(path)
     bridge = EngineBridge()
@@ -304,8 +306,8 @@ def test_celda_materia_ofrece_las_materias_creadas(qapp: QApplication, tmp_path:
     lm.refresh()
     qapp.processEvents()
 
-    delegate = lm._table.itemDelegateForColumn(3)  # columna Materia
-    index = lm._table.model().index(0, 3)
+    delegate = lm._table.itemDelegateForColumn(_SUBJECT_COL)  # columna Materia
+    index = lm._table.model().index(0, _SUBJECT_COL)
     editor = delegate.createEditor(lm._table, QStyleOptionViewItem(), index)
     assert isinstance(editor, QComboBox)
     items = {editor.itemText(i) for i in range(editor.count())}
@@ -314,6 +316,8 @@ def test_celda_materia_ofrece_las_materias_creadas(qapp: QApplication, tmp_path:
 
 
 def test_leccion_desde_fila_vacia_y_acople_untis(qapp: QApplication, tmp_path: Path) -> None:
+    from scheduling_desktop.modules.lessons import _SUBJECT_COL
+
     path = tmp_path / "demo.bjs"
     _make(path)
     bridge = EngineBridge()
@@ -329,7 +333,7 @@ def test_leccion_desde_fila_vacia_y_acople_untis(qapp: QApplication, tmp_path: P
     tid = int(bridge.tables().teachers.rows[0].key)
     lm._pending.teachers = [tid]
     blank = len(lm._display)
-    blank_item = lm._table.item(blank, 3)
+    blank_item = lm._table.item(blank, _SUBJECT_COL)
     assert blank_item is not None
     blank_item.setText("Robótica")
     qapp.processEvents()
@@ -582,3 +586,67 @@ def test_reports_module_se_puebla(qapp: QApplication, tmp_path: Path) -> None:
     win._reports.refresh()
     assert win._reports._picker.count() == 3
     assert win._reports._table.rowCount() >= 1
+
+
+def test_semana_lectiva_module_edita_el_marco(qapp: QApplication, tmp_path: Path) -> None:
+    from scheduling_desktop.modules.school_week import _BAND_ROW, _START_ROW
+
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    sw = win._school_week
+    sw.refresh()
+    qapp.processEvents()
+
+    # Sin semanas todavía: la rejilla está vacía.
+    assert sw._table.columnCount() == 0
+
+    # Crear una semana lectiva la puebla con una columna por período.
+    index = bridge.add_school_week("Bachillerato")
+    sw.refresh()
+    qapp.processEvents()
+    _, periods = bridge.grid_size()
+    assert sw._table.columnCount() == periods
+
+    # Clic en la fila Franja de un período lo marca como Recreo.
+    sw._on_cell_clicked(_BAND_ROW, 1)
+    qapp.processEvents()
+    assert 1 in bridge.school_weeks()[index].breaks
+    band = sw._table.item(_BAND_ROW, 1)
+    assert band is not None and band.text() == "Recreo"
+
+    # Escribir la hora de reloj en Inicio la persiste en la semana.
+    start_item = sw._table.item(_START_ROW, 0)
+    assert start_item is not None
+    start_item.setText("07:00")
+    qapp.processEvents()
+    assert bridge.school_weeks()[index].periods[0].start == "07:00"
+
+
+def test_columna_semana_lectiva_en_la_carga(qapp: QApplication, tmp_path: Path) -> None:
+    from scheduling_desktop.modules.lessons import _WEEK_COL
+
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    bridge.add_school_week("Bachillerato")
+    lm = win._lessons
+    lm.refresh()
+    qapp.processEvents()
+
+    # La columna Semana lect. existe y su combo ofrece las semanas creadas.
+    header = lm._table.horizontalHeaderItem(_WEEK_COL)
+    assert header is not None and header.text() == "Semana lect."
+    assert "Bachillerato" in lm._week_names()
+
+    # Escribir el nombre de la semana en la celda la asigna a la lección.
+    lesson = lm._display[0].lesson
+    item = lm._table.item(0, _WEEK_COL)
+    assert item is not None
+    item.setText("Bachillerato")
+    qapp.processEvents()
+    assert bridge.lesson_school_week(list(lesson.task_ids)) == 0

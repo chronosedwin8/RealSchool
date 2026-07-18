@@ -38,6 +38,7 @@ from .modules import (
     PAGE_PROJECT,
     PAGE_REPORTS,
     PAGE_SCHEDULE,
+    PAGE_SCHOOL_WEEK,
     PAGE_SETTINGS,
     PAGE_VALIDATION,
 )
@@ -54,6 +55,7 @@ from .modules.plugin_manager import PluginManagerModule
 from .modules.project_manager import ProjectManagerModule
 from .modules.reports import ReportsModule
 from .modules.schedule_editor import ScheduleEditorModule
+from .modules.school_week import SchoolWeekModule
 from .modules.settings import SettingsModule
 from .modules.validation_center import ValidationCenterModule
 
@@ -72,6 +74,7 @@ class MainWindow(QMainWindow):
         self._dashboard = DashboardModule(self._bridge)
         self._data = DataManagerModule(self._bridge)
         self._lessons = LessonsModule(self._bridge)
+        self._school_week = SchoolWeekModule(self._bridge)
         self._schedule = ScheduleEditorModule(self._bridge)
         self._constraints = ConstraintManagerModule(self._bridge)
         self._validation = ValidationCenterModule(self._bridge)
@@ -95,6 +98,7 @@ class MainWindow(QMainWindow):
             PAGE_DASHBOARD: (self._dashboard, "Tablero"),
             PAGE_DATA: (self._data, "Datos maestros"),
             PAGE_LOAD: (self._lessons, "Carga (lecciones)"),
+            PAGE_SCHOOL_WEEK: (self._school_week, "Semana lectiva"),
             PAGE_SCHEDULE: (self._schedule, "Horario"),
             PAGE_CONSTRAINTS: (self._constraints, "Restricciones"),
             PAGE_VALIDATION: (self._validation, "Validación"),
@@ -146,6 +150,7 @@ class MainWindow(QMainWindow):
             ("Tablero", PAGE_DASHBOARD),
             ("Datos maestros", PAGE_DATA),
             ("Carga (lecciones)", PAGE_LOAD),
+            ("Semana lectiva", PAGE_SCHOOL_WEEK),
             ("Horario", PAGE_SCHEDULE),
             ("Restricciones", PAGE_CONSTRAINTS),
             ("Validación", PAGE_VALIDATION),
@@ -192,6 +197,7 @@ class MainWindow(QMainWindow):
             ("Tablero", QStyle.StandardPixmap.SP_FileDialogInfoView, PAGE_DASHBOARD),
             ("Datos", QStyle.StandardPixmap.SP_FileDialogListView, PAGE_DATA),
             ("Carga", QStyle.StandardPixmap.SP_FileDialogNewFolder, PAGE_LOAD),
+            ("Semana", QStyle.StandardPixmap.SP_FileDialogListView, PAGE_SCHOOL_WEEK),
             ("Horario", QStyle.StandardPixmap.SP_FileDialogDetailedView, PAGE_SCHEDULE),
             ("Restricciones", QStyle.StandardPixmap.SP_FileDialogContentsView, PAGE_CONSTRAINTS),
             ("Validación", QStyle.StandardPixmap.SP_MessageBoxWarning, PAGE_VALIDATION),

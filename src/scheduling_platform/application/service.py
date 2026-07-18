@@ -26,6 +26,7 @@ from ..core.problem import SchedulingProblem
 from ..core.requirement import ResourceRequirement
 from ..core.resource import Resource
 from ..core.task import Task
+from ..core.time_grid import Segment
 from ..engine import MetricsEngine, ReOptimizationEngine
 from ..pipeline.events import ProgressCallback
 from ..plugins import CONSTRAINT_CATALOG, ConstraintKind
@@ -36,7 +37,15 @@ from .cancel import CancelToken
 from .commands.solve import solution_summary
 from .config import EngineConfig, PluginsConfig, PluginSetting
 from .errors import AppError, ConfigError, InfeasibleError, InternalError, SolveTimeoutError
-from .project import BjsProject, LunchWindow, new_project, open_project, save_project
+from .project import (
+    BjsProject,
+    LunchWindow,
+    SchoolPeriod,
+    SchoolWeek,
+    new_project,
+    open_project,
+    save_project,
+)
 from .runtime import analyze_feasibility, build_registry, run_engine
 from .solvers import SOLVER_NAMES, solver_factory_for
 from .view_models import (
@@ -667,11 +676,26 @@ class EngineService:
             merged[rid].update(pairs)
         return merged
 
+    @staticmethod
+    def _week_blocked(week: SchoolWeek, segments: tuple[Segment, ...]) -> set[int]:
+        """Slots lineales no disponibles para una semana lectiva: recreos, períodos
+
+        por encima del tope y días fuera del número de días lectivos.
+        """
+        blocked: set[int] = set()
+        breaks = set(week.breaks)
+        for day, seg in enumerate(segments):
+            if week.days and day >= week.days:
+                blocked.update(range(int(seg.start), int(seg.end)))
+                continue
+            for period in range(seg.length):
+                if period in breaks or (0 < week.max_periods <= period):
+                    blocked.add(int(seg.start) + period)
+        return blocked
+
     def _effective_problem(self, project: BjsProject) -> SchedulingProblem:
-        """Aplica disponibilidad + almuerzo: recorta ``allowed_starts`` en esas horas."""
+        """Aplica disponibilidad + almuerzo + semana lectiva: recorta ``allowed_starts``."""
         reserved = self._reserved(project)
-        if not reserved:
-            return project.problem
         problem = project.problem
         segments = problem.grid.segments
         tag_blocked: dict[str, set[int]] = {}
@@ -686,14 +710,27 @@ class EngineService:
             for day, period in pairs:
                 if 0 <= day < len(segments) and 0 <= period < segments[day].length:
                     slots.add(int(segments[day].start) + period)
-        if not tag_blocked:
+        # Semanas lectivas: recreos/tope por clase (cacheado por índice de semana).
+        week_blocked: dict[int, set[int]] = {}
+        weeks = project.school_weeks
+        uses_weeks = weeks and any(t.attribute("school_week", -1) >= 0 for t in problem.tasks)
+        if not tag_blocked and not uses_weeks:
             return problem
 
-        new_tasks: list[Task] = []
-        for task in problem.tasks:
+        def blocked_for(task: Task) -> set[int]:
             blocked: set[int] = set()
             for req in task.requirements:
                 blocked |= tag_blocked.get(req.tag, set())
+            widx = task.attribute("school_week", -1)
+            if 0 <= widx < len(weeks):
+                if widx not in week_blocked:
+                    week_blocked[widx] = self._week_blocked(weeks[widx], segments)
+                blocked |= week_blocked[widx]
+            return blocked
+
+        new_tasks: list[Task] = []
+        for task in problem.tasks:
+            blocked = blocked_for(task)
             if not blocked:
                 new_tasks.append(task)
                 continue
@@ -774,13 +811,15 @@ class EngineService:
         *,
         room_ids: list[int] | None = None,
         duration: int = 1,
+        school_week: int = -1,
     ) -> list[int]:
         """Añade carga horaria: crea ``sessions`` clases de ``subject`` (una asignación).
 
         Una asignación puede acoplar **varios docentes**, **varios grupos** y
         **varias aulas** (clase combinada / co-docencia, la *Kopplung* de Untis):
         cada clase requiere a la vez todos ellos. Si no se dan aulas concretas, el
-        solver elige una del pool. Devuelve los ids de las clases creadas.
+        solver elige una del pool. ``school_week`` (índice, -1 = ninguna) asigna la
+        semana lectiva de la lección. Devuelve los ids de las clases creadas.
         """
         if not subject.strip():
             raise ConfigError("la materia no puede estar vacía")
@@ -813,13 +852,16 @@ class EngineService:
         )
         base = max((int(t.id) for t in problem.tasks), default=-1) + 1
         tag_key = "-".join(str(g) for g in group_ids)
+        attrs: tuple[tuple[str, int], ...] = (("size", size),)
+        if 0 <= school_week < len(session.project.school_weeks):
+            attrs = (*attrs, ("school_week", school_week))
         new_tasks = [
             Task(
                 TaskId(base + s),
                 f"{subject.strip()} · g{tag_key}#{s}",
                 duration,
                 requirements,
-                attributes=(("size", size),),
+                attributes=attrs,
             )
             for s in range(sessions)
         ]
@@ -1131,6 +1173,156 @@ class EngineService:
 
     def _derived_subjects(self, session: Session) -> set[str]:
         return {t.name.split(" · ", 1)[0] for t in session.project.problem.tasks}
+
+    # --- semanas lectivas (marcos horarios por sección, Fase 7 E3) ------ #
+    def grid_size(self, session: Session) -> tuple[int, int]:
+        """(días, períodos por día) de la rejilla del proyecto."""
+        segments = session.project.problem.grid.segments
+        return len(segments), max(seg.length for seg in segments)
+
+    def school_weeks(self, session: Session) -> tuple[SchoolWeek, ...]:
+        """Semanas lectivas definidas (marcos horarios por sección)."""
+        return session.project.school_weeks
+
+    def add_school_week(
+        self, session: Session, name: str, *, days: int = 5, max_periods: int = 0
+    ) -> int:
+        """Crea una semana lectiva (marco horario). Devuelve su índice."""
+        name = name.strip()
+        if not name:
+            raise ConfigError("el nombre de la semana lectiva no puede estar vacío")
+        weeks = session.project.school_weeks
+        if any(w.name == name for w in weeks):
+            raise ConfigError(f"la semana lectiva ya existe: {name}")
+        week = SchoolWeek(name=name, days=days, max_periods=max_periods)
+        session.project = replace(session.project, school_weeks=(*weeks, week))
+        session.dirty = True
+        return len(weeks)
+
+    def rename_school_week(self, session: Session, index: int, name: str) -> None:
+        """Renombra una semana lectiva."""
+        name = name.strip()
+        if not name:
+            raise ConfigError("el nombre de la semana lectiva no puede estar vacío")
+        weeks = self._week_at(session, index)
+        session.project = replace(
+            session.project,
+            school_weeks=tuple(
+                replace(w, name=name) if i == index else w for i, w in enumerate(weeks)
+            ),
+        )
+        session.dirty = True
+
+    def remove_school_week(self, session: Session, index: int) -> None:
+        """Elimina una semana lectiva y la desasigna de las lecciones que la usaban."""
+        weeks = self._week_at(session, index)
+        remaining = tuple(w for i, w in enumerate(weeks) if i != index)
+        problem = session.project.problem
+
+        def remap(task: Task) -> Task:
+            widx = task.attribute("school_week", -1)
+            if widx < 0:
+                return task
+            if widx == index:
+                attrs = tuple((k, v) for k, v in task.attributes if k != "school_week")
+            elif widx > index:
+                attrs = tuple((k, v - 1 if k == "school_week" else v) for k, v in task.attributes)
+            else:
+                return task
+            return replace(task, attributes=attrs)
+
+        tasks = tuple(remap(t) for t in problem.tasks)
+        session.project = replace(
+            self._structural_change(session.project, replace(problem, tasks=tasks)),
+            school_weeks=remaining,
+        )
+        session.dirty = True
+
+    def set_school_week_field(self, session: Session, index: int, field: str, value: int) -> None:
+        """Cambia un campo entero de la semana lectiva (días, tope, corte, etc.)."""
+        week = self._week_at(session, index)[index]
+        if field == "days":
+            updated = replace(week, days=value)
+        elif field == "max_periods":
+            updated = replace(week, max_periods=value)
+        elif field == "afternoon_from":
+            updated = replace(week, afternoon_from=value)
+        elif field == "first_day":
+            updated = replace(week, first_day=value)
+        elif field == "first_hour":
+            updated = replace(week, first_hour=value)
+        else:
+            raise ConfigError(f"campo de semana lectiva inválido: {field}")
+        self._store_week(session, index, updated)
+
+    def set_school_week_period(
+        self, session: Session, index: int, period: int, start: str, end: str
+    ) -> None:
+        """Fija las horas de reloj (presentacionales) de un período de la semana."""
+        if period < 0:
+            raise ConfigError("período inválido")
+        week = self._week_at(session, index)[index]
+        periods = list(week.periods)
+        while len(periods) <= period:
+            periods.append(SchoolPeriod())
+        periods[period] = SchoolPeriod(start=start.strip(), end=end.strip())
+        self._store_week(session, index, replace(week, periods=tuple(periods)))
+
+    def toggle_school_week_break(self, session: Session, index: int, period: int) -> bool:
+        """Alterna un recreo (período no lectivo). Devuelve el nuevo estado."""
+        week = self._week_at(session, index)[index]
+        breaks = set(week.breaks)
+        if period in breaks:
+            breaks.discard(period)
+            is_break = False
+        else:
+            breaks.add(period)
+            is_break = True
+        self._store_week(session, index, replace(week, breaks=tuple(sorted(breaks))))
+        return is_break
+
+    def lesson_school_week(self, session: Session, task_ids: list[int]) -> int:
+        """Semana lectiva asignada a una lección (-1 = ninguna)."""
+        ids = set(task_ids)
+        for task in session.project.problem.tasks:
+            if int(task.id) in ids:
+                return task.attribute("school_week", -1)
+        return -1
+
+    def set_lesson_school_week(self, session: Session, task_ids: list[int], index: int) -> None:
+        """Asigna (o quita, con -1) la semana lectiva de una lección."""
+        if index >= len(session.project.school_weeks):
+            raise ConfigError(f"semana lectiva inexistente: {index}")
+        problem = session.project.problem
+        ids = set(task_ids)
+        if not any(int(t.id) in ids for t in problem.tasks):
+            raise ConfigError("lección inexistente")
+
+        def stamp(task: Task) -> Task:
+            if int(task.id) not in ids:
+                return task
+            attrs = [(k, v) for k, v in task.attributes if k != "school_week"]
+            if index >= 0:
+                attrs.append(("school_week", index))
+            return replace(task, attributes=tuple(attrs))
+
+        tasks = tuple(stamp(t) for t in problem.tasks)
+        session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
+        session.dirty = True
+
+    def _week_at(self, session: Session, index: int) -> tuple[SchoolWeek, ...]:
+        weeks = session.project.school_weeks
+        if not 0 <= index < len(weeks):
+            raise ConfigError(f"semana lectiva inexistente: {index}")
+        return weeks
+
+    def _store_week(self, session: Session, index: int, week: SchoolWeek) -> None:
+        weeks = session.project.school_weeks
+        session.project = replace(
+            session.project,
+            school_weeks=tuple(week if i == index else w for i, w in enumerate(weeks)),
+        )
+        session.dirty = True
 
     @staticmethod
     def _structural_change(project: BjsProject, problem: SchedulingProblem) -> BjsProject:

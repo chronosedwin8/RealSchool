@@ -27,6 +27,7 @@ from scheduling_platform.application import (
     MoveTarget,
     ProgressEvent,
     ReportTable,
+    SchoolWeek,
     Session,
     SolveOutcome,
     TimetableView,
@@ -293,12 +294,64 @@ class EngineBridge(QObject):
         teacher_ids: list[int],
         sessions: int,
         room_ids: list[int] | None = None,
+        school_week: int = -1,
     ) -> None:
         self._service.add_load(
-            self.session, group_ids, subject, teacher_ids, sessions, room_ids=room_ids
+            self.session,
+            group_ids,
+            subject,
+            teacher_ids,
+            sessions,
+            room_ids=room_ids,
+            school_week=school_week,
         )
         self._after_edit()
         self._announce("success", f"Carga añadida: {subject} ({sessions}h)")
+
+    # --- semanas lectivas (marcos horarios por sección) ----------------- #
+    def grid_size(self) -> tuple[int, int]:
+        return self._service.grid_size(self.session)
+
+    def school_weeks(self) -> tuple[SchoolWeek, ...]:
+        return self._service.school_weeks(self.session)
+
+    def add_school_week(self, name: str, *, days: int = 5, max_periods: int = 0) -> int:
+        index = self._service.add_school_week(
+            self.session, name, days=days, max_periods=max_periods
+        )
+        self._after_edit()
+        self._announce("success", f"Semana lectiva añadida: {name}")
+        return index
+
+    def rename_school_week(self, index: int, name: str) -> None:
+        self._service.rename_school_week(self.session, index, name)
+        self._after_edit()
+
+    def remove_school_week(self, index: int) -> None:
+        self._service.remove_school_week(self.session, index)
+        self._after_edit()
+        self._announce("info", "Semana lectiva eliminada")
+
+    def set_school_week_field(self, index: int, field: str, value: int) -> None:
+        self._service.set_school_week_field(self.session, index, field, value)
+        self._after_edit()
+
+    def set_school_week_period(self, index: int, period: int, start: str, end: str) -> None:
+        self._service.set_school_week_period(self.session, index, period, start, end)
+        self._after_edit()
+
+    def toggle_school_week_break(self, index: int, period: int) -> bool:
+        result = self._service.toggle_school_week_break(self.session, index, period)
+        self._after_edit()
+        return result
+
+    def lesson_school_week(self, task_ids: list[int]) -> int:
+        return self._service.lesson_school_week(self.session, task_ids)
+
+    def set_lesson_school_week(self, task_ids: list[int], index: int) -> None:
+        self._service.set_lesson_school_week(self.session, task_ids, index)
+        self._after_edit()
+        self._announce("info", "Semana lectiva de la lección actualizada")
 
     # --- lecciones (vista de carga estilo Untis) ------------------------ #
     def lessons(

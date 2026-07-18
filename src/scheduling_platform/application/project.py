@@ -45,6 +45,7 @@ _AVAILABILITY = "availability.json"
 _LUNCH = "lunch.json"
 _SUBJECTS = "subjects.json"
 _DIRECTORY = "directory.json"
+_SCHOOLWEEKS = "schoolweeks.json"
 
 #: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
 Availability = dict[int, tuple[tuple[int, int], ...]]
@@ -62,6 +63,36 @@ class LunchWindow:
     start: int  # período inicial dentro del día (0-based, inclusive)
     end: int  # período final (inclusive)
     days: tuple[int, ...]  # índices de día donde aplica
+
+
+@dataclass(frozen=True, slots=True)
+class SchoolPeriod:
+    """Horas de reloj de un período dentro de una semana lectiva (presentacional)."""
+
+    start: str = ""  # "07:00"
+    end: str = ""  # "07:10"
+
+
+@dataclass(frozen=True, slots=True)
+class SchoolWeek:
+    """Semana lectiva (marco horario) de una sección (Fase 7 E3).
+
+    Describe la estructura horaria de una sección (Kinder/Primaria/Bachillerato):
+    número de días lectivos, tope de períodos por día, horas de reloj de cada
+    período, el corte Mañana/Tarde y los recreos. Las lecciones se **asignan** a
+    una semana lectiva (no todas comparten estructura); el motor respeta sus
+    recreos y su tope de períodos como horas no disponibles para esas clases. Las
+    horas de reloj y el corte Mañana/Tarde son presentacionales (reportes/vista).
+    """
+
+    name: str
+    days: int = 5  # número de días lectivos semanales
+    max_periods: int = 0  # tope de períodos lectivos por día (0 = toda la rejilla)
+    first_day: int = 0  # 0 = Lunes (presentacional)
+    first_hour: int = 0  # número de la primera hora lectiva (presentacional)
+    afternoon_from: int = -1  # primer período de la Tarde (-1 = todo Mañana)
+    periods: tuple[SchoolPeriod, ...] = ()  # horas de reloj por número de período
+    breaks: tuple[int, ...] = ()  # períodos que son recreo (no lectivos)
 
 
 def _read_slots(entries: dict[str, Any], fname: str) -> Availability:
@@ -86,6 +117,44 @@ def _read_lunch(entries: dict[str, Any]) -> LunchWindow | None:
         end=int(window["end"]),
         days=tuple(int(d) for d in window.get("days", ())),
     )
+
+
+def _read_school_weeks(entries: dict[str, Any]) -> tuple[SchoolWeek, ...]:
+    raw = entries.get(_SCHOOLWEEKS, {}).get("weeks", ())
+    return tuple(
+        SchoolWeek(
+            name=str(w["name"]),
+            days=int(w.get("days", 5)),
+            max_periods=int(w.get("max_periods", 0)),
+            first_day=int(w.get("first_day", 0)),
+            first_hour=int(w.get("first_hour", 0)),
+            afternoon_from=int(w.get("afternoon_from", -1)),
+            periods=tuple(
+                SchoolPeriod(start=str(p.get("start", "")), end=str(p.get("end", "")))
+                for p in w.get("periods", ())
+            ),
+            breaks=tuple(int(b) for b in w.get("breaks", ())),
+        )
+        for w in raw
+    )
+
+
+def _school_weeks_doc(weeks: tuple[SchoolWeek, ...]) -> dict[str, Any]:
+    return {
+        "weeks": [
+            {
+                "name": w.name,
+                "days": w.days,
+                "max_periods": w.max_periods,
+                "first_day": w.first_day,
+                "first_hour": w.first_hour,
+                "afternoon_from": w.afternoon_from,
+                "periods": [{"start": p.start, "end": p.end} for p in w.periods],
+                "breaks": list(w.breaks),
+            }
+            for w in weeks
+        ]
+    }
 
 
 def engine_version() -> str:
@@ -143,6 +212,9 @@ class BjsProject:
     # afectan al solver (nombre completo, e-mail, sección, aula propia, color...).
     resource_info: dict[int, dict[str, str]] = field(default_factory=dict)
     subject_info: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: Semanas lectivas (marcos horarios por sección, Fase 7 E3). Cada lección se
+    #: asigna a una por su índice (atributo ``school_week`` de sus clases).
+    school_weeks: tuple[SchoolWeek, ...] = ()
 
     @classmethod
     def create(
@@ -186,6 +258,8 @@ def save_project(path: str | Path, project: BjsProject) -> None:
             "resources": {str(k): dict(v) for k, v in project.resource_info.items() if v},
             "subjects": {k: dict(v) for k, v in project.subject_info.items() if v},
         }
+    if project.school_weeks:
+        entries[_SCHOOLWEEKS] = _school_weeks_doc(project.school_weeks)
     pack(path, entries, project.manifest)
 
 
@@ -227,6 +301,7 @@ def open_project(path: str | Path) -> BjsProject:
             str(k): {str(a): str(b) for a, b in v.items()}
             for k, v in entries.get(_DIRECTORY, {}).get("subjects", {}).items()
         },
+        school_weeks=_read_school_weeks(entries),
     )
 
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 PAGE_DASHBOARD = "dashboard"
 PAGE_DATA = "data"
 PAGE_LOAD = "load"
+PAGE_SCHOOL_WEEK = "school_week"
 PAGE_SCHEDULE = "schedule"
 PAGE_CONSTRAINTS = "constraints"
 PAGE_VALIDATION = "validation"
@@ -33,6 +34,7 @@ __all__ = [
     "PAGE_PROJECT",
     "PAGE_REPORTS",
     "PAGE_SCHEDULE",
+    "PAGE_SCHOOL_WEEK",
     "PAGE_SETTINGS",
     "PAGE_VALIDATION",
 ]

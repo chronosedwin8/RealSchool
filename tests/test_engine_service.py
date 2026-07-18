@@ -778,3 +778,90 @@ def test_engine_settings_invalido(tmp_path: Path) -> None:
     session = svc.open(path)
     with pytest.raises(ConfigError):
         svc.update_engine_settings(session, default_solver="inexistente")
+
+
+def test_semana_lectiva_crud_y_persistencia(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+
+    # Alta de dos semanas lectivas (marcos horarios por sección).
+    b = svc.add_school_week(session, "Bachillerato", days=5, max_periods=3)
+    p = svc.add_school_week(session, "Primaria", days=5)
+    assert [w.name for w in svc.school_weeks(session)] == ["Bachillerato", "Primaria"]
+    with pytest.raises(ConfigError):
+        svc.add_school_week(session, "Bachillerato")  # duplicada
+
+    # Editar campos, recreos y horas de reloj.
+    svc.set_school_week_field(session, b, "afternoon_from", 2)
+    assert svc.toggle_school_week_break(session, b, 1) is True
+    svc.set_school_week_period(session, b, 0, "07:00", "07:10")
+    week = svc.school_weeks(session)[b]
+    assert week.afternoon_from == 2
+    assert week.breaks == (1,)
+    assert week.periods[0].start == "07:00"
+
+    # Renombrar y persistir round-trip.
+    svc.rename_school_week(session, p, "Primaria baja")
+    svc.save(session)
+    reopened = svc.open(path)
+    names = [w.name for w in svc.school_weeks(reopened)]
+    assert names == ["Bachillerato", "Primaria baja"]
+    assert svc.school_weeks(reopened)[b].breaks == (1,)
+
+
+def test_leccion_asignada_a_semana_lectiva_recorta_el_motor(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    per_day = session.project.problem.grid.segments[0].length  # 3 en el demo
+
+    week = svc.add_school_week(session, "Bachillerato")
+    svc.toggle_school_week_break(session, week, 1)  # recreo en P1
+
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
+    mate = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    svc.set_lesson_school_week(session, list(mate.task_ids), week)
+    assert svc.lesson_school_week(session, list(mate.task_ids)) == week
+
+    # La lección aparece con su semana lectiva asignada.
+    same = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    assert same.school_week == week
+
+    # El motor recorta el recreo P1 de sus inicios permitidos.
+    eff = svc._effective_problem(session.project)
+    task = next(t for t in eff.tasks if int(t.id) == mate.task_ids[0])
+    periods = {int(s) % per_day for s in (task.allowed_starts or set())}
+    assert 1 not in periods
+    # Las clases sin semana lectiva no se ven afectadas.
+    otra = next(t for t in eff.tasks if int(t.id) not in mate.task_ids)
+    assert otra.allowed_starts is None
+
+    # Sigue siendo optimizable respetando el recreo.
+    outcome = svc.optimize(session, timeout=10.0)
+    assert outcome.solved is True
+    assert session.project.solution is not None
+    for a in session.project.solution.assignments:
+        if int(a.task_id) in mate.task_ids:
+            assert int(a.start) % per_day != 1
+
+
+def test_add_load_con_semana_lectiva_y_baja_reindexa(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
+    tid = next(int(r.key) for r in svc.tables(session).teachers.rows)
+
+    w0 = svc.add_school_week(session, "Kinder")
+    w1 = svc.add_school_week(session, "Bachillerato")
+    ids = svc.add_load(session, [gid], "Arte", [tid], sessions=1, school_week=w1)
+    assert svc.lesson_school_week(session, ids) == w1
+
+    # Al eliminar la semana anterior (w0), la lección debe reindexar a w0.
+    svc.remove_school_week(session, w0)
+    assert [w.name for w in svc.school_weeks(session)] == ["Bachillerato"]
+    assert svc.lesson_school_week(session, ids) == 0
