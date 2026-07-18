@@ -12,7 +12,7 @@ del negocio no se filtren a la interfaz.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, replace
 
 from ..core.problem import SchedulingProblem
@@ -367,6 +367,10 @@ class TimetableCell:
     teacher_id: int = -1
     group_id: int = -1
     room_id: int = -1
+    # Horas de reloj de la clase según su semana lectiva (vacío = sin asignar). Se
+    # muestran en la casilla del docente, que puede dar clases en marcos distintos.
+    start_clock: str = ""
+    end_clock: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -394,6 +398,9 @@ class TimetableView:
     days: int
     periods_per_day: int
     cells: tuple[TimetableCell, ...]
+    # Horas de reloj por período (start, end) de la semana lectiva dominante del
+    # foco: se muestran en la columna de períodos (vacío = sin semana asignada).
+    period_clocks: tuple[tuple[str, str], ...] = ()
 
 
 def _name_by_tag(problem: SchedulingProblem, prefix: str) -> dict[str, str]:
@@ -406,14 +413,22 @@ def _name_by_tag(problem: SchedulingProblem, prefix: str) -> dict[str, str]:
 
 
 def timetable_view(
-    problem: SchedulingProblem, solution: Solution | None, focus_id: int
+    problem: SchedulingProblem,
+    solution: Solution | None,
+    focus_id: int,
+    *,
+    week_clocks: dict[int, tuple[tuple[str, str], ...]] | None = None,
 ) -> TimetableView:
     """Ubica cada clase del recurso ``focus_id`` en su celda (día, período).
 
     Filtra por pertenencia al recurso en foco (``focus_id in resource_ids``), lo
     que sirve por igual para docente, grupo o aula. Marca en conflicto las clases
     del foco que se solapan en el tiempo (nunca deberían, salvo horario roto).
+    Si se dan ``week_clocks`` (horas de reloj por índice de semana lectiva), cada
+    celda lleva su hora inicio/fin y la columna de períodos las de la semana
+    dominante del foco.
     """
+    clocks = week_clocks or {}
     focus = next(r for r in problem.resources if int(r.id) == focus_id)
     focus_kind = _kind_of(focus.tags) or "resource"
 
@@ -433,6 +448,7 @@ def timetable_view(
 
     cells: list[TimetableCell] = []
     occupancy: dict[int, list[int]] = defaultdict(list)  # slot -> índices de celda
+    week_votes: Counter[int] = Counter()  # semana lectiva dominante del foco
     if solution is not None:
         for assignment in solution.assignments:
             if focus_id not in {int(r) for r in assignment.resource_ids}:
@@ -446,6 +462,10 @@ def timetable_view(
             room_id = next(
                 (int(r) for r in assignment.resource_ids if int(r) in room_name_by_id), -1
             )
+            week = task.attribute("school_week", -1)
+            if week >= 0:
+                week_votes[week] += 1
+            start_clock, end_clock = _clock_at(clocks, week, period)
             index = len(cells)
             cells.append(
                 TimetableCell(
@@ -461,10 +481,15 @@ def timetable_view(
                     teacher_id=id_by_tag.get(teacher_tag, -1) if teacher_tag else -1,
                     group_id=id_by_tag.get(group_tag, -1) if group_tag else -1,
                     room_id=room_id,
+                    start_clock=start_clock,
+                    end_clock=end_clock,
                 )
             )
             for offset in range(task.duration):
                 occupancy[int(assignment.start) + offset].append(index)
+
+    dominant = clocks.get(week_votes.most_common(1)[0][0]) if week_votes else None
+    period_clocks = tuple(dominant[:periods_per_day]) if dominant else ()
 
     clashing = {i for users in occupancy.values() if len(users) > 1 for i in users}
     if clashing:
@@ -479,7 +504,18 @@ def timetable_view(
         days=len(segments),
         periods_per_day=periods_per_day,
         cells=tuple(cells),
+        period_clocks=period_clocks,
     )
+
+
+def _clock_at(
+    clocks: dict[int, tuple[tuple[str, str], ...]], week: int, period: int
+) -> tuple[str, str]:
+    """Hora (inicio, fin) del período en la semana dada, o ('', '') si no aplica."""
+    times = clocks.get(week)
+    if times is None or not 0 <= period < len(times):
+        return "", ""
+    return times[period]
 
 
 def _with_conflict(cell: TimetableCell) -> TimetableCell:

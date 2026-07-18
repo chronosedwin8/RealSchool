@@ -47,7 +47,7 @@ from ..theme import day_name, subject_color
 _CELL_W = 158.0
 _CELL_H = 66.0
 _HEAD = 40.0
-_ROWHEAD = 46.0
+_ROWHEAD = 64.0  # ancho de la columna de períodos (con horas de reloj)
 _CONFLICT = QColor("#ef4444")
 _GRID = QColor("#c7d2e0")
 _HEADER_BG = QColor("#dbe4f0")
@@ -504,9 +504,16 @@ class ScheduleEditorModule(QWidget):
                 self._scene.addRect(x, y, _CELL_W, _CELL_H, pen)
         for period in range(view.periods_per_day):
             y = _HEAD + period * _CELL_H
-            label = self._scene.addText(f"P{period + 1}", header)
+            label = self._scene.addText("")
+            html = f"<b>P{period + 1}</b>"
+            if period < len(view.period_clocks):
+                start, end = view.period_clocks[period]
+                if start or end:
+                    html += f"<br><span style='font-size:8pt;color:#475569'>{start}<br>{end}</span>"
+            label.setHtml(html)
             label.setDefaultTextColor(_INK)
-            label.setPos(8, y + _CELL_H / 2 - 12)
+            label.setTextWidth(_ROWHEAD - 6)
+            label.setPos(4, y + 6)
 
     def _draw_cell(self, view: TimetableView, cell: TimetableCell) -> None:
         x = _ROWHEAD + cell.day * _CELL_W
@@ -519,9 +526,13 @@ class ScheduleEditorModule(QWidget):
         item.setData(0, cell.task_id)
 
         detail = cell.group if view.focus_kind == "teacher" else cell.teacher
+        clock = ""
+        if cell.start_clock or cell.end_clock:
+            clock = f" <span style='color:#334155'>{cell.start_clock}-{cell.end_clock}</span>"
         subject = self._scene.addText("")
         subject.setHtml(
-            f"<b>{cell.subject}</b><br>{detail}<br><span style='color:#475569'>{cell.room}</span>"
+            f"<b>{cell.subject}</b>{clock}<br>{detail}"
+            f"<br><span style='color:#475569'>{cell.room}</span>"
         )
         subject.setDefaultTextColor(_INK)
         subject.setPos(x + 9, y + 6)

@@ -236,7 +236,20 @@ class EngineService:
         return focus_options(session.project.problem)
 
     def timetable(self, session: Session, focus_id: int) -> TimetableView:
-        return timetable_view(session.project.problem, session.project.solution, focus_id)
+        return timetable_view(
+            session.project.problem,
+            session.project.solution,
+            focus_id,
+            week_clocks=self._week_clocks(session.project),
+        )
+
+    @staticmethod
+    def _week_clocks(project: BjsProject) -> dict[int, tuple[tuple[str, str], ...]]:
+        """Horas de reloj (inicio, fin) por período, indexadas por semana lectiva."""
+        return {
+            i: tuple((p.start, p.end) for p in week.periods)
+            for i, week in enumerate(project.school_weeks)
+        }
 
     def dashboard(self, session: Session) -> DashboardStats:
         project = session.project

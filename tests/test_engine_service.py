@@ -909,6 +909,31 @@ def test_semana_lectiva_autogenera_horas(tmp_path: Path) -> None:
     assert (periods[3].start, periods[3].end) == ("09:30", "10:15")
 
 
+def test_horario_muestra_horas_de_la_semana_lectiva(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    w = svc.add_school_week(session, "Primaria", max_periods=3)
+    svc.set_school_week_period(session, w, 0, "07:00", "07:45")
+    svc.generate_school_week_times(session, w, 45, gap_min=5)
+
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
+    for les in svc.lessons(session, group_id=gid):
+        svc.set_lesson_school_week(session, list(les.task_ids), w)
+    assert svc.optimize(session, timeout=10.0).solved is True
+
+    # La columna de períodos del grupo lleva las horas de reloj de su semana.
+    group_view = svc.timetable(session, gid)
+    assert group_view.period_clocks[0] == ("07:00", "07:45")
+    assert group_view.period_clocks[1] == ("07:50", "08:35")
+    # Cada casilla del docente lleva la hora de inicio/fin de su clase.
+    tid = next(int(r.key) for r in svc.tables(session).teachers.rows)
+    teacher_view = svc.timetable(session, tid)
+    with_clock = [c for c in teacher_view.cells if c.start_clock]
+    assert with_clock and all(c.end_clock for c in with_clock)
+
+
 def test_semana_lectiva_tope_de_periodos_recorta_el_motor(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)
