@@ -54,7 +54,7 @@ class ReportsModule(QWidget):
         layout.addLayout(top)
         layout.addWidget(self._table, stretch=1)
 
-        bridge.session_changed.connect(self.refresh)
+        bridge.session_refreshed.connect(self.refresh)
 
     def refresh(self) -> None:
         if not self._bridge.has_session:

@@ -204,7 +204,7 @@ class ScheduleEditorModule(QWidget):
         self._overlays: list[QGraphicsItem] = []
         self._arrow: list[QGraphicsItem] = []
 
-        bridge.session_changed.connect(self.refresh)
+        bridge.session_refreshed.connect(self.refresh)
 
     def refresh(self) -> None:
         if not self._bridge.has_session:

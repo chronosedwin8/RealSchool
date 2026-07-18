@@ -59,7 +59,7 @@ class DashboardModule(QWidget):
         layout.addWidget(chart_view, stretch=1)
 
         self._build_cards()
-        bridge.session_changed.connect(self.refresh)
+        bridge.session_refreshed.connect(self.refresh)
 
     def _build_cards(self) -> None:
         specs = [

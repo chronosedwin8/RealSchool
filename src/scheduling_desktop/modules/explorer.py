@@ -43,7 +43,7 @@ class ExplorerTree(QTreeWidget):
         self.setColumnCount(1)
         self.itemActivated.connect(self._on_item)
         self.itemClicked.connect(self._on_item)
-        bridge.session_changed.connect(self.refresh)
+        bridge.session_refreshed.connect(self.refresh)
 
     def refresh(self) -> None:
         self.clear()

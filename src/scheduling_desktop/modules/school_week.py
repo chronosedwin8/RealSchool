@@ -147,7 +147,7 @@ class SchoolWeekModule(QWidget):
         layout.addWidget(self._hint)
         layout.addWidget(self._table, stretch=1)
 
-        bridge.session_changed.connect(self._defer_refresh)
+        bridge.session_refreshed.connect(self._defer_refresh)
 
     # --- refresco seguro ------------------------------------------------- #
     def _defer_refresh(self) -> None:

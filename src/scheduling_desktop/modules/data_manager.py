@@ -94,7 +94,7 @@ class DataManagerModule(QWidget):
         layout.addLayout(toolbar)
         layout.addWidget(self._tabs)
         self._tabs.currentChanged.connect(self._on_tab_changed)
-        bridge.session_changed.connect(self._defer_refresh)
+        bridge.session_refreshed.connect(self._defer_refresh)
 
     # --- refresco seguro (fuera del commit del editor) ------------------- #
     def _defer_refresh(self) -> None:

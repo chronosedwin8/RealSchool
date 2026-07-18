@@ -87,6 +87,27 @@ def test_abrir_puebla_los_modulos(qapp: QApplication, tmp_path: Path) -> None:
     assert bridge.dashboard().teachers == 1
 
 
+def test_refresco_agrupado_y_diferido(qapp: QApplication, tmp_path: Path) -> None:
+    # Una ráfaga de session_changed (como los ticks de un spinbox) NO debe
+    # disparar un refresco por cada uno: se agrupa en uno solo, ya ocioso el hilo.
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    bridge.open_path(path)
+    count = 0
+
+    def _count() -> None:
+        nonlocal count
+        count += 1
+
+    bridge.session_refreshed.connect(_count)
+    for _ in range(5):
+        bridge.session_changed.emit()  # ráfaga: no refresca aún
+    assert count == 0  # diferido: nada mientras la ráfaga ocurre
+    qapp.processEvents()
+    assert count == 1  # agrupado: un único refresco al quedar ocioso
+
+
 def test_edicion_en_data_manager_va_a_la_fachada(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

@@ -329,7 +329,7 @@ class LessonsModule(QWidget):
         layout.addLayout(top)
         layout.addWidget(self._table, stretch=1)
 
-        bridge.session_changed.connect(self._defer_refresh)
+        bridge.session_refreshed.connect(self._defer_refresh)
 
     # --- refresco seguro (fuera del commit del editor) ------------------- #
     def _defer_refresh(self) -> None:

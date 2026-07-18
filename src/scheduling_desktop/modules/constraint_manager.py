@@ -107,7 +107,7 @@ class ConstraintManagerModule(QWidget):
         layout.addWidget(detail_widget, stretch=2)
 
         self._set_detail_enabled(False)
-        bridge.session_changed.connect(self.refresh)
+        bridge.session_refreshed.connect(self.refresh)
 
     def refresh(self) -> None:
         # Se reconstruye la lista al abrir un proyecto, no en cada edición: una

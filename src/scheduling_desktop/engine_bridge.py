@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 from scheduling_platform.application import (
     BjsProject,
@@ -83,6 +83,11 @@ class EngineBridge(QObject):
 
     session_opened = Signal()
     session_changed = Signal()
+    # Refresco de UI **agrupado y diferido**: se dispara una sola vez cuando el
+    # hilo queda ocioso tras una ráfaga de ``session_changed``. Los módulos pesados
+    # (horario, tablas) se refrescan aquí para no congelar la UI en cada tecla o
+    # clic de spinbox (que emiten muchos ``session_changed`` seguidos).
+    session_refreshed = Signal()
     dirty_changed = Signal(bool)
     status_message = Signal(str)
     notification = Signal(str, str)  # nivel ("info"/"success"/"error"), texto
@@ -96,6 +101,15 @@ class EngineBridge(QObject):
         self._cancel = CancelToken()
         self._worker: SolveWorker | None = None
         self._undo_stack: list[BjsProject] = []
+        # Coalesce: cada session_changed reinicia un timer de 0 ms; el refresco
+        # real ocurre una vez, ya ocioso el hilo (no durante la interacción).
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self.session_refreshed)
+        self.session_changed.connect(self._coalesce_refresh)
+
+    def _coalesce_refresh(self) -> None:
+        self._refresh_timer.start(0)
 
     # --- sesión --------------------------------------------------------- #
     @property
