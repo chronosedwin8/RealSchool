@@ -177,8 +177,18 @@ class SchoolWeekModule(QWidget):
             self._table.setColumnCount(0)
             self._days.setEnabled(False)
             self._afternoon.setEnabled(False)
+            self._hint.setText(
+                "Crea una semana lectiva con 'Nueva...' para definir el marco horario "
+                "de una sección (Kinder, Primaria, Bachillerato...)."
+            )
+            self._hint.setStyleSheet("color: #b45309; font-weight: 600;")
             self._loading = False
             return
+        self._hint.setText(
+            "Escribe las horas de reloj en Inicio/Fin · clic en la fila Franja "
+            "marca/quita un Recreo."
+        )
+        self._hint.setStyleSheet("color: #64748b;")
         week = weeks[index]
         _, periods = self._bridge.grid_size()
         self._days.setEnabled(True)

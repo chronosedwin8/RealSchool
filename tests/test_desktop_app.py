@@ -600,15 +600,21 @@ def test_semana_lectiva_module_edita_el_marco(qapp: QApplication, tmp_path: Path
     sw.refresh()
     qapp.processEvents()
 
-    # Sin semanas todavía: la rejilla está vacía.
+    # Sin semanas todavía: la rejilla está vacía, los controles deshabilitados y
+    # el mensaje guía a crear una (así no parece que "no deja cambiar" nada).
     assert sw._table.columnCount() == 0
+    assert sw._days.isEnabled() is False
+    assert sw._afternoon.isEnabled() is False
+    assert "Nueva" in sw._hint.text()
 
-    # Crear una semana lectiva la puebla con una columna por período.
+    # Crear una semana lectiva la puebla con una columna por período y habilita.
     index = bridge.add_school_week("Bachillerato")
     sw.refresh()
     qapp.processEvents()
     _, periods = bridge.grid_size()
     assert sw._table.columnCount() == periods
+    assert sw._days.isEnabled() is True
+    assert sw._afternoon.isEnabled() is True
 
     # Clic en la fila Franja de un período lo marca como Recreo.
     sw._on_cell_clicked(_BAND_ROW, 1)
