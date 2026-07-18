@@ -340,6 +340,11 @@ class EngineBridge(QObject):
         self._service.set_school_week_period(self.session, index, period, start, end)
         self._after_edit()
 
+    def generate_school_week_times(self, index: int, duration_min: int, gap_min: int = 0) -> None:
+        self._service.generate_school_week_times(self.session, index, duration_min, gap_min=gap_min)
+        self._after_edit()
+        self._announce("info", "Horas generadas")
+
     def toggle_school_week_break(self, index: int, period: int) -> bool:
         result = self._service.toggle_school_week_break(self.session, index, period)
         self._after_edit()

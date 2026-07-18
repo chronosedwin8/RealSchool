@@ -608,13 +608,27 @@ def test_semana_lectiva_module_edita_el_marco(qapp: QApplication, tmp_path: Path
     assert "Nueva" in sw._hint.text()
 
     # Crear una semana lectiva la puebla con una columna por período y habilita.
-    index = bridge.add_school_week("Bachillerato")
+    _, periods = bridge.grid_size()
+    index = bridge.add_school_week("Bachillerato", max_periods=periods)
     sw.refresh()
     qapp.processEvents()
-    _, periods = bridge.grid_size()
     assert sw._table.columnCount() == periods
     assert sw._days.isEnabled() is True
     assert sw._afternoon.isEnabled() is True
+
+    # Subir Períodos/día añade columnas (definir P0..P11 aunque la rejilla sea menor).
+    sw._periods.setValue(periods + 4)
+    qapp.processEvents()
+    assert sw._table.columnCount() == periods + 4
+    assert bridge.school_weeks()[index].max_periods == periods + 4
+
+    # Autogenerar rellena inicio/fin de todas las horas desde el inicio de P0.
+    bridge.set_school_week_period(index, 0, "07:00", "07:45")
+    bridge.generate_school_week_times(index, 45, 5)
+    sw._reload()
+    qapp.processEvents()
+    p1 = bridge.school_weeks()[index].periods[1]
+    assert (p1.start, p1.end) == ("07:50", "08:35")
 
     # Clic en la fila Franja de un período lo marca como Recreo.
     sw._on_cell_clicked(_BAND_ROW, 1)

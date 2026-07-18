@@ -865,3 +865,63 @@ def test_add_load_con_semana_lectiva_y_baja_reindexa(tmp_path: Path) -> None:
     svc.remove_school_week(session, w0)
     assert [w.name for w in svc.school_weeks(session)] == ["Bachillerato"]
     assert svc.lesson_school_week(session, ids) == 0
+
+
+def test_semana_lectiva_valida_orden_de_horas(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    w = svc.add_school_week(session, "Bachillerato")
+
+    svc.set_school_week_period(session, w, 0, "07:00", "07:45")
+    # Fin anterior al inicio en el mismo período.
+    with pytest.raises(ConfigError):
+        svc.set_school_week_period(session, w, 0, "08:00", "07:00")
+    # Formato inválido.
+    with pytest.raises(ConfigError):
+        svc.set_school_week_period(session, w, 1, "8am", "9am")
+    # Inicio anterior al fin del período previo (solape).
+    with pytest.raises(ConfigError):
+        svc.set_school_week_period(session, w, 1, "07:30", "08:15")
+    # Un orden correcto sí se acepta.
+    svc.set_school_week_period(session, w, 1, "07:50", "08:35")
+    assert svc.school_weeks(session)[w].periods[1].start == "07:50"
+
+
+def test_semana_lectiva_autogenera_horas(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    w = svc.add_school_week(session, "Primaria", max_periods=4)
+
+    # Sin inicio de P0, no genera.
+    with pytest.raises(ConfigError):
+        svc.generate_school_week_times(session, w, 45)
+
+    svc.set_school_week_period(session, w, 0, "07:00", "07:45")
+    svc.generate_school_week_times(session, w, 45, gap_min=5)
+    periods = svc.school_weeks(session)[w].periods
+    assert len(periods) == 4  # tope de períodos
+    assert (periods[0].start, periods[0].end) == ("07:00", "07:45")
+    assert (periods[1].start, periods[1].end) == ("07:50", "08:35")
+    assert (periods[3].start, periods[3].end) == ("09:30", "10:15")
+
+
+def test_semana_lectiva_tope_de_periodos_recorta_el_motor(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    per_day = session.project.problem.grid.segments[0].length  # 3 en el demo
+
+    w = svc.add_school_week(session, "Corta", max_periods=2)  # solo P0, P1
+    gid = next(int(r.key) for r in svc.tables(session).groups.rows)
+    mate = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Matemáticas")
+    svc.set_lesson_school_week(session, list(mate.task_ids), w)
+
+    eff = svc._effective_problem(session.project)
+    task = next(t for t in eff.tasks if int(t.id) == mate.task_ids[0])
+    periods = {int(s) % per_day for s in (task.allowed_starts or set())}
+    assert periods <= {0, 1}  # el período 2 queda fuera del tope

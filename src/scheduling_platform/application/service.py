@@ -73,6 +73,23 @@ _CPSAT = "ortools_cpsat"
 _STRUCTURAL_NOOVERLAP = frozenset({"interval_no_overlap", "resource_no_overlap", "coupled_lessons"})
 
 
+def _parse_clock(text: str) -> int:
+    """``'HH:MM'`` -> minutos desde medianoche. Lanza ``ConfigError`` si es inválido."""
+    raw = text.strip().replace(".", ":")
+    parts = raw.split(":")
+    if len(parts) != 2 or not (parts[0].isdigit() and parts[1].isdigit()):
+        raise ConfigError(f"hora no válida: {text!r} (usa HH:MM, p. ej. 07:30)")
+    hours, minutes = int(parts[0]), int(parts[1])
+    if not (0 <= hours < 24 and 0 <= minutes < 60):
+        raise ConfigError(f"hora fuera de rango: {text!r}")
+    return hours * 60 + minutes
+
+
+def _fmt_clock(minutes: int) -> str:
+    """Minutos desde medianoche -> ``'HH:MM'``."""
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
 @dataclass(slots=True)
 class Session:
     """Un proyecto abierto en la app: su ruta, su estado y si tiene cambios sin guardar."""
@@ -1258,15 +1275,66 @@ class EngineService:
     def set_school_week_period(
         self, session: Session, index: int, period: int, start: str, end: str
     ) -> None:
-        """Fija las horas de reloj (presentacionales) de un período de la semana."""
+        """Fija las horas de reloj de un período, validando el orden temporal.
+
+        La hora de fin debe ser posterior a la de inicio, y el inicio no puede ser
+        anterior al fin del período anterior ni el fin posterior al inicio del
+        siguiente (evita solapes de horas entre períodos consecutivos).
+        """
         if period < 0:
             raise ConfigError("período inválido")
         week = self._week_at(session, index)[index]
+        start, end = start.strip(), end.strip()
+        s_min = _parse_clock(start) if start else None
+        e_min = _parse_clock(end) if end else None
+        if s_min is not None and e_min is not None and e_min <= s_min:
+            raise ConfigError(
+                f"P{period}: la hora de fin ({end}) debe ser posterior al inicio ({start})"
+            )
         periods = list(week.periods)
+        if period > 0 and period - 1 < len(periods) and s_min is not None:
+            prev_end = periods[period - 1].end
+            if prev_end and s_min < _parse_clock(prev_end):
+                raise ConfigError(
+                    f"P{period}: el inicio ({start}) no puede ser anterior al fin de "
+                    f"P{period - 1} ({prev_end})"
+                )
+        if e_min is not None and period + 1 < len(periods):
+            next_start = periods[period + 1].start
+            if next_start and e_min > _parse_clock(next_start):
+                raise ConfigError(
+                    f"P{period}: el fin ({end}) no puede ser posterior al inicio de "
+                    f"P{period + 1} ({next_start})"
+                )
         while len(periods) <= period:
             periods.append(SchoolPeriod())
-        periods[period] = SchoolPeriod(start=start.strip(), end=end.strip())
+        periods[period] = SchoolPeriod(start=start, end=end)
         self._store_week(session, index, replace(week, periods=tuple(periods)))
+
+    def generate_school_week_times(
+        self, session: Session, index: int, duration_min: int, *, gap_min: int = 0
+    ) -> None:
+        """Autogenera las horas de todos los períodos a partir del inicio de P0.
+
+        Dada la hora de inicio de P0 (ya ingresada), la ``duration_min`` de cada
+        hora y el ``gap_min`` (descanso entre horas), rellena inicio/fin de todos
+        los períodos de la semana de forma consecutiva.
+        """
+        if duration_min < 1:
+            raise ConfigError("la duración de cada hora debe ser >= 1 minuto")
+        if gap_min < 0:
+            raise ConfigError("el descanso entre horas no puede ser negativo")
+        week = self._week_at(session, index)[index]
+        count = week.max_periods if week.max_periods > 0 else self.grid_size(session)[1]
+        if not week.periods or not week.periods[0].start:
+            raise ConfigError("ingresa la hora de inicio de P0 antes de generar")
+        clock = _parse_clock(week.periods[0].start)
+        generated: list[SchoolPeriod] = []
+        for _ in range(count):
+            end = clock + duration_min
+            generated.append(SchoolPeriod(start=_fmt_clock(clock), end=_fmt_clock(end)))
+            clock = end + gap_min
+        self._store_week(session, index, replace(week, periods=tuple(generated)))
 
     def toggle_school_week_break(self, session: Session, index: int, period: int) -> bool:
         """Alterna un recreo (período no lectivo). Devuelve el nuevo estado."""
