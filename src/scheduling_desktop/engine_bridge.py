@@ -329,6 +329,12 @@ class EngineBridge(QObject):
     def school_weeks(self) -> tuple[SchoolWeek, ...]:
         return self._service.school_weeks(self.session)
 
+    def apply_school_weeks_to_grid(self) -> tuple[int, int]:
+        days, periods = self._service.apply_school_weeks_to_grid(self.session)
+        self._after_edit()
+        self._announce("info", f"Horario ajustado a {periods} períodos x {days} días")
+        return days, periods
+
     def add_school_week(self, name: str, *, days: int = 5, max_periods: int = 0) -> int:
         index = self._service.add_school_week(
             self.session, name, days=days, max_periods=max_periods

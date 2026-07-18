@@ -909,6 +909,26 @@ def test_semana_lectiva_autogenera_horas(tmp_path: Path) -> None:
     assert (periods[3].start, periods[3].end) == ("09:30", "10:15")
 
 
+def test_aplicar_semana_lectiva_ajusta_la_rejilla(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    assert svc.grid_size(session) == (2, 3)  # rejilla del demo
+
+    svc.add_school_week(session, "Bachillerato", days=5, max_periods=10)
+    svc.optimize(session, timeout=10.0)
+    had_solution = session.project.solution is not None
+    assert had_solution
+
+    days, periods = svc.apply_school_weeks_to_grid(session)
+    assert (days, periods) == (5, 10)
+    assert svc.grid_size(session) == (5, 10)
+    assert session.project.solution is None  # cambio estructural: se reoptimiza
+    # Y el horario más grande sigue siendo optimizable.
+    assert svc.optimize(session, timeout=10.0).solved is True
+
+
 def test_horario_muestra_horas_de_la_semana_lectiva(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

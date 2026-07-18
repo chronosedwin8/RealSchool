@@ -651,6 +651,11 @@ def test_semana_lectiva_module_edita_el_marco(qapp: QApplication, tmp_path: Path
     p1 = bridge.school_weeks()[index].periods[1]
     assert (p1.start, p1.end) == ("07:50", "08:35")
 
+    # Aplicar al horario ajusta la rejilla del proyecto al mayor marco (periods+4).
+    days, applied = bridge.apply_school_weeks_to_grid()
+    assert applied == periods + 4
+    assert bridge.grid_size() == (days, periods + 4)
+
     # Clic en la fila Franja de un período lo marca como Recreo.
     sw._on_cell_clicked(_BAND_ROW, 1)
     qapp.processEvents()

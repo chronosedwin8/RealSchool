@@ -32,7 +32,19 @@ semana asignada no se ven afectadas → **cero impacto** en proyectos existentes
 ### 3. Presentacional vs. estructural
 Horas de reloj y corte Mañana/Tarde son **presentacionales** (vista/reportes): no
 alteran el modelo del solver. Solo `breaks`, `max_periods` y `days` recortan el
-dominio temporal. Esto mantiene el núcleo agnóstico al "reloj" (ADR-004).
+dominio temporal. Esto mantiene el núcleo agnóstico al "reloj" (ADR-004). Las
+horas de reloj se propagan al horario: cada `TimetableCell` lleva su inicio/fin
+(un docente puede dar clases en marcos distintos) y `TimetableView.period_clocks`
+da las horas por período de la semana dominante del recurso en foco.
+
+### 3.b Aplicar la semana lectiva a la rejilla
+La rejilla canónica (`TimeGrid`) sigue siendo única. Como el `.bjs` importado de
+Untis ya trae su número de períodos, la semana lectiva no lo cambia sola. Cuando
+el usuario define un marco mayor y quiere que el horario lo adopte,
+`apply_school_weeks_to_grid()` redimensiona la rejilla al máximo `days` x
+`max_periods` de las semanas. Es un **cambio estructural explícito** (botón
+"Aplicar al horario" con confirmación): borra la solución (hay que reoptimizar) y
+limpia los `allowed_starts` transitorios; nunca ocurre en silencio al editar.
 
 ### 4. Interfaz
 Un módulo **Semana lectiva** edita el marco (rejilla período×franja, recreos por

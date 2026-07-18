@@ -26,7 +26,7 @@ from ..core.problem import SchedulingProblem
 from ..core.requirement import ResourceRequirement
 from ..core.resource import Resource
 from ..core.task import Task
-from ..core.time_grid import Segment
+from ..core.time_grid import Segment, TimeGrid
 from ..engine import MetricsEngine, ReOptimizationEngine
 from ..pipeline.events import ProgressCallback
 from ..plugins import CONSTRAINT_CATALOG, ConstraintKind
@@ -1213,6 +1213,29 @@ class EngineService:
     def school_weeks(self, session: Session) -> tuple[SchoolWeek, ...]:
         """Semanas lectivas definidas (marcos horarios por sección)."""
         return session.project.school_weeks
+
+    def apply_school_weeks_to_grid(self, session: Session) -> tuple[int, int]:
+        """Ajusta la rejilla del proyecto al mayor marco horario de las semanas.
+
+        Los períodos por día pasan a ser el máximo ``max_periods`` de las semanas
+        lectivas y los días el máximo ``days``. Es un cambio estructural: **borra
+        el horario generado** (hay que reoptimizar). Devuelve ``(días, períodos)``.
+        """
+        weeks = session.project.school_weeks
+        if not weeks:
+            raise ConfigError("no hay semanas lectivas definidas")
+        cur_periods = self.grid_size(session)[1]
+        days = max(w.days for w in weeks)
+        periods = max((w.max_periods if w.max_periods > 0 else cur_periods) for w in weeks)
+        problem = session.project.problem
+        new_grid = TimeGrid.from_segment_lengths([periods] * days)
+        # allowed_starts son transitorios (se recalculan en _effective_problem):
+        # se limpian para que no referencien índices de la rejilla anterior.
+        tasks = tuple(replace(t, allowed_starts=None) for t in problem.tasks)
+        new_problem = replace(problem, grid=new_grid, tasks=tasks)
+        session.project = self._structural_change(session.project, new_problem)
+        session.dirty = True
+        return days, periods
 
     def add_school_week(
         self, session: Session, name: str, *, days: int = 5, max_periods: int = 0

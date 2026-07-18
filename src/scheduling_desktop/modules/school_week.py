@@ -111,6 +111,12 @@ class SchoolWeekModule(QWidget):
         self._gen_btn.setToolTip("Rellena inicio/fin de todas las horas desde el inicio de P0")
         self._gen_btn.clicked.connect(self._on_generate)
 
+        self._apply_btn = QPushButton("Aplicar al horario")
+        self._apply_btn.setToolTip(
+            "Ajusta los períodos/días del horario a la mayor semana lectiva (regenera el horario)"
+        )
+        self._apply_btn.clicked.connect(self._on_apply)
+
         top = QHBoxLayout()
         top.addWidget(QLabel("Semana lectiva:"))
         top.addWidget(self._week)
@@ -118,6 +124,7 @@ class SchoolWeekModule(QWidget):
         top.addWidget(rename_btn)
         top.addWidget(del_btn)
         top.addStretch(1)
+        top.addWidget(self._apply_btn)
 
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Días:"))
@@ -229,6 +236,29 @@ class SchoolWeekModule(QWidget):
         except ConfigError as exc:
             QMessageBox.warning(self, "No se pudo eliminar", str(exc))
 
+    def _on_apply(self) -> None:
+        if not self._bridge.has_session or not self._bridge.school_weeks():
+            QMessageBox.information(self, "Aplicar al horario", "Crea una semana lectiva primero.")
+            return
+        weeks = self._bridge.school_weeks()
+        days = max(w.days for w in weeks)
+        _, grid_periods = self._bridge.grid_size()
+        periods = max((w.max_periods if w.max_periods > 0 else grid_periods) for w in weeks)
+        if (
+            QMessageBox.question(
+                self,
+                "Aplicar al horario",
+                f"El horario pasará a {periods} períodos x {days} días y se borrará el "
+                "horario ya generado (deberás Optimizar de nuevo). ¿Continuar?",
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+        try:
+            self._bridge.apply_school_weeks_to_grid()
+        except ConfigError as exc:
+            QMessageBox.warning(self, "No se pudo aplicar", str(exc))
+
     def _on_week_changed(self) -> None:
         self._reload()
 
@@ -245,7 +275,13 @@ class SchoolWeekModule(QWidget):
         self._loading = True
         if not (0 <= index < len(weeks)):
             self._table.setColumnCount(0)
-            for control in (self._days, self._periods, self._afternoon, self._gen_btn):
+            for control in (
+                self._days,
+                self._periods,
+                self._afternoon,
+                self._gen_btn,
+                self._apply_btn,
+            ):
                 control.setEnabled(False)
             self._hint.setText(
                 "Crea una semana lectiva con 'Nueva...' para definir el marco horario "
@@ -261,7 +297,7 @@ class SchoolWeekModule(QWidget):
         self._hint.setStyleSheet("color: #64748b;")
         week = weeks[index]
         periods = self._periods_count(week)
-        for control in (self._days, self._periods, self._afternoon, self._gen_btn):
+        for control in (self._days, self._periods, self._afternoon, self._gen_btn, self._apply_btn):
             control.setEnabled(True)
         self._set_spin(self._days, 1, 7, week.days)
         self._set_spin(self._periods, 1, _MAX_PERIODS, periods)
