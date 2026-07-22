@@ -50,6 +50,11 @@ def _instantiable() -> dict[str, str]:
     return mapping
 
 
+def instantiable_plugin_ids() -> frozenset[str]:
+    """Nombres de plugin configurables por ``PluginsConfig`` (los que tienen factory)."""
+    return frozenset(_instantiable())
+
+
 @dataclass(frozen=True, slots=True)
 class PluginSetting:
     """Activación, tier y peso de una restricción en la configuración."""

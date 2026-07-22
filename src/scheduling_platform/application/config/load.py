@@ -13,7 +13,7 @@ import yaml
 
 from ..errors import ConfigError
 from .engine_config import EngineConfig
-from .plugins_config import PluginsConfig, PluginSetting
+from .plugins_config import PluginsConfig, PluginSetting, instantiable_plugin_ids
 
 
 def _parse_yaml(text: str) -> Any:
@@ -60,12 +60,18 @@ def plugins_config_from_list(items: list[Any]) -> PluginsConfig:
     """Construye un :class:`PluginsConfig` validado desde una lista ya parseada."""
     if not isinstance(items, list):
         raise ConfigError("'plugins' debe ser una lista")
+    valid = instantiable_plugin_ids()
     settings: list[PluginSetting] = []
     for i, item in enumerate(items):
         if not isinstance(item, dict):
             raise ConfigError(f"plugins[{i}] debe ser un mapa")
         if "id" not in item:
             raise ConfigError(f"plugins[{i}] requiere el campo 'id'")
+        # Ignora ajustes de plugins que ya no se configuran por catálogo (p. ej.
+        # 'subject_spread', ahora controlado por una opción del proyecto): así los
+        # proyectos guardados con versiones anteriores siguen abriendo.
+        if str(item["id"]) not in valid:
+            continue
         params = item.get("params", {})
         if not isinstance(params, dict):
             raise ConfigError(f"plugins[{i}].params debe ser un mapa")

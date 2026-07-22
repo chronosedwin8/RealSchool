@@ -975,6 +975,27 @@ def test_carga_en_bloques_particiona_y_reoptimiza(tmp_path: Path) -> None:
     assert svc.optimize(session, timeout=15.0).solved is True
 
 
+def test_subject_spread_solo_por_opcion_no_por_catalogo(tmp_path: Path) -> None:
+    # La distribución se controla solo por la opción del proyecto: no aparece en
+    # el gestor de reglas y un proyecto viejo que la tenga guardada igual abre y
+    # optimiza sin doble registro.
+    from scheduling_platform.application import PluginsConfig, PluginSetting
+
+    path = tmp_path / "p.bjs"
+    project = BjsProject.create(
+        "Demo",
+        _problem(),
+        constraints=PluginsConfig((PluginSetting("subject_spread", enabled=True, weight=8),)),
+    )
+    save_project(path, project)
+    svc = EngineService()
+    session = svc.open(path)  # tolera el ajuste heredado (lo ignora)
+
+    assert "subject_spread" not in {r.rule_id for r in svc.constraints_catalog(session)}
+    assert svc.options(session).avoid_same_subject_same_day is True
+    assert svc.optimize(session, timeout=10.0).solved is True  # sin doble registro
+
+
 def test_opciones_distribucion_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

@@ -455,7 +455,13 @@ class EngineService:
                 )
                 boolean = True
             # Distribución: evitar repetir materia el mismo día (blanda; reparte).
-            if project.options.avoid_same_subject_same_day and not structural_only:
+            # Se inyecta aquí (no vía el catálogo), controlada por la opción del
+            # proyecto; el guard evita un doble registro con configs antiguas.
+            if (
+                project.options.avoid_same_subject_same_day
+                and not structural_only
+                and "subject_spread" not in registry.names()
+            ):
                 registry.register(SubjectSpreadPlugin())
                 boolean = True
             # Acoples: clases simultáneas (invariante, no-op si no hay acoples).
