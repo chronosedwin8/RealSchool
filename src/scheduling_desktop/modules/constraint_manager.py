@@ -119,7 +119,11 @@ class ConstraintManagerModule(QWidget):
         layout.addLayout(columns)
 
         self._set_detail_enabled(False)
-        bridge.session_refreshed.connect(self.refresh)
+        # La lista de reglas solo cambia al editar AQUÍ (ningún otro módulo la
+        # toca), y cada edición actualiza el estado en sitio (sin reconstruir).
+        # Por eso se reconstruye solo al abrir un proyecto, no en cada cambio:
+        # reconstruirla en cada clic robaría la selección y repintaría la ventana.
+        bridge.session_opened.connect(self.refresh)
 
     def refresh(self) -> None:
         # Se reconstruye la lista al abrir un proyecto, no en cada edición: una

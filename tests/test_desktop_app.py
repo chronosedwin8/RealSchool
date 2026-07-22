@@ -176,13 +176,19 @@ def test_constraint_manager_edita_una_regla(qapp: QApplication, tmp_path: Path) 
     assert cm._list.count() >= 1
 
     cm._select_rule("teacher_gaps")
+    row_before = cm._list.currentRow()
     cm._enabled.setChecked(True)
+    qapp.processEvents()  # dispara cualquier refresco diferido
     cm._weight.setValue(7)
+    qapp.processEvents()
 
     settings = {s.id: s for s in bridge.session.project.constraints.plugins}
     assert settings["teacher_gaps"].enabled is True
     assert settings["teacher_gaps"].weight == 7  # sin robo de selección por reentrancia
     assert bridge.session.dirty is True
+    # Activar un check NO debe cambiar la selección ni reconstruir la lista.
+    assert cm._current == "teacher_gaps"
+    assert cm._list.currentRow() == row_before
 
 
 def test_validation_center_lista_y_navega(qapp: QApplication, tmp_path: Path) -> None:
