@@ -494,6 +494,8 @@ def test_move_class_reubica_y_reoptimiza(tmp_path: Path) -> None:
     _make(path)
     svc = EngineService()
     session = svc.open(path)
+    # Sin distribución para una colocación determinista (este test prueba mover).
+    svc.set_options(session, avoid_same_subject_same_day=False)
     svc.optimize(session, timeout=10.0)
 
     # Mover la clase 0 al día 1, período 2 (libre en la rejilla 2x3).
@@ -909,6 +911,59 @@ def test_semana_lectiva_autogenera_horas(tmp_path: Path) -> None:
     assert (periods[0].start, periods[0].end) == ("07:00", "07:45")
     assert (periods[1].start, periods[1].end) == ("07:50", "08:35")
     assert (periods[3].start, periods[3].end) == ("09:30", "10:15")
+
+
+def test_opciones_distribucion_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    assert svc.options(session).avoid_same_subject_same_day is True  # por defecto
+    svc.set_options(session, avoid_same_subject_same_day=False)
+    assert svc.options(session).avoid_same_subject_same_day is False
+    svc.save(session)
+    assert svc.options(svc.open(path)).avoid_same_subject_same_day is False
+
+
+def test_distribucion_reparte_la_materia_en_dias_distintos(tmp_path: Path) -> None:
+    # 3 horas de una materia en un grupo: con distribución van en 3 días distintos.
+    path = tmp_path / "p.bjs"
+    problem = SchedulingProblem(
+        grid=TimeGrid.from_segment_lengths([2, 2, 2]),  # 3 días x 2 períodos
+        resources=(
+            Resource(ResourceId(0), "Prof", frozenset({"teacher", "teacher#0"})),
+            Resource(ResourceId(1), "6A", frozenset({"group", "group#0"})),
+            Resource(
+                ResourceId(2),
+                "Aula",
+                frozenset({"room", "room#0", "roomtype#normal"}),
+                attributes=(("seats", 30),),
+            ),
+        ),
+        tasks=tuple(
+            Task(
+                TaskId(i),
+                f"Mate · c{i}",
+                1,
+                (
+                    ResourceRequirement("teacher#0"),
+                    ResourceRequirement("group#0"),
+                    ResourceRequirement("room"),
+                ),
+                attributes=(("size", 25),),
+            )
+            for i in range(3)
+        ),
+    )
+    save_project(path, BjsProject.create("Demo", problem))
+    svc = EngineService()
+    session = svc.open(path)
+
+    svc.set_options(session, avoid_same_subject_same_day=True)
+    assert svc.optimize(session, timeout=15.0).solved is True
+    view = svc.timetable(session, 1)  # grupo
+    days = {c.day for c in view.cells if c.subject == "Mate"}
+    assert len(days) == 3  # una por día, repartidas
 
 
 def test_bloqueo_por_reloj_de_docente(tmp_path: Path) -> None:

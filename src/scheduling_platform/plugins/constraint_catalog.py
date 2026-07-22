@@ -34,6 +34,7 @@ from .catalog.load import MaxConsecutivePlugin, MaxDailyLoadPlugin
 from .catalog.preferences import PreferEarlySlotsPlugin
 from .catalog.quality import TeacherRoomStabilityPlugin
 from .catalog.room import RoomCapacityPlugin
+from .catalog.spread import SubjectSpreadPlugin
 from .catalog.structural import IntervalNoOverlapPlugin, ResourceNoOverlapPlugin
 from .registry import PluginRegistry
 from .scoring import ScoringEngine
@@ -276,6 +277,17 @@ CONSTRAINT_CATALOG: tuple[ConstraintDefinition, ...] = (
         tier=TIER_OPERATIVA,
         default_weight=1,
         factory=lambda: SoftMaxConsecutivePlugin(limits=(("teacher", 3),)),
+    ),
+    ConstraintDefinition(
+        "SC-09",
+        "Distribución de materias (una al día)",
+        "Penaliza repetir la misma materia el mismo día en un grupo (la reparte).",
+        ConstraintKind.SOFT,
+        plugin_name="subject_spread",
+        tier=TIER_OPERATIVA,
+        default_weight=8,
+        factory=SubjectSpreadPlugin,
+        note="Se activa/desactiva con la opción del proyecto 'evitar materia repetida'.",
     ),
 )
 

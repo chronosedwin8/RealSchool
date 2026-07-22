@@ -47,6 +47,7 @@ _SUBJECTS = "subjects.json"
 _DIRECTORY = "directory.json"
 _SCHOOLWEEKS = "schoolweeks.json"
 _TIMEBLOCKS = "timeblocks.json"
+_OPTIONS = "options.json"
 
 #: Disponibilidad: recurso -> tupla de (día, período) BLOQUEADOS (Fase 7 E1).
 Availability = dict[int, tuple[tuple[int, int], ...]]
@@ -69,6 +70,20 @@ class LunchWindow:
     start: int  # período inicial dentro del día (0-based, inclusive)
     end: int  # período final (inclusive)
     days: tuple[int, ...]  # índices de día donde aplica
+
+
+@dataclass(frozen=True, slots=True)
+class SchedulingOptions:
+    """Opciones de calendarización configurables por el usuario (Fase 7).
+
+    - ``avoid_same_subject_same_day``: reparte las horas de una materia en días
+      distintos (evita dos de la misma el mismo día en un grupo); blanda.
+    - ``allow_break_split_block``: si es ``False``, un recreo/almuerzo no puede
+      quedar dentro de un bloque de horas seguidas de la misma materia.
+    """
+
+    avoid_same_subject_same_day: bool = True
+    allow_break_split_block: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +137,14 @@ def _read_lunch(entries: dict[str, Any]) -> LunchWindow | None:
         start=int(window["start"]),
         end=int(window["end"]),
         days=tuple(int(d) for d in window.get("days", ())),
+    )
+
+
+def _read_options(entries: dict[str, Any]) -> SchedulingOptions:
+    raw = entries.get(_OPTIONS, {})
+    return SchedulingOptions(
+        avoid_same_subject_same_day=bool(raw.get("avoid_same_subject_same_day", True)),
+        allow_break_split_block=bool(raw.get("allow_break_split_block", True)),
     )
 
 
@@ -223,6 +246,8 @@ class BjsProject:
     school_weeks: tuple[SchoolWeek, ...] = ()
     #: Bloqueos por hora de reloj de los docentes (día, hora), ver ``TimeBlocks``.
     time_blocks: TimeBlocks = field(default_factory=dict)
+    #: Opciones de calendarización configurables (distribución, bloques...).
+    options: SchedulingOptions = field(default_factory=SchedulingOptions)
 
     @classmethod
     def create(
@@ -270,6 +295,8 @@ def save_project(path: str | Path, project: BjsProject) -> None:
         entries[_SCHOOLWEEKS] = _school_weeks_doc(project.school_weeks)
     if project.time_blocks:
         entries[_TIMEBLOCKS] = _slots_doc(project.time_blocks)
+    if project.options != SchedulingOptions():
+        entries[_OPTIONS] = asdict(project.options)
     pack(path, entries, project.manifest)
 
 
@@ -313,6 +340,7 @@ def open_project(path: str | Path) -> BjsProject:
         },
         school_weeks=_read_school_weeks(entries),
         time_blocks=_read_slots(entries, _TIMEBLOCKS),
+        options=_read_options(entries),
     )
 
 

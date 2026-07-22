@@ -32,6 +32,7 @@ from ..pipeline.events import ProgressCallback
 from ..plugins import CONSTRAINT_CATALOG, ConstraintKind
 from ..plugins.catalog.coupling import CoupledLessonsPlugin
 from ..plugins.catalog.lunch import LunchWindowPlugin
+from ..plugins.catalog.spread import SubjectSpreadPlugin
 from ..plugins.catalog.structural import IntervalNoOverlapPlugin
 from .cancel import CancelToken
 from .commands.solve import solution_summary
@@ -40,6 +41,7 @@ from .errors import AppError, ConfigError, InfeasibleError, InternalError, Solve
 from .project import (
     BjsProject,
     LunchWindow,
+    SchedulingOptions,
     SchoolPeriod,
     SchoolWeek,
     new_project,
@@ -451,6 +453,10 @@ class EngineService:
                 registry.register(
                     LunchWindowPlugin(start=window.start, end=window.end, days=window.days)
                 )
+                boolean = True
+            # Distribución: evitar repetir materia el mismo día (blanda; reparte).
+            if project.options.avoid_same_subject_same_day and not structural_only:
+                registry.register(SubjectSpreadPlugin())
                 boolean = True
             # Acoples: clases simultáneas (invariante, no-op si no hay acoples).
             registry.register(CoupledLessonsPlugin())
@@ -1380,6 +1386,36 @@ class EngineService:
         """(días, períodos por día) de la rejilla del proyecto."""
         segments = session.project.problem.grid.segments
         return len(segments), max(seg.length for seg in segments)
+
+    # --- opciones de calendarización (Fase 7) --------------------------- #
+    def options(self, session: Session) -> SchedulingOptions:
+        """Opciones de calendarización del proyecto (distribución, bloques...)."""
+        return session.project.options
+
+    def set_options(
+        self,
+        session: Session,
+        *,
+        avoid_same_subject_same_day: bool | None = None,
+        allow_break_split_block: bool | None = None,
+    ) -> None:
+        """Actualiza las opciones de calendarización (cambio estructural: reoptimizar)."""
+        current = session.project.options
+        updated = replace(
+            current,
+            avoid_same_subject_same_day=current.avoid_same_subject_same_day
+            if avoid_same_subject_same_day is None
+            else avoid_same_subject_same_day,
+            allow_break_split_block=current.allow_break_split_block
+            if allow_break_split_block is None
+            else allow_break_split_block,
+        )
+        if updated == current:
+            return
+        session.project = replace(
+            self._structural_change(session.project, session.project.problem), options=updated
+        )
+        session.dirty = True
 
     def school_weeks(self, session: Session) -> tuple[SchoolWeek, ...]:
         """Semanas lectivas definidas (marcos horarios por sección)."""

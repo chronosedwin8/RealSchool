@@ -43,6 +43,7 @@ from .log import AppLogger
 from .project import (
     BjsProject,
     LunchWindow,
+    SchedulingOptions,
     SchoolPeriod,
     SchoolWeek,
     new_project,
@@ -105,6 +106,7 @@ __all__ = [
     "ProjectPackCommand",
     "ProjectValidateCommand",
     "ReportTable",
+    "SchedulingOptions",
     "SchoolPeriod",
     "SchoolWeek",
     "Session",

@@ -8,6 +8,7 @@ motor los valida y rechaza los incorrectos.
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
@@ -45,6 +46,15 @@ class SettingsModule(QWidget):
         form.addRow("Tiempo máximo:", self._time)
         form.addRow("Semilla:", self._seed)
 
+        # Opciones de calendarización (Fase 7).
+        self._avoid_repeat = QCheckBox("Evitar repetir la misma materia el mismo día")
+        self._avoid_repeat.setToolTip(
+            "Reparte las horas de una materia en días distintos (p. ej. 5h de Mate = 1 por día)"
+        )
+        options_box = QVBoxLayout()
+        options_box.addWidget(QLabel("Opciones de calendarización:"))
+        options_box.addWidget(self._avoid_repeat)
+
         self._save = QPushButton("Guardar configuración")
         self._save.clicked.connect(self._apply)
         self._status = QLabel("")
@@ -55,6 +65,7 @@ class SettingsModule(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(title)
         layout.addLayout(form)
+        layout.addLayout(options_box)
         layout.addWidget(self._save)
         layout.addWidget(self._status)
         layout.addStretch(1)
@@ -72,6 +83,8 @@ class SettingsModule(QWidget):
         self._threads.setValue(cfg.threads)
         self._time.setValue(cfg.max_time_seconds)
         self._seed.setValue(cfg.random_seed)
+        options = self._bridge.options()
+        self._avoid_repeat.setChecked(options.avoid_same_subject_same_day)
 
     def _apply(self) -> None:
         if not self._bridge.has_session:
@@ -82,6 +95,9 @@ class SettingsModule(QWidget):
                 threads=self._threads.value(),
                 max_time_seconds=self._time.value(),
                 random_seed=self._seed.value(),
+            )
+            self._bridge.set_options(
+                avoid_same_subject_same_day=self._avoid_repeat.isChecked(),
             )
             self._status.setText("Configuración guardada en el proyecto.")
         except ConfigError as exc:

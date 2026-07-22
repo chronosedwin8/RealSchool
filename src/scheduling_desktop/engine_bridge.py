@@ -27,6 +27,7 @@ from scheduling_platform.application import (
     MoveTarget,
     ProgressEvent,
     ReportTable,
+    SchedulingOptions,
     SchoolWeek,
     Session,
     SolveOutcome,
@@ -357,6 +358,22 @@ class EngineBridge(QObject):
     # --- semanas lectivas (marcos horarios por sección) ----------------- #
     def grid_size(self) -> tuple[int, int]:
         return self._service.grid_size(self.session)
+
+    def options(self) -> SchedulingOptions:
+        return self._service.options(self.session)
+
+    def set_options(
+        self,
+        *,
+        avoid_same_subject_same_day: bool | None = None,
+        allow_break_split_block: bool | None = None,
+    ) -> None:
+        self._service.set_options(
+            self.session,
+            avoid_same_subject_same_day=avoid_same_subject_same_day,
+            allow_break_split_block=allow_break_split_block,
+        )
+        self._after_edit()
 
     def school_weeks(self) -> tuple[SchoolWeek, ...]:
         return self._service.school_weeks(self.session)
