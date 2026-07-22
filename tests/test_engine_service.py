@@ -507,6 +507,28 @@ def test_move_class_reubica_y_reoptimiza(tmp_path: Path) -> None:
     assert (moved.day, moved.period) == (1, 2)
 
 
+def test_sacar_y_recolocar_clase_a_mano(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    _make(path)
+    svc = EngineService()
+    session = svc.open(path)
+    svc.set_options(session, avoid_same_subject_same_day=False)
+    svc.optimize(session, timeout=10.0)
+    assert svc.unplaced_classes(session) == ()  # todo ubicado
+
+    # Sacar la clase 0 del horario: queda fuera, sin ubicar.
+    svc.unplace_class(session, 0)
+    fuera = svc.unplaced_classes(session)
+    assert [c.task_id for c in fuera] == [0]
+    assert session.project.solution is not None
+    assert all(int(a.task_id) != 0 for a in session.project.solution.assignments)
+
+    # Recolocarla a mano (move_class) en un destino libre.
+    outcome = svc.move_class(session, 0, 1, 2)
+    assert outcome.solved is True
+    assert svc.unplaced_classes(session) == ()  # de nuevo dentro
+
+
 def test_move_targets_marca_verde_y_rojo(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

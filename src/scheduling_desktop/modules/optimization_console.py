@@ -47,14 +47,30 @@ class OptimizationConsoleModule(QWidget):
         form.addRow("Tiempo máx.:", self._timeout)
         form.addRow("Semilla:", self._seed)
 
-        self._btn_generate = QPushButton("Generar")
-        self._btn_optimize = QPushButton("Optimizar")
+        self._btn_optimize = QPushButton("Optimizar (recomendado)")
+        self._btn_optimize.setToolTip(
+            "Crea el horario completo aplicando las reglas y preferencias "
+            "(distribución, huecos, etc.). Es el que casi siempre quieres usar."
+        )
+        self._btn_optimize.setStyleSheet("font-weight: 700;")
+        self._btn_generate = QPushButton("Borrador rápido")
+        self._btn_generate.setToolTip(
+            "Un horario válido lo más rápido posible, SIN aplicar las preferencias "
+            "(puede repetir materias el mismo día). Útil solo como primer vistazo."
+        )
         self._btn_validate = QPushButton("Validar")
         self._btn_stop = QPushButton("Detener")
         self._btn_stop.setEnabled(False)
         buttons = QHBoxLayout()
-        for btn in (self._btn_generate, self._btn_optimize, self._btn_validate, self._btn_stop):
+        for btn in (self._btn_optimize, self._btn_generate, self._btn_validate, self._btn_stop):
             buttons.addWidget(btn)
+
+        self._hint = QLabel(
+            "Usa «Optimizar» para el horario definitivo (respeta las reglas). "
+            "«Borrador rápido» no aplica las preferencias."
+        )
+        self._hint.setWordWrap(True)
+        self._hint.setStyleSheet("color: #64748b;")
 
         self._progress = QProgressBar()
         self._progress.setRange(0, 100)
@@ -65,6 +81,7 @@ class OptimizationConsoleModule(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addLayout(buttons)
+        layout.addWidget(self._hint)
         layout.addWidget(self._progress)
         layout.addWidget(self._stage)
         layout.addWidget(self._log, stretch=1)

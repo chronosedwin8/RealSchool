@@ -32,6 +32,7 @@ from scheduling_platform.application import (
     Session,
     SolveOutcome,
     TimetableView,
+    UnplacedClass,
     ValidationReport,
 )
 
@@ -201,6 +202,19 @@ class EngineBridge(QObject):
 
     def move_targets(self, task_id: int) -> tuple[MoveTarget, ...]:
         return self._service.move_targets(self.session, task_id)
+
+    # --- ubicar/sacar clases a mano ------------------------------------- #
+    def unplaced_classes(self) -> tuple[UnplacedClass, ...]:
+        return self._service.unplaced_classes(self.session)
+
+    def unplace_class(self, task_id: int) -> None:
+        self._service.unplace_class(self.session, task_id)
+        self.dirty_changed.emit(True)
+        self.session_changed.emit()
+        self._announce("info", "Clase sacada del horario (colócala a mano)")
+
+    def class_at(self, day: int, period: int, focus_id: int) -> int:
+        return self._service.class_at(self.session, day, period, focus_id)
 
     # --- disponibilidad / bloqueo de horas ------------------------------ #
     def can_block(self, resource_id: int) -> bool:

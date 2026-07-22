@@ -377,6 +377,48 @@ class TimetableCell:
 
 
 @dataclass(frozen=True, slots=True)
+class UnplacedClass:
+    """Una clase que está FUERA del horario (sin ubicar), para colocarla a mano."""
+
+    task_id: int
+    subject: str
+    teacher: str
+    group: str
+    room: str
+
+
+def unplaced_classes(
+    problem: SchedulingProblem, solution: Solution | None
+) -> tuple[UnplacedClass, ...]:
+    """Clases del problema que no tienen asignación en la solución (fuera del horario)."""
+    if solution is None:
+        return ()
+    placed = {int(a.task_id) for a in solution.assignments}
+    teacher_names = _name_by_tag(problem, _TEACHER_PREFIX)
+    group_names = _name_by_tag(problem, _GROUP_PREFIX)
+    room_names = {r.name for r in problem.resources if _ROOM in r.tags}
+    out: list[UnplacedClass] = []
+    for task in problem.tasks:
+        if int(task.id) in placed:
+            continue
+        teacher_tag = next((r.tag for r in task.requirements if r.tag in teacher_names), None)
+        group_tag = next((r.tag for r in task.requirements if r.tag in group_names), None)
+        room = next(
+            (r.tag.split("#", 1)[0] for r in task.requirements if r.tag.startswith("room#")), ""
+        )
+        out.append(
+            UnplacedClass(
+                task_id=int(task.id),
+                subject=_subject_of(task.name),
+                teacher=teacher_names.get(teacher_tag, "—") if teacher_tag else "—",
+                group=group_names.get(group_tag, "—") if group_tag else "—",
+                room="(cualquiera)" if not room else next(iter(room_names), room),
+            )
+        )
+    return tuple(out)
+
+
+@dataclass(frozen=True, slots=True)
 class MoveTarget:
     """Una celda (día, período) como destino posible de una clase al arrastrarla.
 

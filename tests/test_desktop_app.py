@@ -675,6 +675,42 @@ def test_desiderata_module_bloquea_y_copia(qapp: QApplication, tmp_path: Path) -
     assert len([c for c in bridge.teacher_time_blocks(tid) if c[0] == 1]) == d._table.columnCount()
 
 
+def test_pool_de_clases_fuera_del_horario(qapp: QApplication, tmp_path: Path) -> None:
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    SolveWorker(
+        bridge._service,
+        bridge.session,
+        solver="ortools_cpsat",
+        seed=42,
+        timeout=10.0,
+        structural_only=False,
+        cancel=bridge._cancel,
+    ).run()
+    ed = win._schedule
+    ed.refresh()
+    qapp.processEvents()
+    assert ed._pool.count() == 0  # todo ubicado
+
+    # Sacar una clase del horario -> aparece en el pool.
+    assert ed._view_model is not None
+    tid = ed._view_model.cells[0].task_id
+    bridge.unplace_class(tid)
+    qapp.processEvents()
+    assert ed._pool.count() == 1
+
+    # Seleccionarla del pool marca las celdas destino; colocarla la saca del pool.
+    ed._on_pool_clicked(ed._pool.item(0))
+    assert ed._placing_task == tid
+    green = next(dp for dp, t in ed._targets.items() if t.feasible)
+    ed._on_cell_pressed(*green)
+    qapp.processEvents()
+    assert tid not in [c.task_id for c in bridge.unplaced_classes()]
+
+
 def test_semana_lectiva_module_edita_el_marco(qapp: QApplication, tmp_path: Path) -> None:
     from scheduling_desktop.modules.school_week import _BAND_ROW, _START_ROW
 

@@ -32,6 +32,8 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMenu,
     QPushButton,
     QSpinBox,
@@ -78,6 +80,7 @@ class _TimetableView(QGraphicsView):
     drag_moved = Signal(int, int)  # día, período
     drag_dropped = Signal(int, int)  # día, período
     cell_context = Signal(int, int)  # día, período (clic derecho)
+    cell_pressed = Signal(int, int)  # día, período (clic izq. en celda vacía)
 
     def __init__(self, scene: QGraphicsScene) -> None:
         super().__init__(scene)
@@ -99,6 +102,10 @@ class _TimetableView(QGraphicsView):
         if task is not None:
             self._dragging = True
             self.drag_started.emit(task)
+        else:
+            day, period = _cell_at(pos.x(), pos.y())
+            if day >= 0 and period >= 0:
+                self.cell_pressed.emit(day, period)
         super().mousePressEvent(event)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
@@ -158,6 +165,7 @@ class ScheduleEditorModule(QWidget):
         self._view.drag_moved.connect(self._on_drag_moved)
         self._view.drag_dropped.connect(self._on_drag_dropped)
         self._view.cell_context.connect(self._on_cell_context)
+        self._view.cell_pressed.connect(self._on_cell_pressed)
 
         # Inspector lateral (vistas enlazadas: clic en clase -> docente/aula).
         self._inspector = QLabel("Haz clic en una clase para ver sus detalles.")
@@ -175,15 +183,29 @@ class ScheduleEditorModule(QWidget):
         self._btn_room.clicked.connect(lambda: self._focus_on(self._clicked_room))
         self._btn_group.clicked.connect(lambda: self._focus_on(self._clicked_group))
 
+        # Pool de clases FUERA del horario (para colocarlas a mano).
+        self._pool = QListWidget()
+        self._pool.setToolTip(
+            "Clases fuera del horario. Selecciona una y luego haz clic en una celda "
+            "verde para colocarla. Clic derecho en una clase del horario = sacarla."
+        )
+        self._pool.itemClicked.connect(self._on_pool_clicked)
+        self._pool_hint = QLabel("")
+        self._pool_hint.setWordWrap(True)
+        self._pool_hint.setStyleSheet("color: #b45309;")
+
         inspector_box = QVBoxLayout()
         inspector_box.addWidget(QLabel("Clase seleccionada"))
         inspector_box.addWidget(self._inspector)
         inspector_box.addWidget(self._btn_teacher)
         inspector_box.addWidget(self._btn_group)
         inspector_box.addWidget(self._btn_room)
-        inspector_box.addStretch(1)
+        inspector_box.addSpacing(10)
+        inspector_box.addWidget(QLabel("Clases fuera del horario"))
+        inspector_box.addWidget(self._pool, stretch=1)
+        inspector_box.addWidget(self._pool_hint)
         inspector_widget = QWidget()
-        inspector_widget.setMaximumWidth(240)
+        inspector_widget.setMaximumWidth(260)
         inspector_widget.setLayout(inspector_box)
 
         center = QHBoxLayout()
@@ -203,6 +225,8 @@ class ScheduleEditorModule(QWidget):
         self._targets: dict[tuple[int, int], MoveTarget] = {}
         self._overlays: list[QGraphicsItem] = []
         self._arrow: list[QGraphicsItem] = []
+        # Clase del pool seleccionada para colocar a mano (-1 = ninguna).
+        self._placing_task: int = -1
 
         bridge.session_refreshed.connect(self.refresh)
 
@@ -228,16 +252,68 @@ class ScheduleEditorModule(QWidget):
 
     def _on_cell_context(self, day: int, period: int) -> None:
         focus_id = self._focus.currentData()
-        if not isinstance(focus_id, int) or not self._bridge.can_block(focus_id):
-            self._bridge.status_message.emit("Bloquear horas solo aplica a docentes y grupos")
+        if not isinstance(focus_id, int):
             return
         menu = QMenu(self)
-        blocked = (day, period) in self._bridge.blocked_hours(focus_id)
-        menu.addAction(
-            "Liberar esta hora" if blocked else "Bloquear esta hora",
-            lambda: self._bridge.toggle_block(focus_id, day, period),
-        )
-        menu.exec(self.cursor().pos())
+        # Si hay una clase en esa celda: opción de sacarla del horario.
+        task = self._class_at(day, period)
+        if task >= 0:
+            menu.addAction(
+                "Sacar del horario (colocar a mano)",
+                lambda: self._bridge.unplace_class(task),
+            )
+        if self._bridge.can_block(focus_id):
+            blocked = (day, period) in self._bridge.blocked_hours(focus_id)
+            menu.addAction(
+                "Liberar esta hora" if blocked else "Bloquear esta hora",
+                lambda: self._bridge.toggle_block(focus_id, day, period),
+            )
+        if not menu.isEmpty():
+            menu.exec(self.cursor().pos())
+
+    def _class_at(self, day: int, period: int) -> int:
+        if self._view_model is None:
+            return -1
+        for cell in self._view_model.cells:
+            if cell.day == day and cell.period <= period < cell.period + cell.duration:
+                return cell.task_id
+        return -1
+
+    # --- colocar a mano desde el pool ----------------------------------- #
+    def _on_pool_clicked(self, item: QListWidgetItem) -> None:
+        task = item.data(int(Qt.ItemDataRole.UserRole))
+        if not isinstance(task, int):
+            return
+        self._placing_task = task
+        self._show_targets(task)
+        self._pool_hint.setText("Haz clic en una celda VERDE para colocar la clase.")
+
+    def _on_cell_pressed(self, day: int, period: int) -> None:
+        if self._placing_task < 0:
+            return
+        task = self._placing_task
+        target = self._targets.get((day, period))
+        if target is not None and target.feasible:
+            self._placing_task = -1
+            self._pool_hint.setText("")
+            self._bridge.move_class(task, day, period)  # el puente emite refresh
+        elif target is not None:
+            self._bridge.status_message.emit(f"No cabe ahí: {target.reason}")
+        else:
+            self._bridge.status_message.emit("Elige una celda dentro de la rejilla")
+
+    def _show_targets(self, task_id: int) -> None:
+        """Pinta verde/rojo las celdas donde una clase del pool puede colocarse."""
+        self._clear_drag()
+        self._targets = {(t.day, t.period): t for t in self._bridge.move_targets(task_id)}
+        for (day, period), target in self._targets.items():
+            overlay = self._scene.addRect(
+                _cell_rect(day, period),
+                QPen(Qt.PenStyle.NoPen),
+                QBrush(_OK if target.feasible else _NO),
+            )
+            overlay.setZValue(5)
+            self._overlays.append(overlay)
 
     def _edit_lunch_window(self) -> None:
         if self._view_model is None:
@@ -388,7 +464,10 @@ class ScheduleEditorModule(QWidget):
 
     def _redraw(self) -> None:
         self._clear_drag()
+        self._placing_task = -1
+        self._pool_hint.setText("")
         self._scene.clear()
+        self._reload_pool()
         if not self._bridge.has_session or self._focus.count() == 0:
             self._view_model = None
             return
@@ -408,6 +487,16 @@ class ScheduleEditorModule(QWidget):
         self._draw_reserved(focus_id, view)
         for cell in view.cells:
             self._draw_cell(view, cell)
+
+    def _reload_pool(self) -> None:
+        """Repuebla la lista de clases fuera del horario."""
+        self._pool.clear()
+        if not self._bridge.has_session:
+            return
+        for cls in self._bridge.unplaced_classes():
+            item = QListWidgetItem(f"{cls.subject} · {cls.group} · {cls.teacher}")
+            item.setData(int(Qt.ItemDataRole.UserRole), cls.task_id)
+            self._pool.addItem(item)
 
     def _color_for(self, subject: str) -> QColor:
         """Color de la materia: el configurado en Datos > Materias, o uno estable."""

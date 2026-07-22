@@ -64,6 +64,7 @@ from .view_models import (
     SolveOutcome,
     TimetableCell,
     TimetableView,
+    UnplacedClass,
     ValidationItem,
     ValidationReport,
 )
@@ -114,6 +115,7 @@ __all__ = [
     "SolveTimeoutError",
     "TimetableCell",
     "TimetableView",
+    "UnplacedClass",
     "ValidateCommand",
     "ValidationItem",
     "ValidationReport",

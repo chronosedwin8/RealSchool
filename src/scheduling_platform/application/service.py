@@ -60,12 +60,14 @@ from .view_models import (
     ReportTable,
     SolveOutcome,
     TimetableView,
+    UnplacedClass,
     ValidationItem,
     ValidationReport,
     entity_tables,
     focus_options,
     lesson_rows,
     timetable_view,
+    unplaced_classes,
 )
 
 _METRICS = MetricsEngine()
@@ -641,6 +643,32 @@ class EngineService:
         session.project = replace(project, solution=result.solution)
         session.dirty = True
         return SolveOutcome(True, "solved", _CPSAT, "clase movida")
+
+    def unplaced_classes(self, session: Session) -> tuple[UnplacedClass, ...]:
+        """Clases fuera del horario (sin ubicar), para colocarlas a mano."""
+        return unplaced_classes(session.project.problem, session.project.solution)
+
+    def unplace_class(self, session: Session, task_id: int) -> None:
+        """Saca una clase del horario (queda sin ubicar, para recolocarla luego).
+
+        Quita su asignación de la solución sin tocar el resto. Volver a ubicarla se
+        hace con ``move_class`` (arrastrando o eligiendo una celda libre).
+        """
+        project = session.project
+        if project.solution is None:
+            return
+        keep = tuple(a for a in project.solution.assignments if int(a.task_id) != task_id)
+        if len(keep) == len(project.solution.assignments):
+            return
+        session.project = replace(project, solution=replace(project.solution, assignments=keep))
+        session.dirty = True
+
+    def class_at(self, session: Session, day: int, period: int, focus_id: int) -> int:
+        """Id de la clase del recurso en foco ubicada en (día, período), o -1."""
+        for cell in self.timetable(session, focus_id).cells:
+            if cell.day == day and cell.period == period:
+                return cell.task_id
+        return -1
 
     @staticmethod
     def _resource_of_tag(problem: SchedulingProblem, task: Task, prefix: str) -> int:
