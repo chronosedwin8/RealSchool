@@ -379,6 +379,34 @@ def test_leccion_desde_fila_vacia_y_acople_untis(qapp: QApplication, tmp_path: P
     assert all(d.kind != "sub" for d in lm._display)  # colapsado de nuevo
 
 
+def test_carga_en_bloques_desde_la_celda(qapp: QApplication, tmp_path: Path) -> None:
+    from scheduling_desktop.modules.lessons import _BLOCK_COL
+
+    path = tmp_path / "demo.bjs"
+    _make(path)
+    bridge = EngineBridge()
+    win = MainWindow(bridge)
+    bridge.open_path(path)
+    lm = win._lessons
+    lm.refresh()
+    qapp.processEvents()
+
+    gid = int(bridge.tables().groups.rows[0].key)
+    tid = int(bridge.tables().teachers.rows[0].key)
+    bridge.add_load([gid], "Alemán", [tid], 4, block=1)
+    lm.refresh()
+    qapp.processEvents()
+
+    # Editar "Horas dobl." en la celda cambia la lección a bloques de 2.
+    idx = next(i for i, d in enumerate(lm._display) if d.lesson.subject == "Alemán")
+    item = lm._table.item(idx, _BLOCK_COL)
+    assert item is not None
+    item.setText("2")
+    qapp.processEvents()
+    lesson = next(r for r in bridge.lessons(group_id=gid) if r.subject == "Alemán")
+    assert lesson.block == 2 and lesson.hours == 4  # 2 dobles, 4 HHs
+
+
 def test_fila_vacia_crea_registro_estilo_excel(qapp: QApplication, tmp_path: Path) -> None:
     path = tmp_path / "demo.bjs"
     _make(path)

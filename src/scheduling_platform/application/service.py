@@ -1017,21 +1017,25 @@ class EngineService:
         sessions: int,
         *,
         room_ids: list[int] | None = None,
-        duration: int = 1,
+        block: int = 1,
         school_week: int = -1,
     ) -> list[int]:
-        """Añade carga horaria: crea ``sessions`` clases de ``subject`` (una asignación).
+        """Añade carga horaria: ``sessions`` HHs de ``subject`` (una asignación).
 
         Una asignación puede acoplar **varios docentes**, **varios grupos** y
         **varias aulas** (clase combinada / co-docencia, la *Kopplung* de Untis):
         cada clase requiere a la vez todos ellos. Si no se dan aulas concretas, el
         solver elige una del pool. ``school_week`` (índice, -1 = ninguna) asigna la
-        semana lectiva de la lección. Devuelve los ids de las clases creadas.
+        semana lectiva. ``block`` es el tamaño de bloque: las ``sessions`` HHs se
+        parten en bloques de ese tamaño (p. ej. 6 HHs con block=2 = 3 dobles; el
+        resto va en un bloque menor). Devuelve los ids de las clases creadas.
         """
         if not subject.strip():
             raise ConfigError("la materia no puede estar vacía")
         if sessions < 1:
-            raise ConfigError("el número de sesiones debe ser >= 1")
+            raise ConfigError("las horas (HHs) deben ser >= 1")
+        if block < 1:
+            raise ConfigError("el tamaño de bloque debe ser >= 1")
         if not group_ids or not teacher_ids:
             raise ConfigError("una asignación necesita al menos un grupo y un docente")
         problem = session.project.problem
@@ -1062,15 +1066,18 @@ class EngineService:
         attrs: tuple[tuple[str, int], ...] = (("size", size),)
         if 0 <= school_week < len(session.project.school_weeks):
             attrs = (*attrs, ("school_week", school_week))
+        if block > 1:
+            attrs = (*attrs, ("block", block))
+        blocks = self._partition_hours(sessions, block)
         new_tasks = [
             Task(
                 TaskId(base + s),
                 f"{subject.strip()} · g{tag_key}#{s}",
-                duration,
+                length,
                 requirements,
                 attributes=attrs,
             )
-            for s in range(sessions)
+            for s, length in enumerate(blocks)
         ]
         subject_name = subject.strip()
         subjects = session.project.subjects
@@ -1083,7 +1090,19 @@ class EngineService:
             subjects=subjects,
         )
         session.dirty = True
-        return [base + s for s in range(sessions)]
+        return [base + s for s in range(len(blocks))]
+
+    @staticmethod
+    def _partition_hours(hours: int, block: int) -> list[int]:
+        """Parte ``hours`` HHs en bloques de tamaño ``block`` (el resto, menor)."""
+        block = max(1, block)
+        blocks: list[int] = []
+        remaining = hours
+        while remaining > 0:
+            size = min(block, remaining)
+            blocks.append(size)
+            remaining -= size
+        return blocks
 
     # --- lecciones (vista de carga estilo Untis) ------------------------ #
     def lessons(
@@ -1135,29 +1154,52 @@ class EngineService:
         session.dirty = True
 
     def set_lesson_hours(self, session: Session, task_ids: list[int], hours: int) -> None:
-        """Cambia las horas semanales (HHs) de una lección: añade o quita sesiones."""
+        """Cambia las HHs totales de una lección (re-parte según su tamaño de bloque)."""
         if hours < 1:
             raise ConfigError("las horas semanales deben ser >= 1")
         problem = session.project.problem
-        ids = sorted(set(task_ids))
-        current = [t for t in problem.tasks if int(t.id) in set(ids)]
+        current = [t for t in problem.tasks if int(t.id) in set(task_ids)]
         if not current:
             raise ConfigError("lección inexistente")
-        if hours == len(current):
-            return
-        if hours < len(current):
-            drop = {int(t.id) for t in current[hours:]}
-            tasks = tuple(t for t in problem.tasks if int(t.id) not in drop)
-        else:
-            template = current[0]
-            subject = template.name.split(" · ", 1)[0]
-            base = max(int(t.id) for t in problem.tasks) + 1
-            extra = tuple(
-                replace(template, id=TaskId(base + i), name=f"{subject} · x#{base + i}")
-                for i in range(hours - len(current))
+        block = current[0].attribute("block", 1)
+        self._rebuild_lesson_tasks(session, task_ids, current[0], hours, block)
+
+    def set_lesson_block(self, session: Session, task_ids: list[int], block: int) -> None:
+        """Cambia el tamaño de bloque de una lección (re-parte sus HHs)."""
+        if block < 1:
+            raise ConfigError("el tamaño de bloque debe ser >= 1")
+        problem = session.project.problem
+        current = [t for t in problem.tasks if int(t.id) in set(task_ids)]
+        if not current:
+            raise ConfigError("lección inexistente")
+        hours = sum(t.duration for t in current)
+        attrs = [(k, v) for k, v in current[0].attributes if k != "block"]
+        if block > 1:
+            attrs.append(("block", block))
+        template = replace(current[0], attributes=tuple(attrs))
+        self._rebuild_lesson_tasks(session, task_ids, template, hours, block)
+
+    def _rebuild_lesson_tasks(
+        self, session: Session, task_ids: list[int], template: Task, hours: int, block: int
+    ) -> None:
+        """Reemplaza las tareas de una lección por su partición en bloques de ``block``."""
+        problem = session.project.problem
+        ids = set(task_ids)
+        keep = tuple(t for t in problem.tasks if int(t.id) not in ids)
+        base = max((int(t.id) for t in problem.tasks), default=-1) + 1
+        subject = template.name.split(" · ", 1)[0]
+        rebuilt = tuple(
+            replace(
+                template,
+                id=TaskId(base + i),
+                name=f"{subject} · x#{base + i}",
+                duration=length,
             )
-            tasks = (*problem.tasks, *extra)
-        session.project = self._structural_change(session.project, replace(problem, tasks=tasks))
+            for i, length in enumerate(self._partition_hours(hours, block))
+        )
+        session.project = self._structural_change(
+            session.project, replace(problem, tasks=(*keep, *rebuilt))
+        )
         session.dirty = True
 
     def set_lesson_rooms(self, session: Session, task_ids: list[int], room_ids: list[int]) -> None:

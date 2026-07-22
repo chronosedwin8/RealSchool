@@ -913,6 +913,68 @@ def test_semana_lectiva_autogenera_horas(tmp_path: Path) -> None:
     assert (periods[3].start, periods[3].end) == ("09:30", "10:15")
 
 
+def test_carga_en_bloques_particiona_y_reoptimiza(tmp_path: Path) -> None:
+    path = tmp_path / "p.bjs"
+    problem = SchedulingProblem(
+        grid=TimeGrid.from_segment_lengths([6, 6, 6, 6, 6]),  # 5 días x 6 períodos
+        resources=(
+            Resource(ResourceId(0), "Prof", frozenset({"teacher", "teacher#0"})),
+            Resource(ResourceId(1), "6A", frozenset({"group", "group#0"})),
+            Resource(
+                ResourceId(2),
+                "Aula",
+                frozenset({"room", "room#0", "roomtype#normal"}),
+                attributes=(("seats", 30),),
+            ),
+        ),
+        tasks=(
+            Task(
+                TaskId(0),
+                "Base · c0",
+                1,
+                (
+                    ResourceRequirement("teacher#0"),
+                    ResourceRequirement("group#0"),
+                    ResourceRequirement("room"),
+                ),
+                attributes=(("size", 25),),
+            ),
+        ),
+    )
+    save_project(path, BjsProject.create("Demo", problem))
+    svc = EngineService()
+    session = svc.open(path)
+    gid = 1
+
+    # 6 HHs de Alemán en bloques de 2 -> 3 sesiones de duración 2.
+    ids = svc.add_load(session, [gid], "Alemán", [0], 6, block=2)
+    assert len(ids) == 3
+    durations = sorted(
+        next(t.duration for t in session.project.problem.tasks if int(t.id) == i) for i in ids
+    )
+    assert durations == [2, 2, 2]
+    lesson = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Alemán")
+    assert lesson.hours == 6 and lesson.block == 2  # HHs totales, bloque de 2
+
+    # Cambiar el bloque a 3 -> 2 sesiones de duración 3 (6 HHs).
+    svc.set_lesson_block(session, list(lesson.task_ids), 3)
+    lesson = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Alemán")
+    assert lesson.hours == 6 and lesson.block == 3
+    assert len(lesson.task_ids) == 2
+
+    # Cambiar HHs a 5 manteniendo bloque 3 -> [3, 2].
+    svc.set_lesson_hours(session, list(lesson.task_ids), 5)
+    lesson = next(r for r in svc.lessons(session, group_id=gid) if r.subject == "Alemán")
+    durations = sorted(
+        next(t.duration for t in session.project.problem.tasks if int(t.id) == i)
+        for i in lesson.task_ids
+    )
+    assert lesson.hours == 5 and durations == [2, 3]
+
+    # Sigue siendo optimizable con los bloques.
+    assert svc.optimize(session, timeout=15.0).solved is True
+
+
 def test_opciones_distribucion_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "p.bjs"
     _make(path)

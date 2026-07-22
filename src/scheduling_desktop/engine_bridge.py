@@ -342,6 +342,7 @@ class EngineBridge(QObject):
         sessions: int,
         room_ids: list[int] | None = None,
         school_week: int = -1,
+        block: int = 1,
     ) -> None:
         self._service.add_load(
             self.session,
@@ -351,6 +352,7 @@ class EngineBridge(QObject):
             sessions,
             room_ids=room_ids,
             school_week=school_week,
+            block=block,
         )
         self._after_edit()
         self._announce("success", f"Carga añadida: {subject} ({sessions}h)")
@@ -441,6 +443,11 @@ class EngineBridge(QObject):
     def set_lesson_hours(self, task_ids: list[int], hours: int) -> None:
         self._service.set_lesson_hours(self.session, task_ids, hours)
         self._after_edit()
+
+    def set_lesson_block(self, task_ids: list[int], block: int) -> None:
+        self._service.set_lesson_block(self.session, task_ids, block)
+        self._after_edit()
+        self._announce("info", "Tamaño de bloque actualizado")
 
     def set_lesson_rooms(self, task_ids: list[int], room_ids: list[int]) -> None:
         self._service.set_lesson_rooms(self.session, task_ids, room_ids)

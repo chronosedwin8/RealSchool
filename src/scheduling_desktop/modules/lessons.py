@@ -43,13 +43,23 @@ from scheduling_platform.application import ConfigError, EntityTable, LessonRow
 from ..engine_bridge import EngineBridge
 
 _ID_ROLE = int(Qt.ItemDataRole.UserRole)
-_COLUMNS = ("N.lec", "Semana lect.", "HHs", "Profesores", "Materia", "Grupo(s)", "Aulas")
+_COLUMNS = (
+    "N.lec",
+    "Semana lect.",
+    "HHs",
+    "Horas dobl.",
+    "Profesores",
+    "Materia",
+    "Grupo(s)",
+    "Aulas",
+)
 _WEEK_COL = 1
 _HHS_COL = 2
-_TEACHERS_COL = 3
-_SUBJECT_COL = 4
-_GROUPS_COL = 5
-_ROOMS_COL = 6
+_BLOCK_COL = 3
+_TEACHERS_COL = 4
+_SUBJECT_COL = 5
+_GROUPS_COL = 6
+_ROOMS_COL = 7
 _PLACEHOLDER = QColor("#94a3b8")
 _NO_WEEK = "(ninguna)"
 
@@ -64,6 +74,7 @@ class _Pending:
     groups: list[int] = field(default_factory=list)
     rooms: list[int] = field(default_factory=list)
     school_week: int = -1
+    block: int = 1
 
 
 @dataclass(frozen=True)
@@ -422,6 +433,7 @@ class LessonsModule(QWidget):
                 nlec,
                 "" if entry.kind == "sub" else self._week_label(lesson.school_week),
                 "" if entry.kind == "sub" else str(lesson.hours),
+                "" if entry.kind == "sub" else self._block_label(lesson.block),
                 ", ".join(lesson.teachers),
                 lesson.subject,
                 ", ".join(lesson.groups),
@@ -430,7 +442,7 @@ class LessonsModule(QWidget):
             for col, text in enumerate(cells):
                 item = QTableWidgetItem(text)
                 editable = col == _SUBJECT_COL or (
-                    col in (_HHS_COL, _WEEK_COL) and entry.kind != "sub"
+                    col in (_HHS_COL, _WEEK_COL, _BLOCK_COL) and entry.kind != "sub"
                 )
                 if not editable:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -455,6 +467,7 @@ class LessonsModule(QWidget):
             "*",
             self._week_label(week) if week >= 0 else _NO_WEEK,
             str(self._pending.hours),
+            self._block_label(self._pending.block),
             names("teacher", self._pending.teachers) or "(doble-clic: docentes)",
             self._pending.subject,
             names("group", self._pending.groups) or "(doble-clic: grupos)",
@@ -462,7 +475,7 @@ class LessonsModule(QWidget):
         )
         for col, text in enumerate(cells):
             item = QTableWidgetItem(text)
-            if col in (_HHS_COL, _SUBJECT_COL, _WEEK_COL):
+            if col in (_HHS_COL, _SUBJECT_COL, _WEEK_COL, _BLOCK_COL):
                 pass  # editable
             else:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -487,6 +500,11 @@ class LessonsModule(QWidget):
         weeks = self._bridge.school_weeks() if self._bridge.has_session else ()
         return weeks[index].name if 0 <= index < len(weeks) else "—"
 
+    @staticmethod
+    def _block_label(block: int) -> str:
+        """'1' = horas sueltas; '2', '3'... = tamaño del bloque (Horas dobl.)."""
+        return str(max(1, block))
+
     def _names_of(self, kind: str, ids: list[int]) -> str:
         tables = self._bridge.tables()
         table = {"teacher": tables.teachers, "group": tables.groups, "room": tables.rooms}[kind]
@@ -508,7 +526,7 @@ class LessonsModule(QWidget):
             return
         try:
             self._bridge.add_load(
-                p.groups, p.subject, p.teachers, p.hours, p.rooms or None, p.school_week
+                p.groups, p.subject, p.teachers, p.hours, p.rooms or None, p.school_week, p.block
             )
             self._reset_pending()
         except ConfigError as exc:
@@ -711,6 +729,10 @@ class LessonsModule(QWidget):
                 with contextlib.suppress(ValueError):
                     self._pending.hours = max(1, int(item.text()))
                 self._reload_grid()
+            elif item.column() == _BLOCK_COL:
+                with contextlib.suppress(ValueError):
+                    self._pending.block = max(1, int(item.text()))
+                self._reload_grid()
             elif item.column() == _WEEK_COL:
                 self._pending.school_week = self._week_index(item.text().strip())
                 self._reload_grid()
@@ -739,6 +761,19 @@ class LessonsModule(QWidget):
                 self._bridge.set_lesson_hours(list(lesson.task_ids), hours)
             except ConfigError as exc:
                 QMessageBox.warning(self, "HHs no válidas", str(exc))
+                self._reload_grid()
+        elif item.column() == _BLOCK_COL:
+            try:
+                block = int(item.text())
+            except ValueError:
+                self._reload_grid()
+                return
+            if block == lesson.block:
+                return
+            try:
+                self._bridge.set_lesson_block(list(lesson.task_ids), block)
+            except ConfigError as exc:
+                QMessageBox.warning(self, "Bloque no válido", str(exc))
                 self._reload_grid()
         elif item.column() == _SUBJECT_COL:
             subject = item.text().strip()

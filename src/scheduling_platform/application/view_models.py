@@ -246,10 +246,11 @@ class LessonRow:
     groups: tuple[str, ...]
     room_ids: tuple[int, ...]  # aulas fijas (vacío = el solver elige del pool)
     rooms: tuple[str, ...]
-    hours: int
-    duration: int
+    hours: int  # HHs totales de la lección (suma de las duraciones de sus sesiones)
+    duration: int  # tamaño de bloque (== block); se conserva por compatibilidad
     coupling_id: int = -1  # id del acople (lecciones simultáneas); -1 = sin acoplar
     school_week: int = -1  # semana lectiva asignada (índice); -1 = sin asignar
+    block: int = 1  # tamaño del bloque (1 = horas sueltas, 2 = dobles...)
 
 
 def lesson_rows(problem: SchedulingProblem) -> tuple[LessonRow, ...]:
@@ -265,20 +266,21 @@ def lesson_rows(problem: SchedulingProblem) -> tuple[LessonRow, ...]:
             if tag.startswith((_TEACHER_PREFIX, _GROUP_PREFIX, "room#")):
                 tag_owner[tag] = (int(res.id), res.name)
 
+    duration_by_id = {int(t.id): t.duration for t in problem.tasks}
     grouped: dict[tuple[str, tuple[str, ...], int, int, int], list[int]] = defaultdict(list)
     for task in problem.tasks:
         subject = _subject_of(task.name)
         signature = (
             subject,
             tuple(sorted(r.tag for r in task.requirements)),
-            task.duration,
+            task.attribute("block", 1),
             task.attribute("coupling", -1),
             task.attribute("school_week", -1),
         )
         grouped[signature].append(int(task.id))
 
     rows: list[LessonRow] = []
-    for (subject, tags, duration, coupling_id, school_week), task_ids in grouped.items():
+    for (subject, tags, block, coupling_id, school_week), task_ids in grouped.items():
         teacher_ids: list[int] = []
         teachers: list[str] = []
         group_ids: list[int] = []
@@ -310,10 +312,11 @@ def lesson_rows(problem: SchedulingProblem) -> tuple[LessonRow, ...]:
                 groups=tuple(groups),
                 room_ids=tuple(room_ids),
                 rooms=tuple(rooms),
-                hours=len(ordered),
-                duration=duration,
+                hours=sum(duration_by_id[t] for t in ordered),
+                duration=block,
                 coupling_id=coupling_id,
                 school_week=school_week,
+                block=block,
             )
         )
     rows.sort(key=lambda r: (r.groups, r.subject))
