@@ -103,7 +103,7 @@ def run_strategy(
         actual = rep.timetable if rep.status in ("repaired", "partial") else referencia
         mejor_e = registrar("cp-sat", actual, rep.message)
         if polish and not parar():
-            h = heuristic_optimize(
+            pulido = heuristic_optimize(
                 project,
                 strategy=Strategy.REPAIR,
                 reference=actual,
@@ -114,8 +114,8 @@ def run_strategy(
                 on_progress=on_progress,
                 should_stop=should_stop,
             )
-            if h.evaluation.total <= mejor_e.total:
-                actual, mejor_e = h.timetable, registrar("pulido", h.timetable)
+            if pulido.evaluation.total <= mejor_e.total:
+                actual, mejor_e = pulido.timetable, registrar("pulido", pulido.timetable)
         return OptimizeResult(
             strategy, actual, mejor_e, time.perf_counter() - t0, tuple(pasos), parar()
         )
