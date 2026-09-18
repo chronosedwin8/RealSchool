@@ -54,6 +54,7 @@ from .service import EngineService, Session
 from .solvers import SOLVER_NAMES, solver_factory_for
 from .untis import (
     CRITERION_TEXTS,
+    DEFAULT_GRID_ID,
     PROJECT_SUFFIX,
     TAB_LABELS,
     ColumnSpec,
@@ -112,6 +113,7 @@ from .view_models import (
 
 __all__ = [
     "CRITERION_TEXTS",
+    "DEFAULT_GRID_ID",
     "PROJECT_SUFFIX",
     "SOLVER_NAMES",
     "TAB_LABELS",

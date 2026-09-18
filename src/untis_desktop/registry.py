@@ -53,6 +53,10 @@ class WindowSpec:
     shortcut: str = ""
     dock: str = ""
     """`""` = ventana MDI; `"right"` / `"bottom"` = panel acoplado."""
+    icon: str = ""
+    """Nombre semántico del icono (`untis_desktop.icons.ICONS`)."""
+    tooltip: str = ""
+    """Qué hace la ventana, en una frase (se muestra al pasar por la cinta)."""
 
     def label(self, language: str) -> str:
         return self.title_de if language == "de" else self.title

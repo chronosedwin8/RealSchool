@@ -5,7 +5,7 @@ La UI solo importa `scheduling_platform.application` (verificado en
 """
 
 from .columns import ColumnSpec, MasterKind, ValueType, columns, format_value, parse_value
-from .service import PROJECT_SUFFIX, UntisService
+from .service import DEFAULT_GRID_ID, PROJECT_SUFFIX, UntisService, build_grid
 from .session import UntisSession
 from .texts import CRITERION_TEXTS, TAB_LABELS
 from .views import (
@@ -35,6 +35,7 @@ from .views import (
 
 __all__ = [
     "CRITERION_TEXTS",
+    "DEFAULT_GRID_ID",
     "PROJECT_SUFFIX",
     "TAB_LABELS",
     "ColumnSpec",
@@ -64,6 +65,7 @@ __all__ = [
     "UntisSession",
     "ValueType",
     "WeightingTabView",
+    "build_grid",
     "columns",
     "format_value",
     "parse_value",

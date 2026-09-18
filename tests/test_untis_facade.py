@@ -353,3 +353,129 @@ def test_datos_del_colegio() -> None:
     assert not SVC.set_school_field(s, "school_year_begin", "2026-01-01").ok
     assert SVC.set_school_field(s, "school_year_begin", "20260801").ok
     assert not SVC.set_school_field(s, "inventado", "x").ok
+
+
+# --------------------------------------------------------------------------- #
+# Independencia: un colegio desde cero solo con la Fachada (lo que hace la UI)
+# --------------------------------------------------------------------------- #
+
+
+def test_proyecto_nuevo_trae_rejilla_estandar_lista() -> None:
+    s = SVC.new("Colegio Nuevo")
+    [rejilla] = SVC.grids(s)
+    assert rejilla.id == "Estándar" and rejilla.days == (1, 2, 3, 4, 5)
+    lectivos = [p for p in rejilla.periods if not p.is_break]
+    assert len(lectivos) == 8
+    assert [p.number for p in rejilla.periods if p.is_break] == [4]  # recreo tras el 3.º
+    assert rejilla.periods[0].start == "07:00" and rejilla.periods[0].end == "07:45"
+    # Una clase nueva queda asignada a la rejilla sin hacer nada más.
+    assert SVC.add_master(s, MasterKind.CLASSES, "1A").ok
+    assert s.project.class_by_id["1A"].time_grid == "Estándar"
+    assert not SVC.new(default_grid=False).project.time_grids
+
+
+def test_gestion_de_rejillas() -> None:
+    s = SVC.new("X")
+    assert SVC.add_grid(
+        s,
+        "Primaria",
+        days=(1, 2, 3, 4),
+        periods=6,
+        start="07:30",
+        duration=40,
+        breaks={2: 15, 4: 30},
+    ).ok
+    prim = next(g for g in SVC.grids(s) if g.id == "Primaria")
+    assert prim.days == (1, 2, 3, 4) and len(prim.periods) == 8
+    assert [p.number for p in prim.periods if p.is_break] == [3, 6]
+    assert prim.periods[0].start == "07:30"
+    assert not SVC.add_grid(s, "Primaria").ok  # repetida
+    assert not SVC.add_grid(s, "Rara", periods=0).ok
+    assert not SVC.add_grid(s, "Tarde", start="23:00", periods=5).ok  # pasa de medianoche
+
+    assert SVC.rename_grid(s, "Primaria", "Primaria (1.º a 5.º)").ok
+    assert SVC.copy_grid(s, "Primaria", "Primaria B").ok
+    assert not SVC.copy_grid(s, "NoExiste", "Z").ok
+
+    assert SVC.set_grid_days(s, "Primaria", (1, 2, 3, 4, 5, 6)).ok
+    assert not SVC.set_grid_days(s, "Primaria", ()).ok
+    r = SVC.add_period(s, "Primaria", duration=45)
+    assert r.ok and r.message == "9"
+    assert not SVC.remove_period(s, "Primaria", 1).ok  # solo el último
+    assert SVC.remove_period(s, "Primaria", 9).ok
+    assert SVC.regenerate_grid(s, "Primaria B", periods=4, start="08:00", duration=50).ok
+
+    assert SVC.remove_grid(s, "Primaria B").ok
+    SVC.add_master(s, MasterKind.CLASSES, "2A")
+    assert SVC.set_master_cell(s, MasterKind.CLASSES, "2A", "time_grid", "Primaria").ok
+    en_uso = SVC.remove_grid(s, "Primaria")
+    assert not en_uso.ok and "clase" in en_uso.message
+
+
+def test_colegio_desde_cero_hasta_los_horarios_de_cada_grupo(tmp_path: Path) -> None:
+    """El recorrido completo, solo con la Fachada: datos -> lecciones -> generar -> horarios."""
+    s = SVC.new("Colegio desde cero")
+    for clase in ("6A", "6B", "7A"):
+        assert SVC.add_master(s, MasterKind.CLASSES, clase).ok
+    for profe in ("ANA", "LUIS", "EVA", "OMAR"):
+        assert SVC.add_master(s, MasterKind.TEACHERS, profe).ok
+    for aula in ("A1", "A2", "A3", "LAB"):
+        assert SVC.add_master(s, MasterKind.ROOMS, aula).ok
+    for materia in ("MAT", "LEN", "ING", "CIE", "EF"):
+        assert SVC.add_master(s, MasterKind.SUBJECTS, materia).ok
+    assert SVC.set_master_cell(s, MasterKind.CLASSES, "6A", "home_room", "A1").ok
+
+    carga = [
+        ("MAT", "ANA", ("6A",), 5), ("MAT", "ANA", ("6B",), 5), ("MAT", "LUIS", ("7A",), 5),
+        ("LEN", "LUIS", ("6A",), 4), ("LEN", "EVA", ("6B",), 4), ("LEN", "EVA", ("7A",), 4),
+        ("ING", "EVA", ("6A",), 3), ("ING", "OMAR", ("6B",), 3), ("ING", "OMAR", ("7A",), 3),
+        ("CIE", "OMAR", ("6A",), 3), ("CIE", "ANA", ("6B",), 3), ("CIE", "LUIS", ("7A",), 3),
+    ]  # fmt: skip
+    for materia, profe, clases, horas in carga:
+        r = SVC.add_lesson(s, subject=materia, teacher=profe, classes=clases, periods=horas)
+        assert r.ok, r.message
+        assert SVC.set_line_field(
+            s, int(r.message), 0, "room", "LAB" if materia == "CIE" else ""
+        ).ok
+    # Educación física de dos clases juntas con dos profesores (acople).
+    r = SVC.add_lesson(s, subject="EF", teacher="ANA", classes=("6A", "6B"), periods=2)
+    numero = int(r.message)
+    assert SVC.add_line(s, numero).ok
+    assert SVC.set_line_field(s, numero, 1, "teacher", "OMAR").ok
+    assert SVC.set_lesson_field(s, numero, "double_periods", "1-1").ok
+    # Deseos: EVA no puede los lunes; OMAR prefiere no dar a primera hora.
+    assert SVC.set_request(s, "teacher", "EVA", 1, None, -3).ok
+    assert SVC.set_request(s, "teacher", "OMAR", None, 1, -2).ok
+
+    assert [i for i in SVC.diagnosis(s).items if i.severity == "error"] == []
+    out = SVC.optimize(s, OptimizeRequest(strategy="A", time_limit=8, polish=False))
+    assert out.ok, out.message
+    assert out.evaluation is not None
+    assert out.evaluation.unplaced_periods == 0 and out.evaluation.clashes == 0
+
+    # Horario de cada grupo de usuarios: clases (estudiantes), profesores y aulas.
+    for kind, ids in (
+        ("class", ("6A", "6B", "7A")),
+        ("teacher", ("ANA", "LUIS", "EVA", "OMAR")),
+        ("room", ("LAB",)),
+    ):
+        for ident in ids:
+            grid = SVC.timetable_grid(s, kind, ident)
+            assert grid.cells, f"{kind} {ident} sin horario"
+            assert not any(c.conflict for c in grid.cells)
+    eva = SVC.timetable_grid(s, "teacher", "EVA")
+    assert all(c.day != 1 for c in eva.cells)  # respeta el -3 de los lunes
+    ef = [c for c in SVC.timetable_grid(s, "class", "6A").cells if c.subject == "EF"]
+    assert len(ef) == 2 and ef[0].day == ef[1].day  # el doble se respeta
+
+    destino = SVC.save(s, tmp_path / "desde_cero.rsp")
+    assert SVC.open(destino).project == s.project
+
+
+def test_leccion_nueva_usa_el_aula_base_de_la_clase() -> None:
+    s = _mini()
+    assert SVC.set_master_cell(s, MasterKind.CLASSES, "5A", "home_room", "R1").ok
+    r = SVC.add_lesson(s, subject="MAT", teacher="ANA", classes=("5A",), periods=2)
+    assert s.project.lesson_by_number[int(r.message)].lines[0].room == "R1"
+    r2 = SVC.add_lesson(s, subject="MAT", teacher="ANA", classes=("5A", "5B"), periods=1)
+    assert s.project.lesson_by_number[int(r2.message)].lines[0].room is None

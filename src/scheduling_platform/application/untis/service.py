@@ -124,6 +124,66 @@ def _clock(minutes: int) -> str:
     return f"{texto[:2]}:{texto[2:]}"
 
 
+#: Rejilla que trae un proyecto nuevo.
+DEFAULT_GRID_ID = "Estándar"
+#: A partir de esta hora un período cuenta como tarde (mediodía).
+AFTERNOON_FROM = 12 * 60
+
+
+def _parse_clock(texto: str) -> int:
+    """`HH:MM` o `HHMM` -> minutos desde medianoche."""
+    return hhmm_to_minutes(texto.strip().replace(":", ""))
+
+
+def build_grid(
+    grid_id: str,
+    *,
+    days: tuple[int, ...],
+    periods: int,
+    start: str,
+    duration: int,
+    gap: int = 0,
+    breaks: dict[int, int] | None = None,
+    name: str = "",
+) -> TimeGrid:
+    """Rejilla con horas generadas: `periods` lectivos de `duration` minutos.
+
+    `gap` son los minutos de cambio de clase entre períodos. `breaks` inserta un
+    recreo **después** del período lectivo indicado: `{3: 20}` añade un recreo de
+    20 min tras el 3.er período (el recreo es un período más, marcado como tal,
+    igual que en Untis). Los períodos que empiezan a mediodía o después son de
+    tarde.
+    """
+    if periods < 1:
+        raise ValueError("La rejilla necesita al menos un período")
+    if duration < 5:
+        raise ValueError("Un período dura al menos 5 minutos")
+    if gap < 0:
+        raise ValueError("El cambio de clase no puede ser negativo")
+    recreos = breaks or {}
+    if any(k < 1 or k >= periods or v < 5 for k, v in recreos.items()):
+        raise ValueError("Cada recreo va entre dos períodos y dura al menos 5 minutos")
+    reloj = _parse_clock(start)
+    defs: list[PeriodDef] = []
+    numero = 1
+    for lectivo in range(1, periods + 1):
+        defs.append(_period(numero, reloj, reloj + duration, PeriodKind.LESSON))
+        reloj += duration + gap
+        numero += 1
+        if lectivo in recreos:
+            defs.append(_period(numero, reloj, reloj + recreos[lectivo], PeriodKind.BREAK))
+            reloj += recreos[lectivo] + gap
+            numero += 1
+    if defs[-1].end > 24 * 60:
+        raise ValueError("La jornada termina después de medianoche")
+    return TimeGrid(id=grid_id, name=name, days=days, periods=tuple(defs))
+
+
+def _period(numero: int, inicio: int, fin: int, tipo: PeriodKind) -> PeriodDef:
+    media = HalfDay.AFTERNOON if inicio >= AFTERNOON_FROM else HalfDay.MORNING
+    return PeriodDef(numero, inicio, fin, kind=tipo, half_day=media)
+
+
 class UntisService:
     """Casos de uso del producto, en vocabulario Untis."""
 
@@ -134,9 +194,31 @@ class UntisService:
     # Ciclo de vida
     # ===================================================================== #
 
-    def new(self, name: str = "") -> UntisSession:
-        """Proyecto vacío."""
-        return UntisSession(UntisProject(school=SchoolInfo(name=name)))
+    def new(self, name: str = "", *, default_grid: bool = True) -> UntisSession:
+        """Proyecto nuevo.
+
+        Con `default_grid` (por defecto) trae una rejilla "Estándar" de lunes a
+        viernes, 8 períodos de 45 min desde las 07:00 con un recreo a media
+        mañana, para que un colegio pueda empezar a cargar datos y generar sin
+        pasar antes por la ventana de rejillas.
+        """
+        proyecto = UntisProject(school=SchoolInfo(name=name))
+        if default_grid:
+            proyecto = dataclasses.replace(
+                proyecto,
+                time_grids=(
+                    build_grid(
+                        DEFAULT_GRID_ID,
+                        days=(1, 2, 3, 4, 5),
+                        periods=8,
+                        start="07:00",
+                        duration=45,
+                        gap=5,
+                        breaks={3: 20},
+                    ),
+                ),
+            )
+        return UntisSession(proyecto)
 
     def open(self, path: str | Path) -> UntisSession:
         """Abre `.rsp`, importa `.xml` / `.bjs` o una carpeta con archivos GPU."""
@@ -266,6 +348,9 @@ class UntisService:
             nueva = ENTITY_OF[kind](id=ident)
         except (ValueError, TypeError) as exc:
             return EditResult.failure(str(exc))
+        if kind is MasterKind.CLASSES and session.project.time_grids:
+            # Sin rejilla una clase no se puede planificar: se le da la primera.
+            nueva = _with_field(nueva, "time_grid", session.project.time_grids[0].id)
         proyecto = _with_field(session.project, coleccion, (*actuales, nueva))
         session.apply(proyecto, f"Añadir {ident}")
         return EditResult.success()
@@ -376,6 +461,209 @@ class UntisService:
         session.apply(dataclasses.replace(p, time_grids=grids), f"Editar período {number}")
         return EditResult.success()
 
+    def add_grid(
+        self,
+        session: UntisSession,
+        grid_id: str,
+        *,
+        days: tuple[int, ...] = (1, 2, 3, 4, 5),
+        periods: int = 8,
+        start: str = "07:00",
+        duration: int = 45,
+        gap: int = 5,
+        breaks: dict[int, int] | None = None,
+    ) -> EditResult:
+        """Crea una rejilla con horas generadas (ver `build_grid`)."""
+        ident = grid_id.strip()
+        if not ident:
+            return EditResult.failure("La rejilla necesita un nombre")
+        p = session.project
+        if ident in p.grid_by_id:
+            return EditResult.failure(f"Ya existe la rejilla {ident!r}")
+        try:
+            nueva = build_grid(
+                ident,
+                days=days,
+                periods=periods,
+                start=start,
+                duration=duration,
+                gap=gap,
+                breaks=breaks,
+            )
+        except ValueError as exc:
+            return EditResult.failure(str(exc))
+        session.apply(
+            dataclasses.replace(p, time_grids=(*p.time_grids, nueva)), f"Nueva rejilla {ident}"
+        )
+        return EditResult.success()
+
+    def copy_grid(self, session: UntisSession, source: str, new_id: str) -> EditResult:
+        """Duplica una rejilla (para una sección con horas parecidas)."""
+        p = session.project
+        origen = p.grid_by_id.get(source)
+        ident = new_id.strip()
+        if origen is None:
+            return EditResult.failure(f"No existe la rejilla {source!r}")
+        if not ident or ident in p.grid_by_id:
+            return EditResult.failure(f"Nombre de rejilla no válido o repetido: {ident!r}")
+        copia = dataclasses.replace(origen, id=ident, name="")
+        session.apply(
+            dataclasses.replace(p, time_grids=(*p.time_grids, copia)), f"Copiar rejilla {source}"
+        )
+        return EditResult.success()
+
+    def rename_grid(self, session: UntisSession, grid_id: str, name: str) -> EditResult:
+        """Nombre largo de la rejilla (el id no cambia: lo usan clases y lecciones)."""
+        p = session.project
+        grid = p.grid_by_id.get(grid_id)
+        if grid is None:
+            return EditResult.failure(f"No existe la rejilla {grid_id!r}")
+        nueva = dataclasses.replace(grid, name=name.strip())
+        grids = tuple(nueva if g.id == grid_id else g for g in p.time_grids)
+        session.apply(dataclasses.replace(p, time_grids=grids), f"Renombrar rejilla {grid_id}")
+        return EditResult.success()
+
+    def remove_grid(self, session: UntisSession, grid_id: str) -> EditResult:
+        """Borra una rejilla que no use ninguna clase ni lección."""
+        p = session.project
+        if grid_id not in p.grid_by_id:
+            return EditResult.failure(f"No existe la rejilla {grid_id!r}")
+        clases = [c.id for c in p.classes if c.time_grid == grid_id]
+        lecciones = [le.number for le in p.lessons if le.time_grid == grid_id]
+        if clases or lecciones:
+            return EditResult.failure(
+                f"La rejilla {grid_id!r} la usan {len(clases)} clase(s) y "
+                f"{len(lecciones)} lección(es); cámbiales la rejilla antes."
+            )
+        restantes = tuple(g for g in p.time_grids if g.id != grid_id)
+        session.apply(dataclasses.replace(p, time_grids=restantes), f"Borrar rejilla {grid_id}")
+        return EditResult.success()
+
+    def set_grid_days(
+        self, session: UntisSession, grid_id: str, days: tuple[int, ...]
+    ) -> EditResult:
+        """Días lectivos de la rejilla (1 = lunes ... 7 = domingo)."""
+        p = session.project
+        grid = p.grid_by_id.get(grid_id)
+        if grid is None:
+            return EditResult.failure(f"No existe la rejilla {grid_id!r}")
+        dias = tuple(sorted(set(days)))
+        if not dias or any(not 1 <= d <= 7 for d in dias):
+            return EditResult.failure("Elige al menos un día entre lunes y domingo")
+        quitados = set(grid.days) - set(dias)
+        ocupados = self._grid_cells_in_use(p, grid_id)
+        if any(d in quitados for d, _ in ocupados):
+            return EditResult.failure(
+                "Hay clases colocadas en los días que quieres quitar; desprográmalas antes."
+            )
+        nueva = dataclasses.replace(grid, days=dias)
+        grids = tuple(nueva if g.id == grid_id else g for g in p.time_grids)
+        session.apply(dataclasses.replace(p, time_grids=grids), f"Días de {grid_id}")
+        return EditResult.success()
+
+    def add_period(
+        self,
+        session: UntisSession,
+        grid_id: str,
+        *,
+        duration: int = 45,
+        gap: int = 5,
+        is_break: bool = False,
+    ) -> EditResult:
+        """Añade un período al final de la jornada, tras el último."""
+        p = session.project
+        grid = p.grid_by_id.get(grid_id)
+        if grid is None:
+            return EditResult.failure(f"No existe la rejilla {grid_id!r}")
+        ultimo = max(grid.periods, key=lambda x: x.number, default=None)
+        inicio = ultimo.end + gap if ultimo is not None else 8 * 60
+        try:
+            nuevo = _period(
+                (ultimo.number if ultimo else 0) + 1,
+                inicio,
+                inicio + duration,
+                PeriodKind.BREAK if is_break else PeriodKind.LESSON,
+            )
+            nueva = dataclasses.replace(grid, periods=(*grid.periods, nuevo))
+        except ValueError as exc:
+            return EditResult.failure(str(exc))
+        grids = tuple(nueva if g.id == grid_id else g for g in p.time_grids)
+        session.apply(dataclasses.replace(p, time_grids=grids), f"Añadir período a {grid_id}")
+        return EditResult.success(str(nuevo.number))
+
+    def remove_period(self, session: UntisSession, grid_id: str, number: int) -> EditResult:
+        """Quita el **último** período de la rejilla si no hay clases colocadas en él.
+
+        Solo el último: los números de período son la dirección de las clases ya
+        colocadas, y quitar uno intermedio las movería todas de sitio.
+        """
+        p = session.project
+        grid = p.grid_by_id.get(grid_id)
+        if grid is None:
+            return EditResult.failure(f"No existe la rejilla {grid_id!r}")
+        if not grid.periods or number != max(x.number for x in grid.periods):
+            return EditResult.failure(
+                "Solo se puede quitar el último período; para uno intermedio, márcalo como recreo."
+            )
+        if len(grid.periods) == 1:
+            return EditResult.failure("La rejilla necesita al menos un período")
+        if any(per == number for _, per in self._grid_cells_in_use(p, grid_id)):
+            return EditResult.failure("Hay clases colocadas en ese período; desprográmalas antes.")
+        nueva = dataclasses.replace(
+            grid, periods=tuple(x for x in grid.periods if x.number != number)
+        )
+        grids = tuple(nueva if g.id == grid_id else g for g in p.time_grids)
+        session.apply(dataclasses.replace(p, time_grids=grids), f"Quitar período {number}")
+        return EditResult.success()
+
+    def regenerate_grid(
+        self,
+        session: UntisSession,
+        grid_id: str,
+        *,
+        periods: int,
+        start: str,
+        duration: int,
+        gap: int = 5,
+        breaks: dict[int, int] | None = None,
+    ) -> EditResult:
+        """Vuelve a generar las horas de una rejilla sin clases colocadas."""
+        p = session.project
+        grid = p.grid_by_id.get(grid_id)
+        if grid is None:
+            return EditResult.failure(f"No existe la rejilla {grid_id!r}")
+        if self._grid_cells_in_use(p, grid_id):
+            return EditResult.failure(
+                "La rejilla tiene clases colocadas: edita las horas período a período."
+            )
+        try:
+            nueva = build_grid(
+                grid_id,
+                days=grid.days,
+                periods=periods,
+                start=start,
+                duration=duration,
+                gap=gap,
+                breaks=breaks,
+                name=grid.name,
+            )
+        except ValueError as exc:
+            return EditResult.failure(str(exc))
+        grids = tuple(nueva if g.id == grid_id else g for g in p.time_grids)
+        session.apply(dataclasses.replace(p, time_grids=grids), f"Generar horas de {grid_id}")
+        return EditResult.success()
+
+    @staticmethod
+    def _grid_cells_in_use(project: UntisProject, grid_id: str) -> set[tuple[int, int]]:
+        """Celdas `(día, período)` de la rejilla ocupadas en algún horario."""
+        lecciones = {le.number for le in project.lessons if le.time_grid == grid_id}
+        return {
+            a.slot
+            for tt in project.timetables
+            for a in tt.assignments
+            if a.lesson_number in lecciones
+        }
+
     # ===================================================================== #
     # Lecciones
     # ===================================================================== #
@@ -484,10 +772,12 @@ class UntisService:
             clase = p.class_by_id[classes[0]]
             rejilla = clase.time_grid
         numero = self._next_lesson_number(p)
+        # Como en Untis: la lección de una sola clase va por defecto a su aula base.
+        aula = p.class_by_id[classes[0]].home_room if len(classes) == 1 else None
         try:
             nueva = Lesson(
                 number=numero,
-                lines=(LessonLine(subject=subject, teacher=teacher, classes=classes),),
+                lines=(LessonLine(subject=subject, teacher=teacher, classes=classes, room=aula),),
                 periods_per_week=periods,
                 time_grid=rejilla or (p.time_grids[0].id if p.time_grids else ""),
             )
@@ -1456,4 +1746,4 @@ class UntisService:
         return dataclasses.replace(tt, assignments=(*resto, *movidas))
 
 
-__all__ = ["PROJECT_SUFFIX", "UntisService"]
+__all__ = ["DEFAULT_GRID_ID", "PROJECT_SUFFIX", "UntisService", "build_grid"]

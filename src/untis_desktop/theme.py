@@ -69,3 +69,23 @@ def day_name(day: int, language: str = "es") -> str:
     """Nombre del día Untis (1 = lunes)."""
     nombres = DAY_NAMES_DE if language == "de" else DAY_NAMES_ES
     return nombres[(day - 1) % 7]
+
+
+def fmt_int(value: int) -> str:
+    """Entero con separador de miles legible (`1218418` -> `1.218.418`)."""
+    return f"{value:,}".replace(",", ".")
+
+
+def text_color_for(background: QColor) -> QColor:
+    """Negro o blanco, el que mejor se lea sobre `background` (luminancia WCAG)."""
+
+    def canal(c: int) -> float:
+        x = c / 255
+        return x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+
+    lum = (
+        0.2126 * canal(background.red())
+        + 0.7152 * canal(background.green())
+        + 0.0722 * canal(background.blue())
+    )
+    return QColor("#111827") if lum > 0.35 else QColor("#ffffff")
