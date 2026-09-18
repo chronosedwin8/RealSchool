@@ -11,6 +11,8 @@ Deseos se filtran solos.
 
 from __future__ import annotations
 
+import gc
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -24,6 +26,11 @@ from scheduling_platform.application import (
     UntisService,
     UntisSession,
 )
+
+#: Segundos mínimos entre dos avisos de progreso al hilo de la interfaz.
+PROGRESS_INTERVAL = 0.1
+#: Cada cuánto recoge la basura el hilo de la interfaz mientras se optimiza (ms).
+GC_INTERVAL_MS = 2000
 
 
 class OptimizeWorker(QThread):
@@ -48,10 +55,20 @@ class OptimizeWorker(QThread):
         self._cancel = cancel
 
     def run(self) -> None:
+        ultimo = [0.0]
+
+        def progreso(evento: object) -> None:
+            # Como mucho unos 10 avisos por segundo: la heurística puede producir
+            # miles y cada uno repinta la ventana de Optimización.
+            ahora = time.monotonic()
+            if ahora - ultimo[0] >= PROGRESS_INTERVAL:
+                ultimo[0] = ahora
+                self.progressed.emit(evento)
+
         resultado = self._service.optimize(
             self.snapshot,
             self._request,
-            on_progress=self.progressed.emit,
+            on_progress=progreso,
             cancel=self._cancel,
         )
         self.done.emit(resultado)
@@ -83,6 +100,14 @@ class FacadeBridge(QObject):
         self.selection: tuple[str, str] | None = None
         self.language = "es"
         self._pending = False
+        # Mientras optimiza un hilo, la recolección automática de Python podría
+        # dispararse en ese hilo y destruir objetos Qt de la interfaz: fallo
+        # nativo (access violation). Se desactiva durante la optimización y se
+        # recoge periódicamente desde el hilo de la interfaz.
+        self._gc_timer = QTimer(self)
+        self._gc_timer.setInterval(GC_INTERVAL_MS)
+        self._gc_timer.timeout.connect(gc.collect)
+        self._gc_was_enabled = gc.isenabled()
         self.project_changed.connect(self._schedule_refresh)
         self.project_opened.connect(self._schedule_refresh)
 
@@ -184,6 +209,7 @@ class FacadeBridge(QObject):
         self._worker.progressed.connect(self.optimize_progress.emit)
         self._worker.done.connect(self._on_done)
         self.busy_changed.emit(True)
+        self._suspend_gc()
         self._worker.start()
         return True
 
@@ -194,6 +220,7 @@ class FacadeBridge(QObject):
         worker = OptimizeWorker(self.service, instantanea, request, self._cancel)
         self._worker = worker
         self.busy_changed.emit(True)
+        self._suspend_gc()
         salida: list[OptimizeOutcome] = []
         worker.progressed.connect(self.optimize_progress.emit)
         worker.done.connect(lambda o: salida.append(o))
@@ -211,7 +238,20 @@ class FacadeBridge(QObject):
         worker.wait()
         self._finish(worker, outcome)
 
+    def _suspend_gc(self) -> None:
+        """Recolección solo en el hilo de la interfaz mientras trabaja el hilo."""
+        self._gc_was_enabled = gc.isenabled()
+        gc.disable()
+        self._gc_timer.start()
+
+    def _resume_gc(self) -> None:
+        self._gc_timer.stop()
+        if self._gc_was_enabled:
+            gc.enable()
+        gc.collect()
+
     def _finish(self, worker: OptimizeWorker, outcome: OptimizeOutcome) -> None:
+        self._resume_gc()
         self._worker = None
         if outcome.ok and outcome.timetable_id:
             adopcion = self.service.adopt_timetable(

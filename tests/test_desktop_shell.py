@@ -197,3 +197,33 @@ def test_traduccion_alemana_completa() -> None:
     ]
     assert pendientes == []
     assert qm_path("de").is_file()
+
+
+def test_optimizar_en_hilo_recoge_basura_solo_en_la_interfaz(
+    qapp: QApplication, anon_xml_path: Path
+) -> None:
+    """Regresión del fallo nativo (access violation) al generar con la ventana abierta.
+
+    La recolección automática de Python se disparaba en el hilo de optimización
+    y destruía objetos Qt de la interfaz mientras esta repintaba el gráfico.
+    """
+    import gc
+    import time
+
+    b = FacadeBridge()
+    b.attach(b.service.open(anon_xml_path))
+    eventos: list[float] = []
+    b.optimize_progress.connect(lambda _e: eventos.append(time.monotonic()))
+    assert gc.isenabled()
+    assert b.start_optimize(OptimizeRequest(strategy="A", time_limit=4, polish=False))
+    assert not gc.isenabled()  # nada de recolección automática en el hilo
+    assert b._gc_timer.isActive()  # la interfaz recoge por su cuenta
+    limite = time.monotonic() + 60
+    while b.busy and time.monotonic() < limite:
+        qapp.processEvents()
+        time.sleep(0.02)
+    assert not b.busy
+    assert gc.isenabled() and not b._gc_timer.isActive()
+    # Avisos de progreso limitados (~10 por segundo como máximo). Se cuenta el
+    # total: al llegar a la interfaz varios avisos en cola pueden juntarse.
+    assert 0 < len(eventos) <= 4 * 10 + 5
