@@ -100,12 +100,54 @@ class MetricsComparison:
 
 
 @dataclass(frozen=True, slots=True)
+class CriterionBreakdown:
+    """Contribución de un criterio (etiqueta de penalización) al objetivo."""
+
+    criterion: str
+    points: int
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationBreakdown:
+    """Objetivo de una solución desglosado por criterio (ADR-036).
+
+    Cada `PenaltyTerm` lleva como etiqueta el criterio que lo originó; el
+    `SolutionInspector` ya agrega las penalizaciones por etiqueta con el mismo
+    coeficiente que usó el objetivo, así que el desglose suma exactamente el
+    `objective_value`.
+    """
+
+    total: int
+    by_criterion: tuple[CriterionBreakdown, ...] = field(default_factory=tuple)
+
+    def of(self, criterion: str) -> int:
+        """Puntos del criterio `criterion` (0 si no aparece)."""
+        return sum(c.points for c in self.by_criterion if c.criterion == criterion)
+
+    def render(self) -> str:
+        filas = [f"Objetivo total: {self.total}"]
+        filas += [f"  {c.criterion:40} {c.points:>10}" for c in self.by_criterion]
+        return "\n".join(filas)
+
+
+@dataclass(frozen=True, slots=True)
 class MetricsEngine:
     """Calcula los KPIs de un horario. Los pesos del score son configurables."""
 
     gap_weight: float = 2.0
     balance_weight: float = 0.3
     validator: ValidationEngine = field(default_factory=ValidationEngine)
+
+    def breakdown(self, solution: Solution) -> EvaluationBreakdown:
+        """Desglose del objetivo por criterio, de mayor a menor contribución."""
+        puntos: defaultdict[str, int] = defaultdict(int)
+        for pen in solution.penalties:
+            puntos[pen.source] += pen.amount
+        filas = tuple(
+            CriterionBreakdown(c, n)
+            for c, n in sorted(puntos.items(), key=lambda kv: (-kv[1], kv[0]))
+        )
+        return EvaluationBreakdown(total=solution.objective_value, by_criterion=filas)
 
     def compute(self, problem: SchedulingProblem, solution: Solution) -> ScheduleMetrics:
         occupancy = self._occupancy(problem, solution)
@@ -219,4 +261,11 @@ class MetricsEngine:
         return 100.0 * (1.0 - (mayor - min(cargas)) / mayor)
 
 
-__all__ = ["GapDistribution", "MetricsComparison", "MetricsEngine", "ScheduleMetrics"]
+__all__ = [
+    "CriterionBreakdown",
+    "EvaluationBreakdown",
+    "GapDistribution",
+    "MetricsComparison",
+    "MetricsEngine",
+    "ScheduleMetrics",
+]

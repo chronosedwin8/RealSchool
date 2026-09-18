@@ -1,40 +1,55 @@
-# RealSchool — Scheduling Optimization Platform
+# RealSchool
 
-Creador de horarios de colegios: motor genérico de calendarización por
-restricciones (primer módulo, el académico), construido sobre Google OR-Tools
-CP-SAT detrás de una Solver Abstraction Layer.
+Creador de horarios escolares con el modelo de trabajo de Untis —datos maestros,
+lecciones con acoples, deseos −3…+3, ponderación 0–5, estrategias A/B/D/E,
+Diagnóstico y Diálogo de planificación— sobre un motor propio que Untis no
+tiene: CP-SAT exacto para reparar con cambio mínimo, pulir y demostrar
+infactibilidad.
 
-- **Especificación (fuente de verdad):** [Prompt3.md](Prompt3.md)
-- **Plan de fases y estrategia de pruebas:** [PLAN_DE_TRABAJO.md](PLAN_DE_TRABAJO.md)
+- **Fuente de verdad:** [REFACTOR_UNTIS_MAESTRO.md](REFACTOR_UNTIS_MAESTRO.md)
+  (supersede a `Prompt3.md` y `PLAN_DE_TRABAJO.md` en lo que contradiga; ver
+  [ADR-034](docs/adr/ADR-034-reorientacion-a-untis.md)).
 - **Decisiones de arquitectura:** [docs/adr/](docs/adr/)
+- **Estado de la refactorización:** [PLAN_DE_TRABAJO.md](PLAN_DE_TRABAJO.md#refactorización-untis-r0r5)
 
-## Arquitectura de capas (dependencias solo hacia abajo)
-
-```
-academic  →  core (Modelo Canónico)  →  dsl  →  cir  →  sal (única capa que conoce ortools)
-                                 pipeline (orquesta)      plugins (declaran reglas vía dsl)
-```
-
-El dominio no conoce el solver: en todo el repositorio existe una sola línea
-`import ortools`, dentro de `sal/ortools_solver.py`, y hay pruebas automáticas
-que lo verifican.
-
-## Pipeline de compilación
+## Arquitectura
 
 ```
-academic → adapter → problema canónico → plugins (DSL)
-    → Constraint Graph Builder (infactibilidad + explicación)
-    → lower → CIR → Optimizer Passes → Solver Compiler → ISolver → horario
+untis_desktop ──> application (Fachada, proyecto .rsp)
+                     ├──> untis_model   dominio Untis puro + evaluador de referencia
+                     ├──> interop       XmlInterface · GPU · .rsp   ──> untis_model
+                     └──> bridge        único traductor al motor    ──> motor congelado
+                                         └──> heuristic  colocación + intercambios ──> untis_model
+motor congelado (engine-1.0): core · dsl · cir · sal · pipeline · engine · plugins · benchmarks
 ```
+
+Las fronteras se verifican por AST en `tests/test_boundaries.py`: `untis_model`
+no importa nada; `interop` y `heuristic` solo el modelo; fuera del motor, solo
+`bridge` lo importa; la UI solo la Fachada.
+
+## Lo que ya funciona (datos reales, curso 2025-2026)
+
+| Qué | Resultado |
+| --- | --- |
+| Importar el XML de Untis | 66 clases, 116 profesores, 722 lecciones, 8 rejillas; ida y vuelta idéntica; 100 % de los campos con datos modelados |
+| Exportar GPU001 | `40,"K1A","T028","MATK1","P 11",1,7,,` — nombres cortos, listo para MiUntisWeb |
+| Fidelidad del puente | evaluador, `ValidationEngine` y barrido del reloj ven los mismos 7 choques reales del horario publicado, ni uno más |
+| Reparar (CP-SAT) | 7 choques → 0 en 0,6 s moviendo 6 de 1.676 sesiones |
+| Pulir (CP-SAT por ventanas) | −28 % de puntos blandos en 60 s, sin choques |
 
 ## Entorno de desarrollo
 
-Requiere el Python del sistema (3.14.3). No instalar otras versiones.
+Python 3.14 del sistema.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
+
+Los exports reales de Untis contienen datos personales y **no se versionan**:
+colócalos en `tests/fixtures/real/` (ignorado por git) y los tests de regresión
+los usarán. La CI usa `tests/fixtures/untis_anon.xml`, generado con
+`scripts/anonymize_untis.py`.
 
 ## Verificación de calidad (obligatoria antes de cerrar cualquier fase)
 

@@ -14,15 +14,23 @@ from __future__ import annotations
 from .engine import EngineResult, SchedulingEngine, SolverFactory, warm_start_hints
 from .exceptions import EngineError, SolutionExtractionError
 from .inspector import SolutionInspector, evaluate_linear
-from .metrics import MetricsComparison, MetricsEngine, ScheduleMetrics
+from .metrics import (
+    CriterionBreakdown,
+    EvaluationBreakdown,
+    MetricsComparison,
+    MetricsEngine,
+    ScheduleMetrics,
+)
 from .reoptimization import ReOptimizationEngine, freeze_all_except
 from .simulation import ScenarioOutcome, SimulationEngine, SimulationReport
 from .solution_builder import SolutionBuilder
 from .validation import ValidationEngine, ValidationIssue, ValidationReport
 
 __all__ = [
+    "CriterionBreakdown",
     "EngineError",
     "EngineResult",
+    "EvaluationBreakdown",
     "MetricsComparison",
     "MetricsEngine",
     "ReOptimizationEngine",

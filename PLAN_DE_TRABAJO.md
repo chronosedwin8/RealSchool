@@ -4,6 +4,12 @@
 
 ---
 
+> **Nota (2026-09-18):** este plan queda **supersedido** por
+> [REFACTOR_UNTIS_MAESTRO.md](REFACTOR_UNTIS_MAESTRO.md) en todo lo que
+> contradiga (ADR-034). Las fases 0-11 describen el motor, congelado en la
+> etiqueta `engine-1.0`. El estado de la refactorización está al final:
+> [Refactorización Untis (R0-R5)](#refactorización-untis-r0r5).
+
 ## 0. Análisis previo: de la idea original a la especificación vigente
 
 ### 0.1 Evolución de los documentos
@@ -201,3 +207,29 @@ Solution Builder → Validation → Metrics → Schedule
 - Arquitectura justificada **antes** del código (por qué, ventajas, desventajas, impacto en rendimiento/mantenibilidad/escalabilidad).
 - Cada turno de trabajo termina con `[[ADR]]`, `[[Context Checkpoint]]` (YAML) y `[[Pausa para Validación]]`.
 - No se avanza de fase sin aprobación explícita del usuario.
+
+
+## Refactorización Untis (R0–R5)
+
+Fuente de verdad: [REFACTOR_UNTIS_MAESTRO.md](REFACTOR_UNTIS_MAESTRO.md). Rama
+`untis-refactor`; cada fase cierra con `scripts/check.py` en verde verificado
+en un *worktree* limpio del commit, y un commit `R<n>: <entregable>`.
+
+| Fase | Estado | Entregable y números medidos |
+| --- | --- | --- |
+| R0 – Congelar el motor | ✅ | Etiqueta `engine-1.0`, ADR-034, fronteras por AST, `academic` obsoleto. 478 tests. |
+| R1 – `untis_model` + `interop` | ✅ | Modelo Untis, XML (ida y vuelta, 100 % de campos), GPU001-007/016, `.rsp`, convertidor `.bjs`. 654 tests. |
+| R2 – `bridge` + ponderación | ✅ | Traducción sin inferir acoples, evaluador de referencia (38 criterios), recreos deducidos, Reparar y Pulir con CP-SAT, desglose por criterio (ADR-035, ADR-036). |
+| R3 – `heuristic` | en curso | Colocación por dificultad + intercambios con evaluación incremental; estrategias A/B/D/E. |
+| R4 – UI Untis | pendiente | Cinta + ventanas MDI, datos maestros, lecciones, deseos, ponderación, optimización, diagnóstico; es/de. |
+| R5 – Planificación y salida | pendiente | Diálogo de planificación, horarios con formatos, impresión/PDF/HTML. |
+
+Criterios de aceptación reformulados con datos (ver ADR-035):
+
+- **R2 "0 duras sobre el horario de Untis"** es inalcanzable: el horario
+  publicado tiene **7 choques de profesor reales** que aceptó el planificador.
+  Se exige algo más estricto: **cero falsos positivos**, con tres métodos
+  independientes que ven exactamente los mismos 7 choques.
+- Fixtures: solo hay un export real (2025-2026). Los otros tres cursos no
+  están disponibles; los tests de regresión recorren todos los que haya en
+  `tests/fixtures/real/`.
