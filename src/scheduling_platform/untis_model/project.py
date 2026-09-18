@@ -60,6 +60,14 @@ class SchoolInfo:
     """Fecha `AAAAMMDD` de inicio del período lectivo del export."""
     term_end: str = ""
     """Fecha `AAAAMMDD` de fin del período lectivo del export."""
+    first_period: int = 1
+    """Número con el que Untis rotula el primer período (0 si el colegio usa
+    "hora cero"). El XmlInterface numera siempre desde 1; los archivos GPU001
+    usan este rótulo, así que la importación y la exportación GPU lo aplican."""
+
+    def __post_init__(self) -> None:
+        if self.first_period not in (0, 1):
+            raise ValueError(f"El primer período es 0 o 1: {self.first_period}")
 
 
 @dataclass(frozen=True, slots=True)

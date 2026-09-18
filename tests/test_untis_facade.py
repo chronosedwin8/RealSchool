@@ -285,7 +285,7 @@ def test_exportar_gpu_con_nombres_cortos(real_path: Path, tmp_path: Path) -> Non
     archivos = SVC.export_gpu(s, tmp_path)
     gpu001 = next(f for f in archivos if f.name.upper() == "GPU001.TXT")
     primera = gpu001.read_text(encoding="cp1252").splitlines()[0]
-    assert primera.startswith('40,"K1A","T028"')
+    assert primera.startswith('4,"K1A","T028"')
     xml = SVC.export_xml(s, tmp_path / "vuelta.xml")
     assert SVC.open(xml).project.lessons == s.project.lessons
 

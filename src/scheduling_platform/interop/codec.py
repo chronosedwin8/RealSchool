@@ -521,6 +521,7 @@ def school_info_to_dict(x: SchoolInfo) -> JsonObject:
         "school_type": x.school_type,
         "term_begin": x.term_begin,
         "term_end": x.term_end,
+        "first_period": x.first_period,
     }
 
 
@@ -536,6 +537,7 @@ def school_info_from_dict(d: JsonObject, where: str = "SchoolInfo") -> SchoolInf
         school_type=_str(d, "school_type", where),
         term_begin=_str(d, "term_begin", where),
         term_end=_str(d, "term_end", where),
+        first_period=_int(d, "first_period", where, default=1),
     )
 
 

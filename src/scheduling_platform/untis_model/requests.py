@@ -1,8 +1,13 @@
 """Deseos de tiempo (Zeitwünsche) en la escala -3…+3 de Untis.
 
--3 ("imposible") y +3 ("obligatorio") son duros por defecto; los valores
-intermedios se compilan como términos de objetivo con peso
-`time_request_weight x |valor|` (ver sección 6 del documento maestro).
+Solo **-3 ("imposible") es duro**: recorta el dominio de lo que se coloca. Los
+demás valores son blandos y pesan según la ponderación: los negativos cuestan
+si la entidad está ocupada en la celda; los positivos, si queda libre.
+
+El documento maestro proponía también +3 como duro. Los datos reales lo
+desmienten: el Colegio Alemán usa +3 en 1.519 celdas del curso 2026-2027 (un
+profesor tiene 47 celdas +3 para menos horas de clase), es decir, +3 significa
+"muy deseable", no "obligatorio" (ADR-039).
 """
 
 from __future__ import annotations
@@ -48,8 +53,8 @@ class TimeRequest:
 
     @property
     def is_hard(self) -> bool:
-        """`True` si el deseo es duro (-3 o +3)."""
-        return self.value in (REQUEST_MIN, REQUEST_MAX)
+        """`True` si el deseo es duro: solo -3 ("imposible")."""
+        return self.value == REQUEST_MIN
 
     @property
     def is_block(self) -> bool:
@@ -58,7 +63,7 @@ class TimeRequest:
 
     @property
     def is_mandatory(self) -> bool:
-        """`True` si el deseo obliga a usar la celda."""
+        """`True` si es +3 ("muy deseable"). Es blando: no obliga a ocupar la celda."""
         return self.value == REQUEST_MAX
 
     def covers(self, day: int, period: int) -> bool:

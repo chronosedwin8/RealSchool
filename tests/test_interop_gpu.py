@@ -31,6 +31,7 @@ from scheduling_platform.interop.gpu import (
     sniff_delimiter,
     write_gpu,
     write_gpu001,
+    write_gpu_file,
 )
 from scheduling_platform.untis_model import (
     UNSET,
@@ -463,8 +464,11 @@ def test_write_cp1252_and_read_back(tmp_path: Path) -> None:
 
 def test_write_utf8_configurable(tmp_path: Path) -> None:
     proyecto = UntisProject(departments=(Department("X", "Łódź ő"),))
+    # En cp1252 no cabe "Łő": por defecto no falla, se escribe "?" (como Windows).
+    write_gpu(proyecto, tmp_path)
+    assert (tmp_path / "GPU007.TXT").read_bytes() == '"X","?ód? ?"\r\n'.encode("cp1252")
     with pytest.raises(UnicodeEncodeError):
-        write_gpu(proyecto, tmp_path)
+        write_gpu_file(tmp_path / "estricto.txt", [["Łódź"]], errors="strict")
     write_gpu(proyecto, tmp_path, encoding="utf-8")
     assert (tmp_path / "GPU007.TXT").read_bytes() == '"X","Łódź ő"\r\n'.encode()
     assert read_gpu(tmp_path).departments == proyecto.departments

@@ -32,12 +32,11 @@ from scheduling_platform.untis_model.project import UntisProject
 from scheduling_platform.untis_model.requests import TimeRequest, UnspecifiedKind
 from scheduling_platform.untis_model.sessions import (
     all_session_durations,
-    cells_by_duration,
     reference_cells,
 )
 from scheduling_platform.untis_model.time_grid import TimeGrid
 from scheduling_platform.untis_model.timetable import Timetable
-from scheduling_platform.untis_model.weighting import UNPLACED_PENALTY, Weighting
+from scheduling_platform.untis_model.weighting import Weighting
 
 #: Criterios en el orden canónico de la ponderación.
 CRITERIA: Final[tuple[str, ...]] = Weighting.criteria()
@@ -92,9 +91,13 @@ LESSON_SCOPE: Final = (
     "time_request_room",
 )
 
-#: Penalización interna por deseo +3 incumplido. No entra en el número de
-#: evaluación (el evaluador lo cuenta como choque), pero la heurística lo evita.
-MANDATORY_PENALTY: Final = UNPLACED_PENALTY // 10
+#: Criterios de los deseos positivos, en el orden de `Model.wish_base`.
+WISH_CRITERIA: Final = (
+    "time_request_teacher",
+    "time_request_class",
+    "time_request_room",
+    "time_request_subject",
+)
 
 #: Aulas candidatas como máximo por línea.
 MAX_ROOM_CANDIDATES: Final = 12
@@ -331,6 +334,8 @@ class LessonInfo:
     difficulty: float = 0.0
     cell_costs: dict[int, tuple[int, int, int]] = field(default_factory=dict)
     """Celda -> violaciones de deseos (profesor, clase, materia) de una sesión."""
+    wish_keys: tuple[int, ...] = ()
+    """Claves de `Model.wishes` de sus profesores, clases y materia (solo lectivas)."""
 
 
 @dataclass(slots=True)
@@ -369,8 +374,16 @@ class Model:
     """Deseos blandos (-2, -1) por aula."""
     room_capacity: dict[int, int]
     """Capacidad de cada aula que la tiene definida."""
-    mandatory: dict[tuple[int, int, int], int]
-    """`(recurso, día, período)` de cada deseo +3 -> nº de deseos."""
+    wishes: dict[tuple[int, int], tuple[int, int]]
+    """Deseos positivos: `(clave, celda)` -> `(tipo, violaciones si queda libre)`.
+
+    La clave es el id de recurso (profesor, clase o aula) o `-1 - materia`; el
+    tipo indexa `WISH_CRITERIA`. Las celdas salen de `Evaluator.positive`.
+    """
+    wish_base: tuple[int, int, int, int]
+    """Violaciones de deseos positivos con todo libre (horario vacío), por tipo."""
+    wish_rooms: frozenset[int]
+    """Aulas con algún deseo positivo."""
     change_penalty: int = 0
     """Coste interno por sesión fuera de sus celdas de referencia (REPARAR)."""
 
@@ -523,15 +536,6 @@ def build_model(
                 for periodo in rejilla.periods:
                     if any(x.is_block and x.covers(d, periodo.number) for x in lista):
                         room_blocks.add((rid, cell_code(d, periodo.number)))
-    mandatory: Counter[tuple[int, int, int]] = Counter()
-    for req in project.time_requests:
-        if (
-            req.is_mandatory
-            and req.day is not None
-            and req.period is not None
-            and req.entity_kind in (EntityKind.TEACHER, EntityKind.CLASS, EntityKind.ROOM)
-        ):
-            mandatory[(recurso(req.entity_kind, req.entity_id), req.day, req.period)] += 1
 
     rooms_by_id = project.room_by_id
     alternativas = {x.id: x.alternative_room for x in project.rooms}
@@ -560,7 +564,12 @@ def build_model(
                 uso_materia[le_ref.lines[a.line].subject][a.room] += 1
 
     duraciones = all_session_durations(project, reference)
-    celdas_por_rejilla = {g.id: cells_by_duration(g) for g in project.time_grids}
+    # Como en Untis, una sesión puede ir en **cualquier** período lectivo de su
+    # rejilla, dure lo que dure (hora 0 de 10 min, clases de 45...): qué va en
+    # cada período lo deciden los deseos de tiempo del colegio. Exigir períodos
+    # de la misma duración hacía imposible el curso real 2026-2027 (clases con
+    # 28 sesiones y solo 27 celdas de 45 min libres de deseos -3).
+    celdas_por_rejilla = {g.id: g.slots() for g in project.time_grids}
 
     lessons: list[LessonInfo] = []
     s_lesson: list[int] = []
@@ -717,14 +726,12 @@ def build_model(
         )
 
         sids: list[int] = []
-        por_duracion = celdas_por_rejilla.get(le.time_grid, {})
+        lectivas = celdas_por_rejilla.get(le.time_grid, ())
         for i, dur in enumerate(duraciones[le.number]):
             sids.append(len(s_lesson))
             celda_ref = cell_code(*ref[i]) if i < len(ref) else -1
             permitidas = tuple(
-                cell_code(d, p)
-                for d, p in por_duracion.get(dur, ())
-                if not any(r.covers(d, p) for r in vetos)
+                cell_code(d, p) for d, p in lectivas if not any(r.covers(d, p) for r in vetos)
             )
             fija = le.fixed and celda_ref >= 0
             if fija:
@@ -751,6 +758,38 @@ def build_model(
     room_capacity = {
         recurso(EntityKind.ROOM, r.id): r.capacity for r in project.rooms if r.capacity is not None
     }
+
+    # --- deseos positivos: cuestan si la entidad queda libre en la celda ---- #
+    tipos = (EntityKind.TEACHER, EntityKind.CLASS, EntityKind.ROOM, EntityKind.SUBJECT)
+    wishes: dict[tuple[int, int], tuple[int, int]] = {}
+    base = [0, 0, 0, 0]
+    for (kind, eid), celdas in ev.positive.items():
+        tipo = tipos.index(kind)
+        clave: int | None
+        if kind is EntityKind.SUBJECT:
+            clave = -1 - subjects[eid] if eid in subjects else None
+        else:
+            clave = recurso(kind, eid)
+        for d, p, valor in celdas:
+            base[tipo] += valor
+            if clave is None:
+                continue  # materia sin lecciones: siempre libre
+            codigo = cell_code(d, p)
+            anterior = wishes.get((clave, codigo), (tipo, 0))[1]
+            wishes[(clave, codigo)] = (tipo, anterior + valor)
+    claves_con_deseo = {k for k, _ in wishes}
+    for info in lessons:
+        if info.duty:
+            continue
+        propias = [
+            *(recurso(EntityKind.TEACHER, t) for t in info.lesson.teachers),
+            *(recurso(EntityKind.CLASS, c) for c in info.lesson.classes),
+            -1 - info.subject,
+        ]
+        info.wish_keys = tuple(k for k in dict.fromkeys(propias) if k in claves_con_deseo)
+    wish_rooms = frozenset(
+        k for k in claves_con_deseo if k >= 0 and recurso.kinds[k] is EntityKind.ROOM
+    )
     return Model(
         project=project,
         reference=reference,
@@ -779,6 +818,8 @@ def build_model(
         room_blocks=frozenset(room_blocks),
         room_requests=room_requests,
         room_capacity=room_capacity,
-        mandatory=dict(mandatory),
+        wishes=wishes,
+        wish_base=(base[0], base[1], base[2], base[3]),
+        wish_rooms=wish_rooms,
         change_penalty=change_penalty,
     )

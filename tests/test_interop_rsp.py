@@ -516,7 +516,7 @@ def test_valor_no_json_falla_antes_de_tocar_disco(tmp_path: Path) -> None:
 def test_xml_anonimo_ida_y_vuelta(anon_xml_path: Path, tmp_path: Path) -> None:
     xml = pytest.importorskip("scheduling_platform.interop.xml")
     project: UntisProject = xml.read_xml(anon_xml_path)
-    assert len(project.lessons) == 722
+    assert len(project.lessons) == 709
     path = tmp_path / "anon.rsp"
     save_rsp(project, path, now=T0, created=T0)
     assert load_rsp(path) == project

@@ -32,7 +32,7 @@ def rsp(anon_xml_path: Path, tmp_path: Path) -> Path:
 
 def test_convert_xml_a_rsp(anon_xml_path: Path, tmp_path: Path) -> None:
     datos = _json(["convert", str(anon_xml_path), str(tmp_path / "c.rsp"), "--name", "Demo"])
-    assert (datos["classes"], datos["teachers"], datos["lessons"]) == (66, 116, 722)
+    assert (datos["classes"], datos["teachers"], datos["lessons"]) == (66, 116, 709)
     assert datos["name"] == "Demo"
     assert (tmp_path / "c.rsp").is_file()
 
@@ -43,9 +43,9 @@ def test_convert_rsp_a_gpu_y_vuelta(rsp: Path, tmp_path: Path) -> None:
     archivos = {Path(str(f)).name.upper() for f in datos["files"]}  # type: ignore[attr-defined]
     assert {"GPU001.TXT", "GPU002.TXT", "GPU016.TXT"} <= archivos
     primera = (carpeta / "GPU001.TXT").read_text(encoding="cp1252").splitlines()[0]
-    assert primera.startswith('40,"K1A"')
+    assert primera.startswith('4,"K1A"')
     vuelta = _json(["convert", str(carpeta), str(tmp_path / "desde_gpu.rsp")])
-    assert vuelta["lessons"] == 722
+    assert vuelta["lessons"] == 709
 
 
 def test_convert_rsp_a_xml(rsp: Path, tmp_path: Path) -> None:

@@ -207,7 +207,22 @@ def synthetic_project() -> UntisProject:
             TimeRequest(EntityKind.ROOM, "R1", -3, day=3, period=2),
             TimeRequest(EntityKind.SUBJECT, "MAT", -1, day=5),
             TimeRequest(EntityKind.SUBJECT, "ART", -3, day=5, period=7),
+            # Positivos (+1..+3, blandos): cuestan si la entidad queda libre.
             TimeRequest(EntityKind.TEACHER, "T2", 3, day=2, period=2),
+            TimeRequest(EntityKind.TEACHER, "T1", 2, day=4),  # día completo
+            TimeRequest(EntityKind.TEACHER, "T4", 3, period=8),  # período de 10 min
+            TimeRequest(EntityKind.TEACHER, "T5", 1, period=3),  # T5 da clase en G1 y G2
+            TimeRequest(EntityKind.CLASS, "C1", 3, day=1, period=4),
+            TimeRequest(EntityKind.CLASS, "C3", 1, period=2),  # período en todos los días
+            TimeRequest(EntityKind.CLASS, "C2", 2, day=3),
+            TimeRequest(EntityKind.CLASS, "C1", 1, period=3),  # recreo en G1: no cuenta
+            TimeRequest(EntityKind.ROOM, "R3", 2, day=1),
+            TimeRequest(EntityKind.ROOM, "R4", 1, period=1),
+            TimeRequest(EntityKind.ROOM, "R1", 3, day=2, period=4),
+            TimeRequest(EntityKind.SUBJECT, "ART", 2, period=3),  # recreo en G1, lectivo en G2
+            TimeRequest(EntityKind.SUBJECT, "MAT", 1, day=3),
+            TimeRequest(EntityKind.SUBJECT, "PHY", 3, day=2, period=1),
+            TimeRequest(EntityKind.SUBJECT, "DUT", 3, day=1),  # solo obligaciones: sin dominio
         ),
         unspecified_requests=(
             UnspecifiedRequest(EntityKind.TEACHER, "T4", UnspecifiedKind.FREE_DAY, 1),
@@ -239,21 +254,18 @@ def assert_matches_evaluator(state: State, evaluator: Evaluator, weighting: Weig
     }
     assert distintas == {}
     assert ev.unplaced_periods == state.unplaced_count()
-    assert ev.total == state.evaluation_total
-    assert ev.clashes == state.evaluation().clashes
+    assert ev.total == state.evaluation_total == state.total
+    assert ev.clashes == state.evaluation().clashes == 0
     assert state.recompute_total() == state.total
     assert hard_violations(rep.clashes) == []
 
 
 def hard_violations(clashes: tuple[object, ...]) -> list[object]:
-    """Choques de recurso o celdas -3 (los +3 incumplidos no cuentan: son deseos)."""
-    malos: list[object] = []
-    for c in clashes:
-        kind = getattr(c, "kind", "")
-        lessons = getattr(c, "lessons", ())
-        if kind in ("teacher", "class", "room") or (kind == "time_request" and lessons):
-            malos.append(c)
-    return malos
+    """Choques de recurso o celdas -3: todos los choques son duros (los deseos
+    positivos, incluido +3, son blandos y nunca son choques)."""
+    return [
+        c for c in clashes if getattr(c, "kind", "") in ("teacher", "class", "room", "time_request")
+    ]
 
 
 def random_moves(
@@ -326,6 +338,24 @@ def test_equivalencia_al_final_de_una_secuencia_larga() -> None:
     assert_matches_evaluator(state, Evaluator(project), WEIGHTING)
 
 
+def test_el_sintetico_ejercita_los_deseos_positivos() -> None:
+    project = synthetic_project()
+    model = build_model(project, project.timetables[0], WEIGHTING)
+    assert all(model.wish_base)  # profesor, clase, aula y materia
+    ev = Evaluator(project)
+    # Día completo sobre la rejilla propia (G1, 7 lectivos) y sin recreos.
+    assert len(ev.positive[(EntityKind.TEACHER, "T1")]) == 7
+    assert (EntityKind.CLASS, "C1") in ev.positive
+    assert all(p != 3 for _, p, _ in ev.positive[(EntityKind.CLASS, "C1")])
+    # Materia en dos rejillas: el período 3 solo es lectivo en G2.
+    assert len(ev.positive[(EntityKind.SUBJECT, "ART")]) == 5
+    assert (EntityKind.SUBJECT, "DUT") not in ev.positive
+    # Horario vacío: todo deseo positivo cuenta entero.
+    state = State(model)
+    v = state.violations()
+    assert v["time_request_teacher"] == 3 + 2 * 7 + 3 * 5 + 1 * 5
+
+
 def test_deshacer_restaura_exactamente() -> None:
     project = synthetic_project()
     model = build_model(project, project.timetables[0], WEIGHTING)
@@ -368,7 +398,8 @@ def _check_hard(project: UntisProject, result: HeuristicResult) -> None:
         # Todas las líneas del acople van en las mismas celdas.
         for i in range(len(le.lines)):
             assert sorted(a.slot for a in asignaciones if a.line == i) == celdas
-        disponibles = list(duraciones[numero])
+        # Como en Untis, la duración del período no limita dónde va una sesión.
+        assert len(celdas) <= len(duraciones[numero])
         for d, p in celdas:
             periodo = grid.period(p)
             assert periodo is not None
@@ -376,8 +407,6 @@ def _check_hard(project: UntisProject, result: HeuristicResult) -> None:
                 # Solo una obligación puede quedarse en su recreo de referencia.
                 assert (numero, d, p) in ref_celdas
                 assert not any(line.classes or line.student_group for line in le.lines)
-            assert periodo.duration in disponibles
-            disponibles.remove(periodo.duration)
         if le.fixed:
             assert {(numero, d, p) for d, p in celdas} <= ref_celdas
     # Las lecciones fijadas conservan su celda.

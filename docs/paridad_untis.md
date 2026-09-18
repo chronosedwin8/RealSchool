@@ -7,7 +7,8 @@ automática la cubre; la columna **Manual** se marca al comprobarla a mano en la
 aplicación con los datos del colegio.
 
 Datos de referencia: export real 2025-2026 (seudonimizado en
-`tests/fixtures/untis_anon.xml`; 66 clases, 116 profesores, 722 lecciones).
+`tests/fixtures/untis_anon.xml`; 66 clases, 116 profesores, 709 lecciones). Repetido
+desde cero con el export real 2026-2027 (ADR-039, `tests/test_real_2026_2027.py`).
 
 | # | Tarea | Dónde | Prueba automática | Manual |
 | --- | --- | --- | --- | --- |

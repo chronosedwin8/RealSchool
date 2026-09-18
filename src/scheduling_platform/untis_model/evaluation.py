@@ -16,7 +16,20 @@ en el reloj de pared, así un profesor que da clase en dos rejillas con horas
 distintas se evalúa con coherencia.
 
 Duras (se cuentan en `Evaluation.clashes`, no en los deslizadores): choques de
-profesor, clase o aula entre lecciones distintas y deseos -3/+3 incumplidos.
+profesor, clase o aula entre lecciones distintas y celdas -3 ("imposible")
+ocupadas. Ningún deseo positivo es duro: +3 significa "muy deseable" (ADR-039).
+
+Deseos de tiempo blandos (`time_request_<tipo>`): un -2/-1 cuesta `|valor|` por
+cada sesión lectiva de la entidad en una celda que cubre; un +1/+2/+3 cuesta
+`valor` por cada celda que cubre y en la que la entidad queda libre. "Ocupada"
+es la misma identidad de celda que usan los negativos: alguna sesión lectiva de
+la entidad tiene `(día, período)` igual a la celda. Las celdas de un deseo
+positivo se expanden (`día=None`, `período=None`) sobre el *dominio* de la
+entidad: los días y los períodos **lectivos** (nunca recreos) de su rejilla
+propia en profesores y clases; en aulas, la unión de todas las rejillas del
+proyecto; en materias, la unión de las rejillas de las lecciones lectivas
+activas cuya materia principal es esa. Sin dominio (p. ej. un profesor sin
+clases lectivas) el deseo positivo no cuenta.
 Las obligaciones no lectivas (lecciones sin alumnos) no son exclusivas: el
 horario publicado por Untis las solapa con clases.
 """
@@ -159,6 +172,41 @@ class Evaluator:
         self.requests: defaultdict[tuple[EntityKind, str], list[TimeRequest]] = defaultdict(list)
         for r in project.time_requests:
             self.requests[(r.entity_kind, r.entity_id)].append(r)
+
+        # Deseos positivos expandidos sobre el dominio de cada entidad.
+        self._subject_grids: defaultdict[str, set[str]] = defaultdict(set)
+        for le in project.active_lessons:
+            if le.number not in self.duty and le.time_grid in self.grids:
+                self._subject_grids[le.subjects[0] if le.subjects else ""].add(le.time_grid)
+        self.positive: dict[tuple[EntityKind, str], tuple[tuple[int, int, int], ...]] = {}
+        for entidad, lista in self.requests.items():
+            positivos = [r for r in lista if r.value > 0]
+            if not positivos:
+                continue
+            dominio = sorted(self.wish_domain(*entidad))
+            celdas = tuple((d, p, r.value) for r in positivos for d, p in dominio if r.covers(d, p))
+            if celdas:
+                self.positive[entidad] = celdas
+
+    def wish_domain(self, kind: EntityKind, entity: str) -> set[tuple[int, int]]:
+        """Celdas `(día, período lectivo)` sobre las que se expande un deseo positivo.
+
+        Profesores y clases: su rejilla propia. Aulas: la unión de todas las
+        rejillas. Materias: la unión de las rejillas de sus lecciones lectivas
+        activas. Nunca incluye recreos.
+        """
+        rejillas: list[TimeGrid]
+        if kind is EntityKind.TEACHER:
+            g = self.teacher_grid.get(entity)
+            rejillas = [g] if g is not None else []
+        elif kind is EntityKind.CLASS:
+            g = self.class_grid.get(entity)
+            rejillas = [g] if g is not None else []
+        elif kind is EntityKind.ROOM:
+            rejillas = list(self.project.time_grids)
+        else:
+            rejillas = [self.grids[x] for x in sorted(self._subject_grids.get(entity, ()))]
+        return {(d, p.number) for g in rejillas for d in g.days for p in g.teaching_periods}
 
     # --- sesiones ------------------------------------------------------------ #
 
@@ -331,30 +379,6 @@ def _clashes(ctx: _Context) -> Iterator[Clash]:
                             f"La lección {s.lesson} ocupa una celda imposible (-3) de "
                             f"{kind.value} {eid!r} (día {s.day}, período {s.period}).",
                         )
-    # +3 obligatorio: la celda debe estar ocupada por la entidad.
-    ocupadas: defaultdict[tuple[EntityKind, str], set[tuple[int, int]]] = defaultdict(set)
-    for s in ctx.lective:
-        for t in s.teachers:
-            ocupadas[(EntityKind.TEACHER, t)].add((s.day, s.period))
-        for c in s.classes:
-            ocupadas[(EntityKind.CLASS, c)].add((s.day, s.period))
-        for r in s.rooms:
-            ocupadas[(EntityKind.ROOM, r)].add((s.day, s.period))
-    for r in ctx.ev.project.time_requests:
-        if (
-            r.is_mandatory
-            and r.day is not None
-            and r.period is not None
-            and (r.day, r.period) not in ocupadas.get((r.entity_kind, r.entity_id), set())
-        ):
-            yield Clash(
-                "time_request",
-                r.entity_id,
-                (),
-                r.day,
-                f"{r.entity_kind.value} {r.entity_id!r} debe estar ocupado (+3) el "
-                f"día {r.day}, período {r.period}.",
-            )
 
 
 def _unplaced(ctx: _Context) -> Iterator[tuple[int, int]]:
@@ -1126,17 +1150,22 @@ def _distribution_first_last(ctx: _Context) -> Iterator[Violation]:
 # --------------------------------------------------------------------------- #
 
 
+def _ids_of(s: Session, kind: EntityKind) -> tuple[str, ...]:
+    if kind is EntityKind.TEACHER:
+        return s.teachers
+    if kind is EntityKind.CLASS:
+        return s.classes
+    if kind is EntityKind.ROOM:
+        return s.rooms
+    return (s.subject,)
+
+
 def _requests_of(ctx: _Context, kind: EntityKind, criterion: str) -> Iterator[Violation]:
+    """Deseos blandos: -2/-1 en celdas ocupadas y +1/+2/+3 en celdas libres."""
+    ocupadas: defaultdict[str, set[tuple[int, int]]] = defaultdict(set)
     for s in ctx.lective:
-        if kind is EntityKind.TEACHER:
-            ids: tuple[str, ...] = s.teachers
-        elif kind is EntityKind.CLASS:
-            ids = s.classes
-        elif kind is EntityKind.ROOM:
-            ids = s.rooms
-        else:
-            ids = (s.subject,)
-        for eid in ids:
+        for eid in _ids_of(s, kind):
+            ocupadas[eid].add((s.day, s.period))
             for r in ctx.ev.requests.get((kind, eid), ()):
                 if -3 < r.value < 0 and r.covers(s.day, s.period):
                     yield _v(
@@ -1150,6 +1179,22 @@ def _requests_of(ctx: _Context, kind: EntityKind, criterion: str) -> Iterator[Vi
                         day=s.day,
                         period=s.period,
                     )
+    for (k, eid), celdas in sorted(ctx.ev.positive.items()):
+        if k is not kind:
+            continue
+        propias = ocupadas.get(eid, set())
+        for d, p, valor in celdas:
+            if (d, p) not in propias:
+                yield _v(
+                    criterion,
+                    valor,
+                    f"{kind.value} {eid!r} prefiere tener clase aquí (+{valor}) y está libre "
+                    f"(día {d}, período {p}).",
+                    entity_kind=kind,
+                    entity_id=eid,
+                    day=d,
+                    period=p,
+                )
 
 
 def _req_teacher(ctx: _Context) -> Iterator[Violation]:

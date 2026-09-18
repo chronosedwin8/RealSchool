@@ -1,6 +1,6 @@
 """Heurística (R3) sobre el export real seudonimizado del Colegio Alemán.
 
-8 rejillas con horas distintas, ~1.676 sesiones lectivas, 722 lecciones y
+8 rejillas con horas distintas, ~1.676 sesiones lectivas, 709 lecciones y
 acoples de hasta 10 líneas. Se comparan los resultados con el horario que
 publicó Untis, evaluado con la misma ponderación (la por defecto) y los
 recreos deducidos.
@@ -11,6 +11,7 @@ from __future__ import annotations
 import random
 import time
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ from scheduling_platform.heuristic.difficulty import lesson_difficulty
 from scheduling_platform.heuristic.incremental import State
 from scheduling_platform.heuristic.placement import lesson_order, load_reference, session_order
 from scheduling_platform.interop.xml import read_xml
-from scheduling_platform.untis_model import Timetable, UntisProject
+from scheduling_platform.untis_model import EntityKind, TimeRequest, Timetable, UntisProject
 from scheduling_platform.untis_model.breaks import infer_breaks
 from scheduling_platform.untis_model.evaluation import Evaluator, Report
 
@@ -69,6 +70,52 @@ def test_equivalencia_real_tras_cada_movimiento(project: UntisProject) -> None:
     assert_matches_evaluator(state, ev, project.weighting)
 
 
+def _with_positive_wishes(project: UntisProject, seed: int = 1) -> UntisProject:
+    """El export anonimizado no trae deseos: se le añaden +1..+3 (celda, día y período)."""
+    rng = random.Random(seed)
+    entidades = (
+        (EntityKind.TEACHER, sorted(t.id for t in project.teachers)),
+        (EntityKind.CLASS, sorted(c.id for c in project.classes)),
+        (EntityKind.ROOM, sorted(r.id for r in project.rooms)),
+        (EntityKind.SUBJECT, sorted(x.id for x in project.subjects)),
+    )
+    deseos: list[TimeRequest] = []
+    for kind, ids in entidades:
+        for eid in rng.sample(ids, min(len(ids), 20)):
+            for _ in range(3):
+                forma = rng.randrange(3)
+                deseos.append(
+                    TimeRequest(
+                        kind,
+                        eid,
+                        rng.randint(1, 3),
+                        day=None if forma == 2 else rng.randint(1, 5),
+                        period=None if forma == 1 else rng.randint(1, 10),
+                    )
+                )
+    return replace(project, time_requests=(*project.time_requests, *deseos))
+
+
+def test_equivalencia_real_con_deseos_positivos(project: UntisProject) -> None:
+    project = _with_positive_wishes(project)
+    ref = project.timetables[0]
+    model = build_model(project, ref, project.weighting)
+    assert all(model.wish_base)
+    state = State(model)
+    ev = Evaluator(project)
+    orden = session_order(model, lesson_order(model, lesson_difficulty(model), random.Random(0)))
+    load_reference(state, orden)
+    assert_matches_evaluator(state, ev, project.weighting)
+    rng = random.Random(11)
+
+    def check() -> None:
+        assert_matches_evaluator(state, ev, project.weighting)
+
+    assert random_moves(state, rng, 60, check) >= 10
+    assert random_moves(state, rng, 4000) > 500
+    assert_matches_evaluator(state, ev, project.weighting)
+
+
 def test_estrategia_a_real_frente_a_untis(project: UntisProject) -> None:
     ev = Evaluator(project)
     untis = ev.report(project.timetables[0])
@@ -106,8 +153,10 @@ def test_reparar_resuelve_los_choques_de_untis_moviendo_poco(project: UntisProje
     print(_summary("REPARAR", despues, result.elapsed))
     print(f"sesiones movidas={movidas}")
     assert hard_violations(despues.clashes) == []
-    assert despues.evaluation.unplaced_periods <= antes.evaluation.unplaced_periods
-    assert movidas <= 20
+    # Con cualquier período lectivo disponible (como en Untis) también coloca
+    # las 4 horas que Untis dejó fuera, a costa de unas pocas sesiones más.
+    assert despues.evaluation.unplaced_periods == 0
+    assert movidas <= 30
     assert result.elapsed < 8
 
 

@@ -186,6 +186,10 @@ class UntisTranslator:
     """
     reference: str | None = None
     """Id del horario de referencia (duraciones y aulas); `None` = el primero."""
+    apply_blocks: bool = True
+    """Recortar el dominio con los deseos -3. `False` sirve para medir un horario
+    ajeno que los incumple (p. ej. el publicado por Untis) sin que la validación
+    se detenga en el primer error de estructura."""
 
     def translate(self, project: UntisProject) -> Translation:
         clock = Clock.of_project(project)
@@ -203,7 +207,7 @@ class UntisTranslator:
         resources, rid_of, entity_of = self._resources(project, room_pools, teacher_pools)
 
         celdas_por = self._cells_by_grid_and_duration(project, clock)
-        bloqueos = self._hard_blocks(project)
+        bloqueos = self._hard_blocks(project) if self.apply_blocks else {}
 
         tasks: list[Task] = []
         task_of: dict[SessionRef, int] = {}

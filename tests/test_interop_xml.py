@@ -69,14 +69,15 @@ def test_counts(anon: UntisProject) -> None:
     assert len([s for s in anon.subjects if s.id != MISSING_SUBJECT_ID]) == 278
     assert len(anon.subjects) == 279
     assert len(anon.time_grids) == 8
-    assert len(anon.lessons) == 722
+    assert len(anon.lessons) == 709
     assert len(anon.student_groups) == 109
     assert len(anon.departments) == 12
 
 
 def test_couplings(anon: UntisProject) -> None:
-    assert sum(le.is_coupled for le in anon.lessons) == 210
-    assert max(len(le.lines) for le in anon.lessons) == 10
+    assert sum(le.is_coupled for le in anon.lessons) == 199
+    # Acoples de más de 10 líneas: el id lleva la línea con dos cifras.
+    assert max(len(le.lines) for le in anon.lessons) == 45
     assert sum(len(le.lines) for le in anon.lessons) == 1232
 
 
@@ -85,8 +86,8 @@ def test_timetable_assignments(anon: UntisProject) -> None:
     assert len(_timetable(anon).assignments) == 3020
 
 
-def test_lesson_40_is_a_coupling(anon: UntisProject) -> None:
-    le = anon.lesson_by_number[40]
+def test_lesson_4_is_a_coupling(anon: UntisProject) -> None:
+    le = anon.lesson_by_number[4]
     assert len(le.lines) == 2
     assert le.lines[0].teacher != le.lines[1].teacher
     assert le.lines[0].subject == le.lines[1].subject == "MATK1"
@@ -94,14 +95,14 @@ def test_lesson_40_is_a_coupling(anon: UntisProject) -> None:
     assert le.periods_per_week == 5
     por_linea = {
         i: sorted(
-            a.slot for a in _timetable(anon).assignments if a.lesson_number == 40 and a.line == i
+            a.slot for a in _timetable(anon).assignments if a.lesson_number == 4 and a.line == i
         )
         for i in (0, 1)
     }
     assert len(por_linea[0]) == 5
     assert por_linea[0] == por_linea[1]
     # El aula colocada solo viaja en la línea 0 del acople.
-    rooms = {a.line: a.room for a in _timetable(anon).assignments if a.lesson_number == 40}
+    rooms = {a.line: a.room for a in _timetable(anon).assignments if a.lesson_number == 4}
     assert rooms[0] is not None
     assert rooms[1] is None
 
@@ -163,7 +164,7 @@ def test_new_fields_from_real_export(anon: UntisProject) -> None:
     con_color = [s for s in anon.subjects if s.back_color]
     assert len(con_color) == 162
     assert all(s.fore_color.startswith("#") for s in con_color)
-    le = anon.lesson_by_number[40]
+    le = anon.lesson_by_number[4]
     assert (le.effective_begin, le.effective_end) == ("20250714", "20260630")
     assert le.occurrence == esquema.pattern
 
@@ -172,7 +173,7 @@ def test_gpu001_uses_short_names(anon: UntisProject, tmp_path: Path) -> None:
     """GPU001 (lo que consume MiUntisWeb) sale con nombres cortos, sin prefijos."""
     ruta = write_gpu001(anon, tmp_path / "GPU001.TXT")
     lineas = ruta.read_text(encoding="cp1252").splitlines()
-    assert lineas[0].startswith('40,"K1A","T028","MATK1",')
+    assert lineas[0].startswith('4,"K1A","T028","MATK1",')
     assert not [ln for ln in lineas if any(f'"{p}' in ln for p in ID_PREFIXES)]
 
 
@@ -180,9 +181,9 @@ def test_double_periods_from_block(anon: UntisProject) -> None:
     le = next(le for le in anon.lessons if le.block == (2, 2) and le.periods_per_week == 2)
     assert le.double_periods == MinMax(1, 1)
     # `block="2,2"` con solo 2 períodos: no suma los períodos, es un único doble.
-    # 77 elementos `<lesson>` (líneas) del XML, agrupados en 37 lecciones.
+    # 77 elementos `<lesson>` (líneas) del XML, agrupados en 34 lecciones.
     dobles = [x for x in anon.lessons if x.block == (2, 2) and x.periods_per_week == 2]
-    assert len(dobles) == 37
+    assert len(dobles) == 34
     assert sum(len(x.lines) for x in dobles) == 77
     assert all(x.double_periods == MinMax(1, 1) for x in dobles)
     single = next(le for le in anon.lessons if le.block == (2,))
@@ -292,7 +293,7 @@ _SYNTHETIC = """<?xml version="1.0" encoding="UTF-8"?>
       <periodic_weeks>2</periodic_weeks></lesson_date_scheme>
   </lesson_date_schemes>
   <lessons>
-    <lesson id="LS_70">
+    <lesson id="LS_700">
       <periods>2</periods><lesson_subject id="SU_MAT"/><lesson_teacher id="TR_X"/>
       <lesson_classes id="CL_1 A CL_1B"/><timegrid>G</timegrid>
       <teacher_value>250000</teacher_value><lesson_studentgroups id="SG_MAT"/>
@@ -308,7 +309,7 @@ _SYNTHETIC = """<?xml version="1.0" encoding="UTF-8"?>
           <assigned_room id="RM_1 A"/></time>
       </times>
     </lesson>
-    <lesson id="LS_71">
+    <lesson id="LS_701">
       <periods>2</periods><lesson_teacher id="TR_Y"/><timegrid>G</timegrid>
       <block>2,2</block>
       <times>
@@ -316,7 +317,7 @@ _SYNTHETIC = """<?xml version="1.0" encoding="UTF-8"?>
         <time><assigned_day>1</assigned_day><assigned_period>2</assigned_period></time>
       </times>
     </lesson>
-    <lesson id="LS_80">
+    <lesson id="LS_800">
       <periods>1</periods><lesson_subject id="SU_MAT"/><lesson_classes id="CL_1B"/>
       <timegrid>G</timegrid><times/>
     </lesson>
@@ -418,7 +419,7 @@ def test_no_times_means_no_timetable(tmp_path: Path) -> None:
     fuente = tmp_path / "vacio.xml"
     fuente.write_text(
         '<document xmlns="https://untis.at/untis/XmlInterface">'
-        "<lessons><lesson id='LS_10'><periods>1</periods>"
+        "<lessons><lesson id='LS_100'><periods>1</periods>"
         "<lesson_subject id='SU_A'/><times/></lesson></lessons></document>",
         encoding="utf-8",
     )
@@ -431,8 +432,8 @@ def test_non_contiguous_lines_rejected(tmp_path: Path) -> None:
     fuente = tmp_path / "hueco.xml"
     fuente.write_text(
         '<document xmlns="https://untis.at/untis/XmlInterface"><lessons>'
-        "<lesson id='LS_10'><periods>1</periods><lesson_subject id='SU_A'/></lesson>"
-        "<lesson id='LS_12'><periods>1</periods><lesson_subject id='SU_A'/></lesson>"
+        "<lesson id='LS_100'><periods>1</periods><lesson_subject id='SU_A'/></lesson>"
+        "<lesson id='LS_102'><periods>1</periods><lesson_subject id='SU_A'/></lesson>"
         "</lessons></document>",
         encoding="utf-8",
     )
@@ -479,7 +480,7 @@ def test_ids_without_prefix_are_kept_and_prefixed_on_write(tmp_path: Path) -> No
         '<document xmlns="https://untis.at/untis/XmlInterface">'
         "<subjects><subject id='MAT'/></subjects>"
         "<classes><class id='1A'/><class id='CL_1B'/></classes>"
-        "<lessons><lesson id='LS_10'><periods>1</periods>"
+        "<lessons><lesson id='LS_100'><periods>1</periods>"
         "<lesson_subject id='SU_MAT'/><lesson_classes id='1A'/></lesson></lessons></document>",
         encoding="utf-8",
     )

@@ -1,10 +1,12 @@
 """Lecciones (Unterricht) con acoples explícitos.
 
 Un número de lección con varias líneas **es** un acople (Kopplung). El export
-XmlInterface codifica ambas cosas en el id: `LS_<nº lección><nº línea>`, con la
-línea en 0-9. Verificado sobre el export real: las 722 lecciones del Colegio
-Alemán tienen líneas contiguas 0…n-1 y horas idénticas entre líneas. Por eso el
-acople deja de inferirse con union-find y pasa a ser dato de entrada.
+XmlInterface codifica ambas cosas en el id: `LS_<nº lección><línea con 2 cifras>`
+(`LS_134500` = lección 1345, línea 00). Verificado con dos cursos reales del
+Colegio Alemán: los números así obtenidos coinciden exactamente con los de
+`GPU002.TXT` que escribe Untis (884 de 884) y hay acoples de hasta 45 líneas,
+todas contiguas 00…n-1 y con horas idénticas. Por eso el acople deja de
+inferirse con union-find y pasa a ser dato de entrada.
 """
 
 from __future__ import annotations
@@ -14,11 +16,11 @@ from dataclasses import dataclass, field
 from .common import UNSET, MinMax
 
 #: Cuántas líneas caben en un número de lección con la codificación de Untis.
-LINES_PER_LESSON = 10
+LINES_PER_LESSON = 100
 
 
 def split_lesson_id(raw: str) -> tuple[int, int]:
-    """Parte un id `LS_401` en `(nº de lección, nº de línea)` → `(40, 1)`."""
+    """Parte un id `LS_134501` en `(nº de lección, nº de línea)` -> `(1345, 1)`."""
     texto = raw[3:] if raw.startswith("LS_") else raw
     if not texto.isdigit():
         raise ValueError(f"Id de lección no numérico: {raw!r}")
@@ -27,7 +29,7 @@ def split_lesson_id(raw: str) -> tuple[int, int]:
 
 
 def build_lesson_id(number: int, line: int) -> str:
-    """Construye el id XmlInterface de una línea: `(40, 1)` → `LS_401`."""
+    """Construye el id XmlInterface de una línea: `(1345, 1)` -> `LS_134501`."""
     if not 0 <= line < LINES_PER_LESSON:
         raise ValueError(f"Nº de línea fuera de 0-{LINES_PER_LESSON - 1}: {line}")
     return f"LS_{number * LINES_PER_LESSON + line}"

@@ -32,7 +32,7 @@ def qapp() -> QApplication:
 #   personales, no se versionan (.gitignore) y los tests se saltan si faltan.
 # - `tests/fixtures/untis_anon.xml`: el mismo export con nombres, correos y
 #   textos seudonimizados por `scripts/anonymize_untis.py`. Sí se versiona, así
-#   que la CI ejercita la estructura real (8 rejillas, 722 lecciones, acoples).
+#   que la CI ejercita la estructura real (8 rejillas, 709 lecciones, acoples).
 # --------------------------------------------------------------------------- #
 
 FIXTURES = Path(__file__).parent / "fixtures"

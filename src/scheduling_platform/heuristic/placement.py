@@ -215,12 +215,7 @@ def construct(
             hechos = _doubles_of(state, L.index)
             if hechos < L.dp_min:
                 for s2 in L.sids:
-                    if (
-                        s2 != s
-                        and state.cell[s2] < 0
-                        and s2 not in frozen
-                        and m.s_duration[s2] == m.s_duration[s]
-                    ):
+                    if s2 != s and state.cell[s2] < 0 and s2 not in frozen:
                         pareja = s2
                         break
         if pareja >= 0:

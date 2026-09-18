@@ -1,16 +1,16 @@
-"""Sesiones de una lección y celdas donde puede ir cada una.
+"""Sesiones de una lección y la duración de cada una.
 
 Una lección de N períodos/semana son N **sesiones**; cada sesión ocupa un
 período de la rejilla de la lección. Los períodos de una rejilla no duran lo
-mismo (dirección de grupo de 10 min, clases de 45, un bloque de 60...), y una
-sesión solo cabe en períodos de **su** duración: así una clase de 45 min nunca
-cae en un hueco de 10.
+mismo (dirección de grupo de 10 min, clases de 45, un bloque de 60...).
 
-La duración de cada sesión sale del horario de referencia (la que tenía en
-Untis) o, si no está colocada, de la duración dominante de la rejilla. Este
-módulo es la única definición: la usan el puente (`bridge.translate`, para el
-dominio de cada `Task`) y la heurística (para sus movimientos), de modo que un
-horario de la heurística siempre se puede traducir al modelo canónico.
+Como en Untis, la heurística coloca una sesión en **cualquier** período lectivo
+de su rejilla; qué va en cada período lo deciden los deseos de tiempo (ADR-039).
+El puente, en cambio, necesita una duración fija por `Task` (el motor mide el
+tiempo en minutos para detectar choques entre rejillas distintas): la toma del
+período donde la sesión está colocada en el horario de referencia o, si no está
+colocada, de la duración dominante de la rejilla. Así cualquier horario de la
+heurística se traduce al modelo canónico con sus duraciones reales.
 """
 
 from __future__ import annotations
@@ -68,12 +68,3 @@ def all_session_durations(
         for le in project.active_lessons
         if le.periods_per_week > 0
     }
-
-
-def cells_by_duration(grid: TimeGrid) -> dict[int, tuple[tuple[int, int], ...]]:
-    """`duración -> celdas lectivas (día, período)` de la rejilla, ordenadas."""
-    por_duracion: defaultdict[int, list[tuple[int, int]]] = defaultdict(list)
-    for d in sorted(grid.days):
-        for p in grid.teaching_periods:
-            por_duracion[p.duration].append((d, p.number))
-    return {k: tuple(v) for k, v in por_duracion.items()}

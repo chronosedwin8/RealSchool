@@ -13,6 +13,12 @@ locales:
   mismo período en días seguidos, y la suma por sesión de aulas, deseos,
   profesor sin asignar y materia principal por la tarde; más los no colocados.
 
+Los **deseos positivos** (+1..+3, cuestan si la entidad queda libre en la
+celda) se llevan aparte con un contador de ocupación por `(entidad, celda)`
+deseada: `_add`/`_remove` ajustan `total` al instante cuando una celda pasa de
+libre a ocupada o al revés. Es exacto, O(1) por sesión y solo mira las
+entidades de la lección (profesores, clases, materia) y sus aulas.
+
 `State` guarda la puntuación cacheada de cada ámbito. Un movimiento solo toca
 los ámbitos de las sesiones movidas (día viejo y día nuevo de sus profesores y
 clases, y sus lecciones): el delta es la suma de `nuevo - cacheado` sobre esos
@@ -39,7 +45,7 @@ from scheduling_platform.untis_model.timetable import (
     Evaluation,
     Timetable,
 )
-from scheduling_platform.untis_model.weighting import CLASH_PENALTY, UNPLACED_PENALTY
+from scheduling_platform.untis_model.weighting import UNPLACED_PENALTY
 
 from .model import (
     CLASS_DAY,
@@ -47,9 +53,9 @@ from .model import (
     CRIT_INDEX,
     CRITERIA,
     LESSON_SCOPE,
-    MANDATORY_PENALTY,
     TEACHER_DAY,
     TEACHER_WEEK,
+    WISH_CRITERIA,
     LessonInfo,
     Model,
     Profile,
@@ -118,10 +124,10 @@ class Undo:
 class State:
     """Horario mutable con puntuación incremental exacta.
 
-    `total` es el número de evaluación sin choques (`evaluation_total` lo da
-    completo, idéntico a `Evaluator.evaluate(...).total`); `extra` suma los
-    costes internos que el evaluador no cuenta (deseos +3 incumplidos y, en
-    REPARAR, las sesiones que se alejan de su celda de referencia).
+    `total` es el número de evaluación, idéntico a `Evaluator.evaluate(...).total`
+    (la heurística nunca crea choques); `extra` suma los costes internos que el
+    evaluador no cuenta (en REPARAR, las sesiones que se alejan de su celda de
+    referencia).
     """
 
     def __init__(self, model: Model) -> None:
@@ -150,7 +156,12 @@ class State:
         self.l_val: list[int] = [0] * len(m.lessons)
         self.l_vec: list[tuple[int, ...]] = [_ZERO_L] * len(m.lessons)
         self.l_ext: list[int] = [0] * len(m.lessons)
-        self.mand: dict[tuple[int, int, int], int] = dict.fromkeys(m.mandatory, 0)
+        self.busy: dict[tuple[int, int], int] = {}
+        """Sesiones lectivas por `(clave, celda)` con deseo positivo."""
+        self.wish_v: list[int] = list(m.wish_base)
+        """Violaciones de deseos positivos por tipo (`WISH_CRITERIA`)."""
+        self._w_wish = m.scope_weights(WISH_CRITERIA)
+        self._wish_on = bool(m.wishes)
 
         self._w_td = m.scope_weights(TEACHER_DAY)
         self._w_tw = m.scope_weights(TEACHER_WEEK)
@@ -167,8 +178,8 @@ class State:
         self._dles: set[int] = set()
         self._undo: Undo | None = None
 
-        self.total = 0
-        self.extra = MANDATORY_PENALTY * sum(m.mandatory.values())
+        self.total = self._wish_total()
+        self.extra = 0
         for e in range(nent):
             val, vec = self._week(e)
             self.ew_val[e] = val
@@ -335,8 +346,8 @@ class State:
             k = e * nd + di
             ed[k].append(sid)
             ded.add(k)
-        if self.mand:
-            self._mandatory(L, cell, rooms, 1)
+        if self._wish_on and (L.wish_keys or m.wish_rooms):
+            self._wish(L, cell, rooms, 1)
 
     def _remove(self, sid: int) -> None:
         m = self.m
@@ -369,23 +380,38 @@ class State:
             k = e * nd + di
             ed[k].remove(sid)
             ded.add(k)
-        if self.mand:
-            self._mandatory(L, cell, rooms, -1)
+        if self._wish_on and (L.wish_keys or m.wish_rooms):
+            self._wish(L, cell, rooms, -1)
 
-    def _mandatory(self, L: LessonInfo, cell: int, rooms: tuple[int, ...], sign: int) -> None:
-        d = cell >> 8
-        p = cell & 0xFF
-        mand = self.mand
-        pedidos = self.m.mandatory
-        for r in (*L.resources, *{x for x in rooms if x >= 0}):
-            clave = (r, d, p)
-            if clave in mand:
-                antes = mand[clave]
-                mand[clave] = antes + sign
-                if antes == 0 and sign > 0:
-                    self.extra -= MANDATORY_PENALTY * pedidos[clave]
-                elif antes == 1 and sign < 0:
-                    self.extra += MANDATORY_PENALTY * pedidos[clave]
+    def _wish(self, L: LessonInfo, cell: int, rooms: tuple[int, ...], sign: int) -> None:
+        """Ocupa (`sign=1`) o libera (`-1`) la celda para los deseos positivos."""
+        m = self.m
+        claves: tuple[int, ...] | list[int] = L.wish_keys
+        if m.wish_rooms:
+            aulas = [r for r in set(rooms) if r in m.wish_rooms]
+            if aulas:
+                claves = [*claves, *aulas]
+        deseos = m.wishes
+        busy = self.busy
+        for k in claves:
+            clave = (k, cell)
+            deseo = deseos.get(clave)
+            if deseo is None:
+                continue
+            antes = busy.get(clave, 0)
+            busy[clave] = antes + sign
+            if antes == 0 and sign > 0:
+                tipo, valor = deseo
+                self.wish_v[tipo] -= valor
+                self.total -= self._w_wish[tipo] * valor
+            elif antes == 1 and sign < 0:
+                tipo, valor = deseo
+                self.wish_v[tipo] += valor
+                self.total += self._w_wish[tipo] * valor
+
+    def _wish_total(self) -> int:
+        """Puntos de los deseos positivos (ponderados) según `wish_v`."""
+        return sum(w * v for w, v in zip(self._w_wish, self.wish_v, strict=True))
 
     def _fits_rooms(self, L: LessonInfo, cell: int, rooms: tuple[int, ...]) -> bool:
         m = self.m
@@ -440,6 +466,7 @@ class State:
                     self.rooms[s2] = r2
                     if c2 >= 0:
                         self._add(s2, c2, r2)
+                self.total = total0
                 self.extra = extra0
                 return None
             self._add(sid, c, rooms)
@@ -874,39 +901,36 @@ class State:
         for vec in self.l_vec:
             for i, v in zip(idx_l, vec, strict=True):
                 cuenta[i] += v
+        for c, v in zip(WISH_CRITERIA, self.wish_v, strict=True):
+            cuenta[CRIT_INDEX[c]] += v
         return dict(zip(CRITERIA, cuenta, strict=True))
 
     def unplaced_periods(self) -> int:
         """Períodos sin colocar, como `Evaluation.unplaced_periods`."""
         return self.unplaced_count()
 
-    def unmet_mandatory(self) -> int:
-        """Deseos +3 incumplidos: el evaluador los cuenta como choques."""
-        pedidos = self.m.mandatory
-        return sum(pedidos[k] for k, n in self.mand.items() if n == 0)
-
     @property
     def evaluation_total(self) -> int:
-        """Número de evaluación completo, idéntico a `Evaluator.evaluate(...).total`.
+        """Número de evaluación completo: alias de `total`.
 
-        La heurística nunca crea choques de recurso ni ocupa celdas -3, así que
-        los únicos choques posibles son deseos +3 incumplidos.
+        La heurística nunca crea choques de recurso ni ocupa celdas -3, y los
+        deseos positivos son blandos (ya están en `total`).
         """
-        return self.total + CLASH_PENALTY * self.unmet_mandatory()
+        return self.total
 
     def evaluation(self) -> Evaluation:
-        """Evaluación según el estado incremental."""
+        """Evaluación según el estado incremental (sin choques, por construcción)."""
         v = self.violations()
         w = self.m.weighting
         return Evaluation(
             unplaced_periods=self.unplaced_count(),
-            clashes=self.unmet_mandatory(),
+            clashes=0,
             scores=tuple(CriterionScore(c, v[c], w.weight(c)) for c in CRITERIA),
         )
 
     def recompute_total(self) -> int:
         """Suma de todos los ámbitos cacheados (para verificar `total`)."""
-        return sum(self.ed_val) + sum(self.ew_val) + sum(self.l_val)
+        return sum(self.ed_val) + sum(self.ew_val) + sum(self.l_val) + self._wish_total()
 
     def snapshot(self) -> tuple[list[int], list[tuple[int, ...]]]:
         """Copia de celdas y aulas (para guardar el mejor horario)."""

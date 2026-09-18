@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field, replace
 
 from scheduling_platform.core import (
@@ -102,16 +102,41 @@ def conflicting_tasks(problem: SchedulingProblem, solution: Solution) -> set[int
 def _neighbours(
     problem: SchedulingProblem, solution: Solution, window: set[int], clock_len: int
 ) -> set[int]:
-    """Tareas colocadas que comparten profesor o clase con la ventana el mismo día."""
+    """Tareas colocadas que comparten profesor o clase con la ventana.
+
+    - Para una tarea colocada, las vecinas son las del **mismo día** que
+      comparten algún recurso con ella.
+    - Una tarea **sin colocar** no tiene día: sus vecinas son todas las tareas
+      colocadas que usan alguno de sus profesores, clases o aulas posibles. Sin
+      esto, un acople grande sin colocar (5 profesores y 4 clases a la vez) nunca
+      encuentra hueco, porque todo lo demás queda congelado.
+    """
     fijos = {int(a.task_id): {int(r) for r in a.resource_ids} for a in solution.assignments}
     dia = {int(a.task_id): int(a.start) // clock_len for a in solution.assignments}
-    recursos_ventana = set().union(*(fijos.get(t, set()) for t in window)) if window else set()
-    dias_ventana = {dia[t] for t in window if t in dia}
-    return {
+    colocadas = {t for t in window if t in fijos}
+    sueltas = window - colocadas
+
+    recursos_dia: set[tuple[int, int]] = {(r, dia[t]) for t in colocadas for r in fijos[t]}
+    vecinas = {
         t
         for t, rs in fijos.items()
-        if t not in window and dia[t] in dias_ventana and rs & recursos_ventana
+        if t not in window and any((r, dia[t]) in recursos_dia for r in rs)
     }
+    if sueltas:
+        tareas = {int(t.id): t for t in problem.tasks}
+        por_etiqueta: dict[str, set[int]] = {}
+        for r in problem.resources:
+            for tag in r.tags:
+                por_etiqueta.setdefault(tag, set()).add(int(r.id))
+        propios: set[int] = set()
+        for t in sueltas:
+            for req in tareas[t].requirements:
+                # Profesores, clases y también las aulas que puede usar: un aula
+                # ocupada por una clase congelada basta para dejarla sin sitio.
+                if req.tag.startswith(("teacher#", "group#", "room#", "roompool#")):
+                    propios |= por_etiqueta.get(req.tag, set())
+        vecinas |= {t for t, rs in fijos.items() if t not in window and rs & propios}
+    return vecinas
 
 
 # --------------------------------------------------------------------------- #
@@ -241,17 +266,30 @@ def repair(
     seed: int = 0,
     max_rounds: int = 3,
     include_unplaced: bool = True,
+    only_lessons: Collection[int] | None = None,
     optimize_teachers: bool = False,
     should_stop: Callable[[], bool] | None = None,
     timetable_id: str | None = None,
 ) -> RepairOutcome:
-    """Repara `timetable`: sin choques y con lo no colocado dentro, moviendo lo mínimo."""
+    """Repara `timetable`: sin choques y con lo no colocado dentro, moviendo lo mínimo.
+
+    `only_lessons` limita las sesiones sin colocar que se intentan meter a las de
+    esas lecciones (ver `place_unplaced`, que coloca de una lección en una).
+    """
     t0 = time.perf_counter()
     tr = _translate_with_reference(project, timetable, optimize_teachers)
     rb = timetable_to_solution(tr, timetable)
     base = rb.solution
     ventana = conflicting_tasks(tr.problem, base)
-    sin_colocar = {tr.task_of[ref] for ref in rb.unplaced} if include_unplaced else set()
+    sin_colocar = (
+        {
+            tr.task_of[ref]
+            for ref in rb.unplaced
+            if only_lessons is None or ref.lesson in only_lessons
+        }
+        if include_unplaced
+        else set()
+    )
     ventana |= sin_colocar
     destino = timetable_id or timetable.id
 
@@ -357,11 +395,76 @@ def _translate_with_reference(
     )
 
 
+def place_unplaced(
+    project: UntisProject,
+    timetable: Timetable,
+    *,
+    time_limit: float = 60.0,
+    per_lesson: float = 8.0,
+    seed: int = 0,
+    should_stop: Callable[[], bool] | None = None,
+) -> RepairOutcome:
+    """Coloca lo que quedó sin colocar, **una lección cada vez** (fase 3 por ventanas).
+
+    Meter todas las sesiones sueltas a la vez exige que *todas* quepan: basta una
+    imposible para que CP-SAT declare infactible la ventana entera (medido con
+    el curso 2026-2027: 114 períodos sueltos, ventana infactible en 4 s). Aquí
+    cada lección suelta tiene su propia ventana —ella y las clases que comparten
+    sus profesores o clases— y lo que se logra se conserva. Las lecciones con
+    más líneas (los acoples grandes, las más difíciles) van primero.
+    """
+    t0 = time.perf_counter()
+    tr = _translate_with_reference(project, timetable, False)
+    rb = timetable_to_solution(tr, timetable)
+    pendientes = sorted(
+        {ref.lesson for ref in rb.unplaced},
+        key=lambda n: (-len(project.lesson_by_number[n].lines), n),
+    )
+    actual = timetable
+    movidas: list[SessionRef] = []
+    colocadas: list[SessionRef] = []
+    for numero in pendientes:
+        restante = time_limit - (time.perf_counter() - t0)
+        if restante <= 0.5 or (should_stop is not None and should_stop()):
+            break
+        out = repair(
+            project,
+            actual,
+            time_limit=min(per_lesson, restante),
+            seed=seed,
+            max_rounds=2,
+            only_lessons={numero},
+            should_stop=should_stop,
+            timetable_id=timetable.id,
+        )
+        if out.status == "repaired" or (out.status == "partial" and out.placed):
+            actual = out.timetable
+            movidas += out.moved
+            colocadas += out.placed
+    final = timetable_to_solution(tr, actual)
+    estado = "repaired" if not final.unplaced else ("partial" if colocadas else "infeasible")
+    return RepairOutcome(
+        actual,
+        estado,
+        moved=tuple(movidas),
+        placed=tuple(colocadas),
+        remaining_conflicts=len(conflicting_tasks(tr.problem, final.solution)),
+        remaining_unplaced=len(final.unplaced),
+        rounds=len(pendientes),
+        elapsed=time.perf_counter() - t0,
+        message=(
+            f"{len(colocadas)} sesión(es) colocada(s) moviendo {len(movidas)}; "
+            f"quedan {len(final.unplaced)} sin colocar."
+        ),
+    )
+
+
 __all__ = [
     "MOVE_WEIGHT",
     "ROOM_CHANGE_WEIGHT",
     "MinimalChangePlugin",
     "RepairOutcome",
     "conflicting_tasks",
+    "place_unplaced",
     "repair",
 ]

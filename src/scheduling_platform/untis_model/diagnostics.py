@@ -11,7 +11,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import StrEnum
 
-from .common import EntityKind
+from .common import REQUEST_MAX, REQUEST_MIN, EntityKind
 from .lessons import LessonLine
 from .project import UntisProject
 
@@ -324,11 +324,11 @@ def _check_class_load(project: UntisProject) -> list[DataIssue]:
 
 
 def _check_time_requests(project: UntisProject) -> list[DataIssue]:
-    """Una celda no puede ser a la vez imposible y obligatoria."""
+    """Una celda no puede ser a la vez imposible (-3) y muy deseable (+3)."""
     issues: list[DataIssue] = []
     duros: defaultdict[tuple[EntityKind, str, int, int], set[int]] = defaultdict(set)
     for r in project.time_requests:
-        if r.is_hard and r.day is not None and r.period is not None:
+        if r.value in (REQUEST_MIN, REQUEST_MAX) and r.day is not None and r.period is not None:
             duros[(r.entity_kind, r.entity_id, r.day, r.period)].add(r.value)
 
     for clave in sorted(duros, key=lambda k: (k[0].value, k[1], k[2], k[3])):

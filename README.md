@@ -31,12 +31,21 @@ no importa nada; `interop` y `heuristic` solo el modelo; fuera del motor, solo
 
 | Qué | Resultado |
 | --- | --- |
-| Importar el XML de Untis | 66 clases, 116 profesores, 722 lecciones, 8 rejillas; ida y vuelta idéntica; 100 % de los campos con datos modelados |
-| Exportar GPU001 | `40,"K1A","T028","MATK1","P 11",1,7,,` — nombres cortos, listo para MiUntisWeb |
+| Importar el XML de Untis | 66 clases, 116 profesores, 709 lecciones, 8 rejillas; ida y vuelta idéntica; 100 % de los campos con datos modelados |
+| Exportar GPU001 | `4,"K1A","T028","MATK1","P 11",1,7,,` — nombres cortos, listo para MiUntisWeb |
 | Fidelidad del puente | evaluador, `ValidationEngine` y barrido del reloj ven los mismos 7 choques reales del horario publicado, ni uno más |
 | Reparar (CP-SAT) | 7 choques → 0 en 0,6 s moviendo 6 de 1.676 sesiones |
 | Pulir (CP-SAT por ventanas) | −28 % de puntos blandos en 60 s, sin choques |
 | Generar desde cero (heurística) | A: 60 s, B: 300 s; 0 sin colocar, 0 choques; B 8.322 puntos blandos frente a 118.418 del horario publicado |
+
+### Curso 2026-2027, desde cero ([ADR-039](docs/adr/ADR-039-fidelidad-con-datos-reales-2026-2027.md))
+
+| Qué | Resultado |
+| --- | --- |
+| Importar XML + GPU | 82 clases, 154 profesores, 96 aulas, 884 lecciones (acoples de hasta 45 líneas), 6 rejillas, 5.582 deseos; XML y GPU dan el mismo colegio |
+| Exportar GPU001 | idéntico al de Untis (4.102/4.102 filas, hora 0 incluida) |
+| Generar desde cero (A, 45 s) | 2 de 2.429 horas sin colocar, 0 choques, ningún deseo −3 incumplido; 110.709 puntos blandos frente a 142.317 del horario publicado |
+| Sección Primaria tecleada desde la interfaz | rejilla, clases, lecciones y deseos introducidos con la Fachada y generados sin choques |
 
 ## Uso
 

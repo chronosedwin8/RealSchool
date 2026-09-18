@@ -169,7 +169,13 @@ def test_rejilla_rechaza_duplicados() -> None:
 
 @pytest.mark.parametrize(
     ("raw", "esperado"),
-    [("LS_400", (40, 0)), ("LS_401", (40, 1)), ("LS_1009", (100, 9)), ("LS_7", (0, 7))],
+    [
+        ("LS_400", (4, 0)),
+        ("LS_401", (4, 1)),
+        ("LS_1009", (10, 9)),
+        ("LS_7", (0, 7)),
+        ("LS_134544", (1345, 44)),
+    ],
 )
 def test_split_lesson_id(raw: str, esperado: tuple[int, int]) -> None:
     assert split_lesson_id(raw) == esperado
@@ -198,8 +204,8 @@ def test_leccion_acoplada_agrega_lineas() -> None:
         periods_per_week=5,
     )
     assert le.is_coupled
-    assert le.id == "LS_400"
-    assert le.line_id(2) == "LS_402"
+    assert le.id == "LS_4000"
+    assert le.line_id(2) == "LS_4002"
     assert le.subjects == ("MAT", "ING")
     assert le.teachers == ("ANA", "BEA")
     assert le.classes == ("5A", "5B")
@@ -257,7 +263,8 @@ def test_deseo_duros_y_blandos() -> None:
     obligatorio = TimeRequest(EntityKind.TEACHER, "ANA", 3, day=1, period=3)
     blando = TimeRequest(EntityKind.TEACHER, "ANA", -1, day=2)
     assert bloqueo.is_hard and bloqueo.is_block and not bloqueo.is_mandatory
-    assert obligatorio.is_hard and obligatorio.is_mandatory
+    # +3 es "muy deseable", blando (datos reales: 1.519 celdas +3 en un curso).
+    assert obligatorio.is_mandatory and not obligatorio.is_hard
     assert not blando.is_hard
 
 

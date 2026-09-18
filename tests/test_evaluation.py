@@ -170,8 +170,11 @@ def test_deseos_duros() -> None:
         TimeRequest(EntityKind.CLASS, "C1", 3, day=2, period=2),
     )
     p, tt = _project((_lesson(1, per=1),), {1: [(1, 1)]}, time_requests=reqs)
-    kinds = [c.kind for c in Evaluator(p).report(tt).clashes]
-    assert kinds == ["time_request", "time_request"]  # -3 ocupado y +3 sin ocupar
+    rep = Evaluator(p).report(tt)
+    # Solo el -3 ocupado es duro; el +3 sin ocupar es un deseo blando (ADR-039).
+    assert [(c.kind, c.lessons) for c in rep.clashes] == [("time_request", (1,))]
+    assert rep.evaluation.clashes == 1
+    assert _viol(p, tt, "time_request_class") == 3
 
 
 # --------------------------------------------------------------------------- #
@@ -316,6 +319,86 @@ def test_deseos_blandos_y_no_especificados() -> None:
     assert _viol(p, tt, "time_request_class") == 1
     assert _viol(p, tt, "time_request_subject") == 1
     assert _viol(p, tt, "time_request_unspecified") == 1  # trabaja los 2 días
+
+
+def _positivo(
+    req: TimeRequest, cells: list[tuple[int, int]], breaks: tuple[int, ...] = ()
+) -> tuple[UntisProject, Timetable]:
+    return _project(
+        (_lesson(1, per=len(cells)),),
+        {1: cells},
+        time_requests=(req,),
+        time_grids=(_grid(breaks),),
+    )
+
+
+def test_deseo_positivo_cuesta_si_la_celda_queda_libre() -> None:
+    mas3 = TimeRequest(EntityKind.TEACHER, "T1", 3, day=1, period=2)
+    p, tt = _positivo(mas3, [(1, 1)])
+    assert _viol(p, tt, "time_request_teacher") == 3
+    assert Evaluator(p).report(tt).clashes == ()
+    p, tt = _positivo(mas3, [(1, 2)])
+    assert _viol(p, tt, "time_request_teacher") == 0
+
+
+def test_deseo_positivo_detalla_la_celda() -> None:
+    p, tt = _positivo(TimeRequest(EntityKind.CLASS, "C1", 2, day=2, period=5), [(1, 1)])
+    (v,) = Evaluator(p).report(tt).of("time_request_class")
+    assert (v.amount, v.entity_kind, v.entity_id, v.day, v.period) == (
+        2,
+        EntityKind.CLASS,
+        "C1",
+        2,
+        5,
+    )
+    assert "prefiere tener clase aquí (+2) y está libre" in v.message
+
+
+def test_deseo_positivo_de_dia_completo_sobre_la_rejilla_propia() -> None:
+    dia = TimeRequest(EntityKind.TEACHER, "T1", 2, day=2)
+    p, tt = _positivo(dia, [(2, 1)])
+    assert _viol(p, tt, "time_request_teacher") == 2 * 5  # 6 lectivos, 1 ocupado
+    # Los recreos nunca cuentan: con el 3 como recreo quedan 4 libres.
+    p, tt = _positivo(dia, [(2, 1)], breaks=(3,))
+    assert _viol(p, tt, "time_request_teacher") == 2 * 4
+
+
+def test_deseo_positivo_de_periodo_en_todos_los_dias() -> None:
+    periodo = TimeRequest(EntityKind.CLASS, "C1", 1, period=4)
+    p, tt = _positivo(periodo, [(1, 4)])
+    assert _viol(p, tt, "time_request_class") == 1  # solo el día 2 queda libre
+    recreo = TimeRequest(EntityKind.CLASS, "C1", 3, period=3)
+    p, tt = _positivo(recreo, [(1, 1)], breaks=(3,))
+    assert _viol(p, tt, "time_request_class") == 0
+
+
+def test_deseo_positivo_de_aula_y_materia() -> None:
+    aula = TimeRequest(EntityKind.ROOM, "R1", 2, day=1, period=1)
+    materia = TimeRequest(EntityKind.SUBJECT, "MAT", 1, period=2)
+    p, tt = _project(
+        (_lesson(1, per=2, room="R1"),),
+        {1: [(1, 1), (1, 2)]},
+        rooms={(1, 1, 1): "R3", (1, 1, 2): "R1"},
+        time_requests=(aula, materia),
+    )
+    assert _viol(p, tt, "time_request_room") == 2  # R1 no está en (1, 1)
+    assert _viol(p, tt, "time_request_subject") == 1  # MAT libre en (2, 2)
+    # Una materia sin lecciones no tiene dominio: su deseo positivo no cuenta.
+    otra = TimeRequest(EntityKind.SUBJECT, "ART", 3, day=1)
+    p, tt = _positivo(otra, [(1, 1)])
+    assert _viol(p, tt, "time_request_subject") == 0
+
+
+def test_deseo_positivo_se_pondera() -> None:
+    p, tt = _positivo(TimeRequest(EntityKind.TEACHER, "T1", 3, day=1, period=2), [(1, 1)])
+    ponderacion = Weighting(time_request_teacher=5)
+    peso = ponderacion.weight("time_request_teacher")
+    assert peso > 0
+    fuerte = evaluate(p, tt, ponderacion)
+    nada = evaluate(p, tt, Weighting(time_request_teacher=0))
+    s = {x.criterion: x for x in fuerte.scores}["time_request_teacher"]
+    assert (s.violations, s.weight, s.points) == (3, peso, 3 * peso)
+    assert fuerte.total - nada.total == 3 * peso
 
 
 def test_optimizacion_de_profesores_cuenta_lineas_sin_profesor() -> None:

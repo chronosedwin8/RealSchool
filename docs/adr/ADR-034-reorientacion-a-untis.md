@@ -50,6 +50,8 @@ una librería estable.
    export XmlInterface lo codifica en el id: `LS_<nº><línea>` con la línea en
    0–9. Verificado sobre el export real 2025-2026: 722 lecciones, líneas
    contiguas 0…n−1 y horas idénticas entre líneas en el 100 % de los casos.
+   *Corregido en ADR-039:* la línea son **dos** dígitos (00–99); con ello el
+   export 2025-2026 tiene 709 lecciones y el de 2026-2027 acoples de 45 líneas.
 4. **Doble escala Untis.** Deseos de tiempo −3…+3 sobre los datos maestros y
    ponderaciones 0–5 (escala no lineal) sobre las reglas. Sustituyen al par
    HC/SC del catálogo como superficie de usuario.

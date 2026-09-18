@@ -28,6 +28,7 @@ las filas de una lección comparten número; al leer se reagrupan en una única
 
 from __future__ import annotations
 
+import codecs
 import csv
 import io
 import re
@@ -50,6 +51,7 @@ from scheduling_platform.untis_model import (
     MinMax,
     Room,
     SchoolClass,
+    SchoolInfo,
     Subject,
     Teacher,
     TimeRequest,
@@ -384,6 +386,28 @@ type Cell = str | int | Decimal | None
 # --------------------------------------------------------------------------- #
 
 
+#: Manejador de errores que imita a Windows con los 5 bytes que cp1252 no define
+#: (0x81, 0x8D, 0x8F, 0x90, 0x9D): se leen y escriben tal cual (U+0081...).
+#: Untis los escribe en sus propios archivos (visto en el export real
+#: 2026-2027, dentro de nombres con tilde); sin esto, la exportación fallaría por un
+#: nombre. Al escribir, cualquier otro carácter imposible se cambia por `?`.
+UNTIS_ERRORS: Final = "untis-cp1252"
+
+
+def _untis_errors(exc: UnicodeError) -> tuple[str | bytes, int]:
+    if isinstance(exc, UnicodeDecodeError):
+        crudo = exc.object[exc.start : exc.end]
+        return "".join(chr(b) for b in crudo), exc.end
+    if isinstance(exc, UnicodeEncodeError):
+        trozo = exc.object[exc.start : exc.end]
+        salida = bytes(ord(c) if 0x80 <= ord(c) <= 0x9F else ord("?") for c in trozo)
+        return salida, exc.end
+    raise exc
+
+
+codecs.register_error(UNTIS_ERRORS, _untis_errors)
+
+
 def decode_gpu(data: bytes) -> str:
     """Decodifica un archivo GPU con la política de lectura tolerante.
 
@@ -397,7 +421,7 @@ def decode_gpu(data: bytes) -> str:
     try:
         return data.decode("utf-8")
     except UnicodeDecodeError:
-        return data.decode("cp1252", errors="replace")
+        return data.decode("cp1252", errors=UNTIS_ERRORS)
 
 
 def sniff_delimiter(text: str) -> str:
@@ -497,9 +521,13 @@ def write_gpu_file(
     rows: Iterable[Sequence[Cell]],
     *,
     encoding: str = DEFAULT_ENCODING,
-    errors: str = "strict",
+    errors: str = UNTIS_ERRORS,
 ) -> Path:
-    """Escribe filas en `path` con la codificación pedida (por defecto cp1252)."""
+    """Escribe filas en `path` con la codificación pedida (por defecto cp1252).
+
+    Por defecto nunca falla por un carácter: ver `UNTIS_ERRORS`. Con
+    `errors="strict"` se recupera el comportamiento estricto.
+    """
     destino = Path(path)
     destino.write_bytes(render_gpu(rows).encode(encoding, errors=errors))
     return destino
@@ -890,6 +918,8 @@ def gpu001_rows(project: UntisProject, timetable: Timetable) -> list[list[Cell]]
     asignaciones de lecciones o líneas que el proyecto no define se omiten.
     """
     lecciones = project.lesson_by_number
+    # El modelo numera los períodos desde 1; GPU001 usa el rótulo de Untis.
+    desplazamiento = project.school.first_period - 1
     filas: list[list[Cell]] = []
     for a in timetable.assignments:
         leccion = lecciones.get(a.lesson_number)
@@ -905,7 +935,7 @@ def gpu001_rows(project: UntisProject, timetable: Timetable) -> list[list[Cell]]
                 .set("subject", linea.subject)
                 .set("room", a.room)
                 .set("day", a.day)
-                .set("period", a.period)
+                .set("period", a.period + desplazamiento)
                 .cells
             )
     return filas
@@ -955,13 +985,23 @@ class _LineResolver:
         return candidatas[0] if candidatas else None
 
 
-def _read_timetable(rows: Iterable[GpuRow], lessons: Iterable[Lesson]) -> Timetable:
+def detect_first_period(rows: Iterable[GpuRow]) -> int:
+    """0 si algún período de GPU001 es 0 (colegio con "hora cero"); si no, 1."""
+    return 0 if any(r.num("period") == 0 for r in rows) else 1
+
+
+def _read_timetable(
+    rows: Iterable[GpuRow], lessons: Iterable[Lesson], first_period: int = 1
+) -> Timetable:
     resolver = _LineResolver(lessons)
     colocadas: dict[tuple[int, int, int, int], Assignment] = {}
     for r in rows:
-        numero, dia, periodo = r.num("lesson_number"), r.num("day"), r.num("period")
+        numero, dia, rotulo = r.num("lesson_number"), r.num("day"), r.num("period")
         materia = r.text("subject")
-        if numero is None or dia is None or periodo is None or dia < 1 or periodo < 1:
+        if numero is None or dia is None or rotulo is None or dia < 1:
+            continue
+        periodo = rotulo - first_period + 1
+        if periodo < 1:
             continue
         if not materia:
             continue
@@ -975,9 +1015,16 @@ def _read_timetable(rows: Iterable[GpuRow], lessons: Iterable[Lesson]) -> Timeta
     return Timetable(id=GPU_TIMETABLE_ID, assignments=tuple(colocadas.values()))
 
 
-def read_gpu001(path: str | Path, lessons: Iterable[Lesson] = ()) -> Timetable:
-    """Lee `GPU001.TXT`; con las lecciones de GPU002 resuelve la línea exacta."""
-    return _read_timetable(read_gpu_file(path, GPU001_COLUMNS), lessons)
+def read_gpu001(
+    path: str | Path, lessons: Iterable[Lesson] = (), first_period: int | None = None
+) -> Timetable:
+    """Lee `GPU001.TXT`; con las lecciones de GPU002 resuelve la línea exacta.
+
+    `first_period` es el rótulo del primer período en Untis; `None` lo deduce.
+    """
+    filas = read_gpu_file(path, GPU001_COLUMNS)
+    primero = detect_first_period(filas) if first_period is None else first_period
+    return _read_timetable(filas, lessons, primero)
 
 
 def read_gpu002(path: str | Path) -> tuple[Lesson, ...]:
@@ -1078,13 +1125,11 @@ def read_gpu(directory: str | Path) -> UntisProject:
         return read_gpu_file(ruta, layout) if ruta is not None else []
 
     lecciones = _read_lessons(filas(GPU002_COLUMNS))
-    ruta_horario = _find(carpeta, GPU001_COLUMNS.filename)
-    horarios = (
-        (_read_timetable(read_gpu_file(ruta_horario, GPU001_COLUMNS), lecciones),)
-        if ruta_horario is not None
-        else ()
-    )
+    filas_horario = filas(GPU001_COLUMNS)
+    primero = detect_first_period(filas_horario)
+    horarios = (_read_timetable(filas_horario, lecciones, primero),) if filas_horario else ()
     return UntisProject(
+        school=SchoolInfo(first_period=primero),
         departments=_read_departments(filas(GPU007_COLUMNS)),
         classes=_read_classes(filas(GPU003_COLUMNS)),
         teachers=_read_teachers(filas(GPU004_COLUMNS)),
@@ -1107,7 +1152,7 @@ def write_gpu(
 
     Siempre escribe GPU002-GPU007 y GPU016 (vacíos si no hay datos); GPU001
     solo si hay horario (`timetable_id` o, por defecto, el último del proyecto).
-    Un carácter que no exista en `encoding` lanza `UnicodeEncodeError`.
+    Un carácter que no exista en `encoding` no hace fallar: ver `UNTIS_ERRORS`.
     """
     carpeta = Path(directory)
     carpeta.mkdir(parents=True, exist_ok=True)

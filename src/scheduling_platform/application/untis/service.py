@@ -17,7 +17,14 @@ from pathlib import Path
 from typing import cast
 
 from scheduling_platform.interop.bjs_legacy import load_bjs_as_project
-from scheduling_platform.interop.gpu import read_gpu, write_gpu
+from scheduling_platform.interop.gpu import (
+    GPU001_COLUMNS,
+    detect_first_period,
+    read_gpu,
+    read_gpu016,
+    read_gpu_file,
+    write_gpu,
+)
 from scheduling_platform.interop.rsp import load_rsp, save_rsp
 from scheduling_platform.interop.xml import read_xml, write_xml
 from scheduling_platform.untis_model import (
@@ -233,6 +240,8 @@ class UntisService:
             nativo = True
         elif sufijo == ".xml":
             proyecto = infer_breaks(read_xml(ruta))
+            proyecto = self._first_period_from_sibling_gpu(proyecto, ruta)
+            proyecto = self._requests_from_sibling_gpu(proyecto, ruta)
         elif sufijo == ".bjs":
             proyecto = load_bjs_as_project(ruta)
         else:
@@ -241,6 +250,55 @@ class UntisService:
         if proyecto.timetables:
             sesion.active_timetable = proyecto.timetables[-1].id
         return sesion
+
+    @staticmethod
+    def _first_period_from_sibling_gpu(project: UntisProject, xml: Path) -> UntisProject:
+        """Untis suele exportar el XML y los GPU a la misma carpeta: si hay un
+        GPU001 al lado, de él se deduce si el colegio numera desde la hora 0."""
+        if not xml.parent.is_dir():
+            return project
+        vecino = next((f for f in xml.parent.iterdir() if f.name.upper() == "GPU001.TXT"), None)
+        if vecino is None:
+            return project
+        primero = detect_first_period(read_gpu_file(vecino, GPU001_COLUMNS))
+        return dataclasses.replace(
+            project, school=dataclasses.replace(project.school, first_period=primero)
+        )
+
+    @staticmethod
+    def _known_requests(project: UntisProject, gpu016: Path) -> tuple[TimeRequest, ...]:
+        """Deseos de un GPU016.TXT cuyas entidades existen en el proyecto."""
+        existentes = {
+            EntityKind.TEACHER: set(project.teacher_by_id),
+            EntityKind.CLASS: set(project.class_by_id),
+            EntityKind.ROOM: set(project.room_by_id),
+            EntityKind.SUBJECT: set(project.subject_by_id),
+        }
+        return tuple(
+            r for r in read_gpu016(gpu016) if r.entity_id in existentes.get(r.entity_kind, set())
+        )
+
+    @classmethod
+    def _requests_from_sibling_gpu(cls, project: UntisProject, xml: Path) -> UntisProject:
+        """El XmlInterface no trae los deseos de tiempo; Untis los exporta en
+        GPU016.TXT. Si está junto al XML y el proyecto no tiene deseos, se cargan."""
+        if project.time_requests or not xml.parent.is_dir():
+            return project
+        archivo = next((f for f in xml.parent.iterdir() if f.name.upper() == "GPU016.TXT"), None)
+        if archivo is None:
+            return project
+        return dataclasses.replace(project, time_requests=cls._known_requests(project, archivo))
+
+    def import_time_requests(self, session: UntisSession, gpu016: str | Path) -> EditResult:
+        """Importa los deseos de tiempo de un GPU016.TXT (sustituye los actuales)."""
+        ruta = Path(gpu016)
+        if not ruta.is_file():
+            return EditResult.failure(f"No existe {ruta}")
+        deseos = self._known_requests(session.project, ruta)
+        session.apply(
+            dataclasses.replace(session.project, time_requests=deseos), "Importar deseos de tiempo"
+        )
+        return EditResult.success(f"{len(deseos)} deseo(s) importado(s).")
 
     def save(self, session: UntisSession, path: str | Path | None = None) -> Path:
         """Guarda el proyecto como `.rsp` (el único formato nativo)."""
@@ -1073,6 +1131,10 @@ class UntisService:
         "header2": ("Encabezado 2", "Kopfzeile 2"),
         "footer": ("Pie de página", "Fußzeile"),
         "term_name": ("Nombre del período", "Periodenname"),
+        "first_period": (
+            "Número del primer período (0 o 1)",
+            "Nummer der ersten Stunde (0 oder 1)",
+        ),
     }
 
     def school_info(self, session: UntisSession) -> tuple[tuple[str, str], ...]:
@@ -1090,9 +1152,14 @@ class UntisService:
             and (len(texto) != 8 or not texto.isdigit())
         ):
             return EditResult.failure("La fecha debe tener el formato AAAAMMDD")
+        valor: object = texto
+        if field == "first_period":
+            if texto not in ("0", "1"):
+                return EditResult.failure("El primer período es 0 o 1")
+            valor = int(texto)
         p = session.project
         session.apply(
-            dataclasses.replace(p, school=_with_field(p.school, field, texto)),
+            dataclasses.replace(p, school=_with_field(p.school, field, valor)),
             f"Datos del colegio: {field}",
         )
         return EditResult.success()
