@@ -8,6 +8,7 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from . import crashlog
 from .i18n import install_translator
 from .main_window import MainWindow
 from .qt_bridge import FacadeBridge
@@ -17,6 +18,7 @@ from .theme import APP_QSS
 def main(argv: list[str] | None = None) -> int:
     """Arranca RealSchool; un argumento opcional es el proyecto a abrir."""
     args = sys.argv if argv is None else argv
+    crashlog.install()
     app = QApplication.instance()
     if not isinstance(app, QApplication):
         app = QApplication(args)
@@ -39,7 +41,9 @@ def main(argv: list[str] | None = None) -> int:
         codigo = app.exec()
         print(f"RealSchool smoke OK ({pestanas} pestañas en la cinta)")
         return codigo
-    return app.exec()
+    codigo = app.exec()
+    crashlog.close_cleanly()
+    return codigo
 
 
 if __name__ == "__main__":

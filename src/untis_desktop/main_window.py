@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from . import crashlog
 from .help import GUIDE_KEY, HelpDialog, help_entry
 from .icons import AMBER, GREEN, ICONS, RED, icon, icon_size
 from .qt_bridge import FacadeBridge
@@ -529,6 +530,7 @@ class MainWindow(QMainWindow):
 
     def show_window(self, key: str) -> QWidget:
         """Abre o enfoca una ventana (MDI o panel)."""
+        crashlog.note(f"ventana: {key}")
         spec = self._specs[key]
         if spec.dock:
             dock = self._docks[key]
