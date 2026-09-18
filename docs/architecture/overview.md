@@ -35,6 +35,13 @@ graph TD
   horarios; **Reparar** (CP-SAT con cambio mínimo sobre un subproblema de
   ventana) y **Pulir** (CP-SAT por clase, aceptado solo si el evaluador de
   referencia mejora), con los criterios Untis como plugins propios (ADR-036).
+- **`untis_desktop`** — la aplicación PySide6: cinta, área MDI y paneles; cada
+  ventana se registra sola (`registry.py`) y solo habla con la Fachada a través
+  del puente Qt (`qt_bridge.py`), que agrupa refrescos, sincroniza la selección
+  entre ventanas y optimiza en un hilo sobre una instantánea. Idiomas es/de con
+  `QTranslator`.
+- **`application.untis`** — la Fachada: `UntisService` sin estado sobre una
+  `UntisSession` con deshacer/rehacer; ediciones que devuelven `EditResult`.
 - **`heuristic`** — generación desde cero (fases 1 y 2 de Untis): colocación
   por dificultad e intercambios con evaluación incremental. No ve el motor.
 - **motor congelado** — el Modelo Canónico (`core`), el DSL, la CIR con sus

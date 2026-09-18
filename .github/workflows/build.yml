@@ -1,7 +1,7 @@
 name: Build binaries
 
-# Compila el binario nativo 'schedule-engine' para las tres plataformas y lo
-# publica como artifact. La validación en entorno LIMPIO sin Python se hace
+# Compila los binarios nativos 'schedule-engine' (CLI) y 'realschool' (escritorio)
+# para las tres plataformas y los publica como artifacts. La validación en entorno LIMPIO sin Python se hace
 # además con el Dockerfile del repo (etapa runtime debian-slim); ver ADR-029.
 
 on:
@@ -49,3 +49,56 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: dist/schedule-engine*
+
+  desktop:
+    # Binario de escritorio (R5): la app PySide6 con sus traducciones.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: realschool-linux-x64
+          - os: windows-latest
+            artifact: realschool-windows-x64
+          - os: macos-latest
+            artifact: realschool-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Dependencias de sistema de Qt (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1
+
+      - name: Instalar dependencias y PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[desktop]" pyinstaller
+
+      - name: Compilar binario de escritorio
+        shell: bash
+        run: >
+          pyinstaller --onefile --windowed --clean --name realschool
+          --collect-all ortools
+          --add-data "src/untis_desktop/translations${{ runner.os == 'Windows' && ';' || ':' }}untis_desktop/translations"
+          packaging/desktop_entry.py
+
+      - name: Smoke test (arranca sin pantalla y sale)
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          REALSCHOOL_SMOKE: "1"
+        run: |
+          BIN=$(ls dist/realschool* | head -1)
+          "$BIN" tests/fixtures/untis_anon.xml
+
+      - name: Publicar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/realschool*

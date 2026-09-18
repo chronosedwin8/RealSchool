@@ -36,6 +36,24 @@ no importa nada; `interop` y `heuristic` solo el modelo; fuera del motor, solo
 | Fidelidad del puente | evaluador, `ValidationEngine` y barrido del reloj ven los mismos 7 choques reales del horario publicado, ni uno más |
 | Reparar (CP-SAT) | 7 choques → 0 en 0,6 s moviendo 6 de 1.676 sesiones |
 | Pulir (CP-SAT por ventanas) | −28 % de puntos blandos en 60 s, sin choques |
+| Generar desde cero (heurística) | A: 60 s, B: 300 s; 0 sin colocar, 0 choques; B 8.322 puntos blandos frente a 118.418 del horario publicado |
+
+## Uso
+
+**Escritorio** (`schedule-desktop [proyecto]`): cinta y ventanas como en Untis
+—Datos maestros, Rejillas, Deseos, Lecciones, Ponderación, Optimización
+(A/B/D/E/Reparar), Evaluación, Diagnóstico (panel), Diálogo de planificación
+con arrastrar y soltar, Horarios con formatos, impresión, PDF y HTML— en
+español y alemán. Ver [la lista de paridad con Untis](docs/paridad_untis.md).
+
+**Línea de órdenes:**
+
+```powershell
+schedule-engine convert untis.xml colegio.rsp          # importar (también GPU, .bjs)
+schedule-engine solve colegio.rsp --strategy B -t 600  # generar u optimizar
+schedule-engine evaluate colegio.rsp                   # número de evaluación
+schedule-engine convert colegio.rsp gpu/               # GPU001.TXT para MiUntisWeb
+```
 
 ## Entorno de desarrollo
 
