@@ -9,6 +9,7 @@ lógica de negocio: delega todo en ``EngineBridge``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt
@@ -213,7 +214,15 @@ class MainWindow(QMainWindow):
             ("Optimizar", QStyle.StandardPixmap.SP_MediaPlay, PAGE_OPTIMIZE),
         )
         for label, pixmap, page in nav:
-            bar.addAction(icon(pixmap), label, lambda _=False, p=page: self.show_page(p))
+            bar.addAction(icon(pixmap), label, self._page_opener(page))
+
+    def _page_opener(self, page: str) -> Callable[[], None]:
+        """Devuelve un invocable sin argumentos que abre `page`."""
+
+        def abrir() -> None:
+            self.show_page(page)
+
+        return abrir
 
     # --- navegación / acciones ------------------------------------------ #
     def show_page(self, page: str) -> None:

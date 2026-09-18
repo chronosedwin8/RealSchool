@@ -24,3 +24,9 @@ benchmarks/gap_analysis.json
 
 # Sitio de documentación generado (mkdocs)
 site/
+
+# Exports reales de Untis: contienen nombres y correos de personas reales.
+# Se usan como fixtures de regresión en local y NUNCA se versionan; los tests
+# que los necesitan se saltan si faltan (ver tests/conftest.py::real_xml_paths).
+tests/fixtures/real/
+.coverage
