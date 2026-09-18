@@ -27,6 +27,25 @@ MASTER_WINDOWS: tuple[tuple[str, MasterKind, str, str], ...] = (
     ("student_groups", MasterKind.STUDENT_GROUPS, "Grupos de alumnos", "Schülergruppen"),
 )
 
+#: Qué es cada ventana, en una frase (ayuda de la cinta). El icono es la clave.
+MASTER_TOOLTIPS: dict[str, str] = {
+    "classes": "Lista de clases (grupos de alumnos fijos) con su rejilla, aula base y límites.",
+    "teachers": "Lista de profesores con sus límites de horas, huecos y días.",
+    "rooms": "Lista de aulas con su capacidad y el aula alternativa si están ocupadas.",
+    "subjects": "Lista de materias con sus colores y reglas (dobles, aula obligatoria...).",
+    "departments": "Departamentos para agrupar profesores y materias.",
+    "student_groups": "Grupos de alumnos que se separan de la clase para una materia.",
+}
+
+MASTER_TOOLTIPS_DE: dict[str, str] = {
+    "classes": "Liste der Klassen mit Zeitraster, Stammraum und Grenzen.",
+    "teachers": "Liste der Lehrkräfte mit ihren Grenzen für Stunden, Hohlstunden und Tage.",
+    "rooms": "Liste der Räume mit Kapazität und Ausweichraum, wenn sie belegt sind.",
+    "subjects": "Liste der Fächer mit Farben und Regeln (Doppelstunden, Pflichtraum...).",
+    "departments": "Abteilungen, um Lehrkräfte und Fächer zu gruppieren.",
+    "student_groups": "Schülergruppen, die sich für ein Fach von der Klasse trennen.",
+}
+
 
 def _factory(key: str, kind: MasterKind) -> Callable[[FacadeBridge], QWidget]:
     def crear(bridge: FacadeBridge) -> QWidget:
@@ -44,5 +63,8 @@ for _orden, (_clave, _tipo, _titulo, _titulo_de) in enumerate(MASTER_WINDOWS, st
             tab=RibbonTab.MASTER_DATA,
             factory=_factory(_clave, _tipo),
             order=_orden,
+            icon=_clave,
+            tooltip=MASTER_TOOLTIPS[_clave],
+            tooltip_de=MASTER_TOOLTIPS_DE[_clave],
         )
     )

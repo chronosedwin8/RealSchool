@@ -1120,6 +1120,17 @@ class UntisService:
             for tab in WeightingTab
         )
 
+    def default_weighting(self) -> dict[str, int]:
+        """Valores de fábrica de todos los deslizadores."""
+        return Weighting().as_dict()
+
+    def reset_weighting(self, session: UntisSession) -> EditResult:
+        """Vuelve a los valores de fábrica en un solo paso de deshacer."""
+        if session.project.weighting == Weighting():
+            return EditResult.success("Ya están los valores por defecto.")
+        session.apply(session.project.with_weighting(Weighting()), "Ponderación por defecto")
+        return EditResult.success()
+
     def set_slider(self, session: UntisSession, criterion: str, value: int) -> EditResult:
         w = session.project.weighting
         if criterion not in Weighting.criteria():
@@ -1198,21 +1209,27 @@ class UntisService:
         )
         return EvaluationView(tt.id, e.total, e.soft_points, e.unplaced_periods, e.clashes, lineas)
 
+    def data_diagnosis(self, session: UntisSession) -> DiagnosisView:
+        """Solo la rama "Datos de entrada" (rápida: no evalúa ningún horario)."""
+        return DiagnosisView(
+            tuple(
+                DiagnosisItem(
+                    branch="datos",
+                    group=i.code,
+                    severity=i.severity.value,
+                    message=i.message,
+                    entity_kind=i.entity_kind.value if i.entity_kind else "",
+                    entity_id=i.entity_id,
+                    lesson=i.lesson_number,
+                )
+                for i in diagnose_data(session.project)
+            )
+        )
+
     def diagnosis(self, session: UntisSession, timetable_id: str | None = None) -> DiagnosisView:
         """Árbol de Diagnóstico: datos de entrada y, si hay horario, sus violaciones."""
         p = session.project
-        items: list[DiagnosisItem] = [
-            DiagnosisItem(
-                branch="datos",
-                group=i.code,
-                severity=i.severity.value,
-                message=i.message,
-                entity_kind=i.entity_kind.value if i.entity_kind else "",
-                entity_id=i.entity_id,
-                lesson=i.lesson_number,
-            )
-            for i in diagnose_data(p)
-        ]
+        items: list[DiagnosisItem] = list(self.data_diagnosis(session).items)
         tt = self._timetable(session, timetable_id)
         if tt is not None:
             rep = Evaluator(p).report(tt)

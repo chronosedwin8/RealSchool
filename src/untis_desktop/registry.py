@@ -57,6 +57,11 @@ class WindowSpec:
     """Nombre semántico del icono (`untis_desktop.icons.ICONS`)."""
     tooltip: str = ""
     """Qué hace la ventana, en una frase (se muestra al pasar por la cinta)."""
+    tooltip_de: str = ""
+    """La misma frase en alemán."""
+
+    def description(self, language: str) -> str:
+        return self.tooltip_de if language == "de" and self.tooltip_de else self.tooltip
 
     def label(self, language: str) -> str:
         return self.title_de if language == "de" else self.title

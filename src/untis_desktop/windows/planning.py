@@ -15,9 +15,12 @@ Réplica del Planungsdialog de Untis (sección 8 del documento maestro):
   un colegio real y nunca se calculan todos a la vez.
 - Soltar en un destino válido mueve la sesión (`move_session`, se puede
   deshacer); en uno imposible no cambia nada y se avisa en la barra de estado.
-- Menú contextual: Fijar/Desfijar, Desprogramar (también F7), Intercambiar
-  con... (clic en otra celda de la misma duración) y Abrir lección (también
-  doble clic).
+- Menú contextual y barra de herramientas (con iconos) sobre la celda elegida:
+  Fijar/Desfijar, Desprogramar (también F7), Intercambiar con... (clic en otra
+  celda de la misma duración) y Abrir lección (también doble clic).
+- El texto de cada celda usa negro o blanco según el color de la materia para
+  que se lea siempre; la ayuda emergente trae toda la información de la
+  lección y una leyenda explica colores y marcas.
 
 Los manejadores de ratón solo traducen eventos a métodos públicos
 (`begin_drag`, `hover`, `drop_on`, `unplace`, `begin_swap`, `swap_with`...),
@@ -30,15 +33,11 @@ from dataclasses import dataclass, field
 
 from PySide6.QtCore import (
     QMimeData,
-    QModelIndex,
-    QPersistentModelIndex,
     QPoint,
-    QRect,
     Qt,
     QTimer,
 )
 from PySide6.QtGui import (
-    QAction,
     QBrush,
     QColor,
     QContextMenuEvent,
@@ -49,9 +48,6 @@ from PySide6.QtGui import (
     QDropEvent,
     QKeyEvent,
     QMouseEvent,
-    QPainter,
-    QPen,
-    QPolygon,
     QShowEvent,
 )
 from PySide6.QtWidgets import (
@@ -65,8 +61,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QSplitter,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -84,26 +78,42 @@ from scheduling_platform.application import (
 )
 
 from ..export.html import period_minutes
+from ..icons import icon, icon_size
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
 from ..theme import (
     BREAK_COLOR,
-    CONFLICT_COLOR,
     TARGET_NO_COLOR,
     TARGET_OK_COLOR,
     day_name,
+    fmt_int,
     subject_color,
+    text_color_for,
 )
+
+# Los roles se reexportan ("as"): las pruebas los siguen importando desde aquí.
+from ..widgets.timetable_cells import (
+    CONFLICT_ROLE as CONFLICT_ROLE,
+)
+from ..widgets.timetable_cells import (
+    DELTA_ROLE as DELTA_ROLE,
+)
+from ..widgets.timetable_cells import (
+    FIXED_ROLE as FIXED_ROLE,
+)
+from ..widgets.timetable_cells import (
+    MARK_ROLE as MARK_ROLE,
+)
+from ..widgets.timetable_cells import (
+    TimetableCellDelegate,
+    cell_tooltip,
+    legend_items,
+    readable_colors,
+)
+from ..widgets.uikit import Banner, Legend, icon_label, make_action, set_texts, tool_button
 
 #: Tipo MIME del arrastre de una sesión (solo dentro de la aplicación).
 MIME_SESSION = "application/x-realschool-session"
-
-#: Roles de datos que lee el delegado.
-CONFLICT_ROLE = Qt.ItemDataRole.UserRole + 1
-FIXED_ROLE = Qt.ItemDataRole.UserRole + 2
-DELTA_ROLE = Qt.ItemDataRole.UserRole + 3
-MARK_ROLE = Qt.ItemDataRole.UserRole + 4
-"""Marca de la celda: `source` (origen del arrastre o del intercambio) o `hover`."""
 
 #: Espera antes de calcular el cambio de evaluación al pasar el ratón (ms).
 HOVER_DELAY_MS = 120
@@ -129,51 +139,6 @@ class DragState:
     deltas: dict[Cell, int | None] = field(default_factory=dict)
 
 
-class PlanningDelegate(QStyledItemDelegate):
-    """Pinta sobre la celda normal: choque, fijada, origen y cambio de evaluación."""
-
-    def paint(
-        self,
-        painter: QPainter,
-        option: QStyleOptionViewItem,
-        index: QModelIndex | QPersistentModelIndex,
-    ) -> None:
-        super().paint(painter, option, index)
-        rect: QRect = option.rect
-        painter.save()
-        if index.data(FIXED_ROLE):
-            painter.setPen(QPen(QColor("#1f2937"), 2))
-            painter.drawRect(rect.adjusted(2, 2, -2, -2))
-            esquina = QPolygon(
-                [
-                    QPoint(rect.right() - 9, rect.top() + 1),
-                    QPoint(rect.right(), rect.top() + 1),
-                    QPoint(rect.right(), rect.top() + 10),
-                ]
-            )
-            painter.setBrush(QBrush(QColor("#1f2937")))
-            painter.drawPolygon(esquina)
-        if index.data(CONFLICT_ROLE):
-            painter.setPen(QPen(QColor(CONFLICT_COLOR), 3))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRect(rect.adjusted(1, 1, -2, -2))
-        marca = index.data(MARK_ROLE)
-        if marca in ("source", "hover"):
-            color = "#2563eb" if marca == "source" else "#111827"
-            painter.setPen(QPen(QColor(color), 2, Qt.PenStyle.DashLine))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRect(rect.adjusted(3, 3, -4, -4))
-        delta = index.data(DELTA_ROLE)
-        if isinstance(delta, int):
-            painter.setPen(QPen(QColor("#065f46" if delta <= 0 else "#991b1b")))
-            painter.drawText(
-                rect.adjusted(3, 2, -3, -2),
-                int(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight),
-                f"{delta:+d}",
-            )
-        painter.restore()
-
-
 class PlanningGrid(QTableWidget):
     """Cuadrícula del Diálogo de planificación: traduce ratón y teclado a órdenes."""
 
@@ -189,7 +154,7 @@ class PlanningGrid(QTableWidget):
         self.viewport().setAcceptDrops(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self.setDropIndicatorShown(False)
-        self.setItemDelegate(PlanningDelegate(self))
+        self.setItemDelegate(TimetableCellDelegate(self))
         self.setWordWrap(True)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
@@ -373,10 +338,12 @@ class PlanningWindow(QWidget):
         # --- barra de foco -------------------------------------------------- #
         self.kind_label = QLabel()
         self.kind_combo = QComboBox()
+        iconos = {"class": "classes", "teacher": "teachers", "room": "rooms"}
         for clave, _master in FOCUS_KINDS:
-            self.kind_combo.addItem(clave, clave)
+            self.kind_combo.addItem(icon(iconos[clave]), clave, clave)
         self.entity_combo = QComboBox()
         self.entity_combo.setMinimumContentsLength(12)
+        self.evaluation_icon = QLabel()
         self.evaluation_label = QLabel()
         self.delta_label = QLabel()
         self.delta_label.setMinimumWidth(220)
@@ -385,30 +352,55 @@ class PlanningWindow(QWidget):
         barra.addWidget(self.kind_combo)
         barra.addWidget(self.entity_combo, 1)
         barra.addSpacing(12)
+        barra.addWidget(self.evaluation_icon)
         barra.addWidget(self.evaluation_label)
         barra.addSpacing(12)
         barra.addWidget(self.delta_label)
+
+        # --- órdenes sobre la celda elegida ------------------------------------- #
+        self.fix_button = tool_button("fix", lambda: self._on_cell_command("fix"))
+        self.unplace_button = tool_button("unplace", lambda: self._on_cell_command("unplace"))
+        self.swap_button = tool_button("swap", lambda: self._on_cell_command("swap"))
+        self.open_button = tool_button("lessons", lambda: self._on_cell_command("open"))
+        ordenes = QHBoxLayout()
+        ordenes.setSpacing(4)
+        for boton in (self.fix_button, self.unplace_button, self.swap_button, self.open_button):
+            ordenes.addWidget(boton)
+        ordenes.addSpacing(12)
+        self.legend = Legend()
+        ordenes.addWidget(self.legend, 1)
         self.kind_combo.currentIndexChanged.connect(self._on_kind_changed)
         self.entity_combo.currentIndexChanged.connect(self._on_entity_changed)
 
         # --- lista sin colocar + cuadrícula ------------------------------------- #
         self.unplaced_label = QLabel()
         self.unplaced_list = UnplacedList(self)
+        self.unplaced_empty = QLabel()
+        self.unplaced_empty.setWordWrap(True)
+        self.unplaced_empty.setStyleSheet("color: #4b5563;")
         izquierda = QWidget()
         capa_izq = QVBoxLayout(izquierda)
         capa_izq.setContentsMargins(0, 0, 0, 0)
-        capa_izq.addWidget(self.unplaced_label)
+        cabecera_izq = QHBoxLayout()
+        cabecera_izq.addWidget(icon_label("warning"))
+        cabecera_izq.addWidget(self.unplaced_label, 1)
+        capa_izq.addLayout(cabecera_izq)
         capa_izq.addWidget(self.unplaced_list, 1)
+        capa_izq.addWidget(self.unplaced_empty)
         self.table = PlanningGrid(self)
+        self.table.currentCellChanged.connect(lambda *_: self._update_cell_buttons())
         division = QSplitter(Qt.Orientation.Horizontal)
         division.addWidget(izquierda)
         division.addWidget(self.table)
         division.setStretchFactor(0, 1)
         division.setStretchFactor(1, 5)
 
+        self.hint = Banner("tip")
         principal = QVBoxLayout(self)
         principal.addLayout(barra)
+        principal.addLayout(ordenes)
         principal.addWidget(division, 1)
+        principal.addWidget(self.hint)
 
         bridge.refreshed.connect(self._on_refreshed)
         bridge.project_opened.connect(self._on_project_opened)
@@ -431,8 +423,45 @@ class PlanningWindow(QWidget):
         }
         for i in range(self.kind_combo.count()):
             self.kind_combo.setItemText(i, nombres[str(self.kind_combo.itemData(i))])
-        self.kind_label.setText(self.tr("Foco:"))
+        self.kind_label.setText(self.tr("Horario de:"))
+        self.kind_combo.setToolTip(
+            self.tr("Qué horario se planifica: de una clase, profesor o aula")
+        )
+        self.entity_combo.setToolTip(self.tr("La clase, profesor o aula cuyo horario se ve"))
         self.unplaced_label.setText(self.tr("Sin colocar"))
+        self.unplaced_list.setToolTip(
+            self.tr("Períodos sin hora: arrástralos a la cuadrícula; suelta aquí para desprogramar")
+        )
+        self.unplaced_empty.setText(self.tr("Todo colocado."))
+        set_texts(
+            self.fix_button,
+            self.tr("Fijar"),
+            self.tr(
+                "Fija o desfija la lección de la celda elegida: fijada no se mueve al optimizar"
+            ),
+        )
+        set_texts(
+            self.unplace_button,
+            self.tr("Desprogramar"),
+            self.tr("Quita la clase de la celda elegida y la pasa a Sin colocar (F7)"),
+        )
+        set_texts(
+            self.swap_button,
+            self.tr("Intercambiar"),
+            self.tr("Intercambia la celda elegida con otra: pulsa y luego haz clic en la otra"),
+        )
+        set_texts(
+            self.open_button,
+            self.tr("Abrir lección"),
+            self.tr("Muestra la lección de la celda elegida en la ventana Lecciones"),
+        )
+        self.legend.set_items(legend_items(targets=True))
+        self.hint.setText(
+            self.tr(
+                "Arrastra una clase para moverla: verde = puede ir ahí, rojo = no cabe. "
+                "Clic derecho para fijar, desprogramar o intercambiar. Esc cancela."
+            )
+        )
         self.table.setHorizontalHeaderLabels(
             [day_name(d, self.bridge.language) for d in self._days]
         )
@@ -621,6 +650,7 @@ class PlanningWindow(QWidget):
         self._paint_all()
         self._fill_unplaced()
         self._update_evaluation_label()
+        self._update_cell_buttons()
 
     def _fill_unplaced(self) -> None:
         self.unplaced_list.clear()
@@ -636,8 +666,16 @@ class PlanningWindow(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, leccion)
             item.setData(Qt.ItemDataRole.UserRole + 1, falta)
             if fila is not None and fila.lines:
-                item.setBackground(QBrush(subject_color(fila.lines[0].subject)))
+                fondo = subject_color(fila.lines[0].subject)
+                item.setBackground(QBrush(fondo))
+                item.setForeground(QBrush(text_color_for(fondo)))
+            item.setToolTip(
+                self.tr(
+                    "Lección {0}: {1} período(s) sin colocar. Arrástrala a la cuadrícula."
+                ).format(leccion, falta)
+            )
             self.unplaced_list.addItem(item)
+        self.unplaced_empty.setVisible(self.unplaced_list.count() == 0)
 
     def _update_evaluation_label(self) -> None:
         if not self.bridge.has_session:
@@ -645,12 +683,18 @@ class PlanningWindow(QWidget):
             return
         ev = self.bridge.service.evaluation(self.bridge.session)
         if ev is None:
+            self.evaluation_icon.setPixmap(icon("info").pixmap(icon_size("button")))
             self.evaluation_label.setText(self.tr("Sin horario activo"))
         else:
+            estado = "error" if ev.clashes else ("warning" if ev.unplaced_periods else "ok")
+            self.evaluation_icon.setPixmap(icon(estado).pixmap(icon_size("button")))
             self.evaluation_label.setText(
                 self.tr("Evaluación: {0} ({1} sin colocar, {2} choques)").format(
-                    ev.total, ev.unplaced_periods, ev.clashes
+                    fmt_int(ev.total), fmt_int(ev.unplaced_periods), fmt_int(ev.clashes)
                 )
+            )
+            self.evaluation_label.setToolTip(
+                self.tr("Número de evaluación del horario activo: cuanto más bajo, mejor")
             )
 
     # --- geometría ------------------------------------------------------------------ #
@@ -735,17 +779,13 @@ class PlanningWindow(QWidget):
         if periodo.is_break:
             item.setBackground(QBrush(QColor(BREAK_COLOR)))
             item.setFlags(Qt.ItemFlag.NoItemFlags)
+            item.setToolTip(self.tr("Recreo"))
             return
         item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
         celdas = self.cells_at(dia, periodo.number)
         item.setText(self._text_for(celdas))
-        ayuda = [
-            self.tr("Lección {0}").format(c.lesson)
-            + (self.tr(" (fijada)") if c.fixed else "")
-            + (self.tr(" - choque") if c.conflict else "")
-            for c in celdas
-        ]
-        fondo = subject_color(celdas[0].subject, celdas[0].color) if celdas else QColor("#ffffff")
+        ayuda = [cell_tooltip(celdas)] if celdas else [self.tr("Hueco libre")]
+        fondo, _texto = readable_colors(celdas)
         item.setData(CONFLICT_ROLE, any(c.conflict for c in celdas))
         item.setData(FIXED_ROLE, any(c.fixed for c in celdas))
         item.setData(DELTA_ROLE, None)
@@ -777,6 +817,7 @@ class PlanningWindow(QWidget):
                 ayuda.append(self.tr("Clic para intercambiar"))
         item.setData(MARK_ROLE, marca)
         item.setBackground(QBrush(fondo))
+        item.setForeground(QBrush(text_color_for(fondo)))
         item.setToolTip("\n".join(ayuda))
 
     def _paint_cell(self, cell: Cell | None) -> None:
@@ -941,6 +982,37 @@ class PlanningWindow(QWidget):
             self.refresh()
         return resultado
 
+    def _update_cell_buttons(self) -> None:
+        celda = self.current_cell()
+        principal = self.primary(*celda) if celda is not None else None
+        ocupada = principal is not None
+        for boton in (self.fix_button, self.unplace_button, self.open_button):
+            boton.setEnabled(ocupada)
+        self.swap_button.setEnabled(
+            ocupada and celda is not None and bool(self.swap_candidates(*celda))
+        )
+        if principal is not None and principal.fixed:
+            self.fix_button.setIcon(icon("unfix"))
+            self.fix_button.setText(self.tr("Desfijar"))
+        else:
+            self.fix_button.setIcon(icon("fix"))
+            self.fix_button.setText(self.tr("Fijar"))
+
+    def _on_cell_command(self, command: str) -> None:
+        celda = self.current_cell()
+        if celda is None:
+            self.bridge.status.emit(self.tr("Elige antes una celda de la cuadrícula"))
+            return
+        if command == "fix":
+            self.toggle_fixed(*celda)
+        elif command == "unplace":
+            self.unplace(*celda)
+        elif command == "swap":
+            self.begin_swap(*celda)
+        elif command == "open":
+            self.open_lesson(*celda)
+        self._update_cell_buttons()
+
     def open_lesson(self, day: int, period: int) -> None:
         celda = self.primary(day, period)
         if celda is not None:
@@ -997,15 +1069,36 @@ class PlanningWindow(QWidget):
             return None
         self.select_cell(day, period)
         menu = QMenu(self)
-        fijar = QAction(self.tr("Desfijar") if celda.fixed else self.tr("Fijar"), menu)
-        fijar.triggered.connect(lambda _c=False: self.toggle_fixed(day, period))
-        desprogramar = QAction(self.tr("Desprogramar (F7)"), menu)
-        desprogramar.triggered.connect(lambda _c=False: self.unplace(day, period))
-        intercambiar = QAction(self.tr("Intercambiar con..."), menu)
-        intercambiar.triggered.connect(lambda _c=False: self.begin_swap(day, period))
+        menu.setToolTipsVisible(True)
+        fijar = make_action(
+            menu, "unfix" if celda.fixed else "fix", lambda: self.toggle_fixed(day, period)
+        )
+        set_texts(
+            fijar,
+            self.tr("Desfijar") if celda.fixed else self.tr("Fijar"),
+            self.tr("Deja que la optimización la mueva")
+            if celda.fixed
+            else self.tr("La optimización no la moverá de aquí"),
+        )
+        desprogramar = make_action(menu, "unplace", lambda: self.unplace(day, period))
+        set_texts(
+            desprogramar,
+            self.tr("Desprogramar (F7)"),
+            self.tr("Quita la clase de aquí y la pasa a la lista Sin colocar"),
+        )
+        intercambiar = make_action(menu, "swap", lambda: self.begin_swap(day, period))
+        set_texts(
+            intercambiar,
+            self.tr("Intercambiar con..."),
+            self.tr("Después haz clic en otra celda verde para cambiarlas de sitio"),
+        )
         intercambiar.setEnabled(bool(self.swap_candidates(day, period)))
-        abrir = QAction(self.tr("Abrir lección {0}").format(celda.lesson), menu)
-        abrir.triggered.connect(lambda _c=False: self.open_lesson(day, period))
+        abrir = make_action(menu, "lessons", lambda: self.open_lesson(day, period))
+        set_texts(
+            abrir,
+            self.tr("Abrir lección {0}").format(celda.lesson),
+            self.tr("Muestra la lección en la ventana Lecciones"),
+        )
         for accion in (fijar, desprogramar, intercambiar):
             menu.addAction(accion)
         menu.addSeparator()
@@ -1036,5 +1129,8 @@ register(
         tab=RibbonTab.TIMETABLES,
         factory=lambda bridge: PlanningWindow(bridge),
         order=4,
+        icon="planning",
+        tooltip="Mueve clases a mano arrastrándolas: verde donde caben, rojo donde no.",
+        tooltip_de="Stunden per Ziehen von Hand verschieben: grün, wo sie passen, rot, wo nicht.",
     )
 )

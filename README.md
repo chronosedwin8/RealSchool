@@ -40,7 +40,9 @@ no importa nada; `interop` y `heuristic` solo el modelo; fuera del motor, solo
 
 ## Uso
 
-**Escritorio** (`schedule-desktop [proyecto]`): cinta y ventanas como en Untis
+**Escritorio** (`schedule-desktop [proyecto]`): arranca en una página de inicio con
+un asistente para crear un colegio desde cero y la lista *Primeros pasos*; cinta
+con iconos y ventanas como en Untis
 —Datos maestros, Rejillas, Deseos, Lecciones, Ponderación, Optimización
 (A/B/D/E/Reparar), Evaluación, Diagnóstico (panel), Diálogo de planificación
 con arrastrar y soltar, Horarios con formatos, impresión, PDF y HTML— en

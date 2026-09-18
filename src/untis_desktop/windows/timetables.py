@@ -6,6 +6,10 @@ admite 1, 2 o 4 horarios a la vez; con "Sincronizar" marcado, los paneles
 siguen la selección del resto de ventanas (elegir una clase en Datos maestros
 cambia el panel de clases). Desde aquí se imprime o se exporta a PDF y HTML
 (uno o todos los horarios de un tipo) y a GPU/XML para MiUntisWeb y Untis.
+
+Las celdas usan texto negro o blanco según el color de la materia, marcan los
+choques con borde rojo y las lecciones fijadas con una chincheta; una leyenda
+lo explica y la ayuda emergente de cada celda trae la lección completa.
 """
 
 from __future__ import annotations
@@ -40,9 +44,27 @@ from scheduling_platform.application import MasterKind, TimetableGrid
 
 from ..export.html import FORMATS, TimetableFormat, cell_lines, timetable_html
 from ..export.pdf import html_to_pdf, print_html
+from ..icons import icon, icon_size
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
-from ..theme import BREAK_COLOR, CONFLICT_COLOR, day_name, subject_color
+from ..theme import BREAK_COLOR, day_name
+from ..widgets.timetable_cells import (
+    CONFLICT_ROLE,
+    FIXED_ROLE,
+    TimetableCellDelegate,
+    cell_tooltip,
+    legend_items,
+    readable_colors,
+)
+from ..widgets.uikit import Legend, set_texts
+
+#: Icono de cada tipo de horario.
+KIND_ICONS: dict[str, str] = {
+    "class": "classes",
+    "teacher": "teachers",
+    "room": "rooms",
+    "subject": "subjects",
+}
 
 #: Tipos de horario y su ventana de datos maestros.
 KINDS: tuple[tuple[str, MasterKind], ...] = (
@@ -71,7 +93,7 @@ class TimetablePane(QFrame):
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.kind_combo = QComboBox()
         for clave, _master in KINDS:
-            self.kind_combo.addItem(clave, clave)
+            self.kind_combo.addItem(icon(KIND_ICONS[clave]), clave, clave)
         self.kind_combo.setCurrentIndex(self.kind_combo.findData(default_kind))
         self.entity_combo = QComboBox()
         self.entity_combo.setMinimumContentsLength(10)
@@ -82,6 +104,7 @@ class TimetablePane(QFrame):
         self.table = QTableWidget()
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setWordWrap(True)
+        self.table.setItemDelegate(TimetableCellDelegate(self.table))
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         barra = QHBoxLayout()
@@ -112,6 +135,8 @@ class TimetablePane(QFrame):
         }
         for i in range(self.kind_combo.count()):
             self.kind_combo.setItemText(i, nombres[str(self.kind_combo.itemData(i))])
+        self.kind_combo.setToolTip(self.tr("Tipo de horario: de clase, profesor, aula o materia"))
+        self.entity_combo.setToolTip(self.tr("La clase, profesor, aula o materia que se muestra"))
 
     def load_entities(self) -> None:
         """Rellena el combo de entidades conservando la elegida."""
@@ -183,20 +208,20 @@ class TimetablePane(QFrame):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if periodo.is_break:
                     item.setBackground(QBrush(QColor(BREAK_COLOR)))
+                    item.setToolTip(self.tr("Recreo"))
                 else:
                     celdas = grid.at(dia, periodo.number)
                     item.setText("\n".join(cell_lines(celdas, fmt)))
-                    if celdas and fmt.colors:
-                        item.setBackground(
-                            QBrush(subject_color(celdas[0].subject, celdas[0].color))
-                        )
-                    if any(c.conflict for c in celdas):
-                        item.setForeground(QBrush(QColor(CONFLICT_COLOR)))
+                    fondo, texto = readable_colors(celdas, colors=fmt.colors)
+                    item.setBackground(QBrush(fondo))
+                    item.setForeground(QBrush(texto))
+                    item.setData(CONFLICT_ROLE, any(c.conflict for c in celdas))
+                    item.setData(FIXED_ROLE, any(c.fixed for c in celdas))
                     if any(c.fixed for c in celdas):
                         negrita = QFont(fuente)
                         negrita.setBold(True)
                         item.setFont(negrita)
-                    item.setToolTip(", ".join(str(c.lesson) for c in celdas))
+                    item.setToolTip(cell_tooltip(celdas))
                 tabla.setItem(fila, col, item)
 
     def cell_text(self, day: int, period: int) -> str:
@@ -242,19 +267,41 @@ class TimetablesWindow(QWidget):
         self._lbl_format = QLabel()
         self._lbl_font = QLabel()
 
+        iconos_casillas = (
+            (self.subject_check, "subjects"),
+            (self.teacher_check, "teachers"),
+            (self.room_check, "rooms"),
+            (self.class_check, "classes"),
+            (self.colors_check, "visible"),
+            (self.sync_check, "couple"),
+        )
+        for casilla, nombre in iconos_casillas:
+            casilla.setIcon(icon(nombre))
+            casilla.setIconSize(icon_size("small"))
+        self.legend = Legend()
+
         self.print_button = QToolButton()
+        self.print_button.setIcon(icon("print"))
+        self.print_button.setIconSize(icon_size("button"))
+        self.print_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.print_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.export_menu = QMenu(self)
+        self.export_menu.setToolTipsVisible(True)
+        self.export_menu.menuAction().setIcon(icon("export"))
         self.print_button.setMenu(self.export_menu)
         self._actions = {
-            "print": self.export_menu.addAction("", self.print_dialog),
-            "pdf": self.export_menu.addAction("", self._ask_pdf),
-            "html": self.export_menu.addAction("", self._ask_html),
-            "all_html": self.export_menu.addAction("", lambda: self._ask_all(pdf=False)),
-            "all_pdf": self.export_menu.addAction("", lambda: self._ask_all(pdf=True)),
-            "gpu": self.export_menu.addAction("", self._ask_gpu),
-            "xml": self.export_menu.addAction("", self._ask_xml),
+            "print": self.export_menu.addAction(icon("print"), "", self.print_dialog),
+            "pdf": self.export_menu.addAction(icon("pdf"), "", self._ask_pdf),
+            "html": self.export_menu.addAction(icon("html"), "", self._ask_html),
+            "all_html": self.export_menu.addAction(
+                icon("html"), "", lambda: self._ask_all(pdf=False)
+            ),
+            "all_pdf": self.export_menu.addAction(icon("pdf"), "", lambda: self._ask_all(pdf=True)),
+            "gpu": self.export_menu.addAction(icon("gpu"), "", self._ask_gpu),
+            "xml": self.export_menu.addAction(icon("export"), "", self._ask_xml),
         }
+        self.export_menu.insertSeparator(self._actions["all_html"])
+        self.export_menu.insertSeparator(self._actions["gpu"])
 
         barra = QHBoxLayout()
         for w in (
@@ -285,6 +332,7 @@ class TimetablesWindow(QWidget):
         principal = QVBoxLayout(self)
         principal.addLayout(barra)
         principal.addWidget(self._pane_area, 1)
+        principal.addWidget(self.legend)
 
         self._apply_format_to_controls(FORMATS["class"])
         self.format_combo.currentIndexChanged.connect(self._on_format_selected)
@@ -325,24 +373,67 @@ class TimetablesWindow(QWidget):
         for i in range(self.format_combo.count()):
             clave = str(self.format_combo.itemData(i))
             self.format_combo.setItemText(i, nombres.get(clave, clave))
-        self.subject_check.setText(self.tr("Materia"))
-        self.teacher_check.setText(self.tr("Profesor"))
-        self.room_check.setText(self.tr("Aula"))
-        self.class_check.setText(self.tr("Clase"))
-        self.colors_check.setText(self.tr("Colores"))
-        self.sync_check.setText(self.tr("Sincronizar"))
-        self.print_button.setText(self.tr("Imprimir / Exportar"))
+        casillas = (
+            (self.subject_check, self.tr("Materia"), self.tr("Muestra la materia en cada celda")),
+            (self.teacher_check, self.tr("Profesor"), self.tr("Muestra el profesor en cada celda")),
+            (self.room_check, self.tr("Aula"), self.tr("Muestra el aula en cada celda")),
+            (self.class_check, self.tr("Clase"), self.tr("Muestra la clase en cada celda")),
+            (
+                self.colors_check,
+                self.tr("Colores"),
+                self.tr("Pinta cada celda con el color de su materia"),
+            ),
+            (
+                self.sync_check,
+                self.tr("Sincronizar"),
+                self.tr("Los horarios siguen lo que eliges en las demás ventanas"),
+            ),
+        )
+        for casilla, texto, ayuda in casillas:
+            set_texts(casilla, texto, ayuda)
+        self.layout_combo.setToolTip(self.tr("Cuántos horarios se ven a la vez: 1, 2 o 4"))
+        self.format_combo.setToolTip(self.tr("Formato predefinido: qué datos lleva cada celda"))
+        self.font_size.setToolTip(self.tr("Tamaño de la letra en las celdas"))
+        self.legend.set_items(legend_items(targets=False), self.tr("Leyenda:"))
+        set_texts(
+            self.print_button,
+            self.tr("Imprimir / Exportar"),
+            self.tr("Imprime el horario o lo guarda como PDF, HTML, GPU o XML"),
+        )
+        self.export_menu.menuAction().setText(self.tr("Imprimir / Exportar"))
+        self.export_menu.menuAction().setToolTip(self.tr("Imprime o exporta horarios"))
         textos = {
-            "print": self.tr("Imprimir..."),
-            "pdf": self.tr("PDF del horario..."),
-            "html": self.tr("HTML del horario..."),
-            "all_html": self.tr("Exportar todos (HTML, uno por entidad)..."),
-            "all_pdf": self.tr("Exportar todos (un PDF)..."),
-            "gpu": self.tr("Exportar GPU (MiUntisWeb)..."),
-            "xml": self.tr("Exportar XML (Untis)..."),
+            "print": (
+                self.tr("Imprimir..."),
+                self.tr("Imprime el horario del panel activo"),
+            ),
+            "pdf": (
+                self.tr("PDF del horario..."),
+                self.tr("Guarda el horario del panel activo como PDF"),
+            ),
+            "html": (
+                self.tr("HTML del horario..."),
+                self.tr("Guarda el horario del panel activo como página web"),
+            ),
+            "all_html": (
+                self.tr("Exportar todos (HTML, uno por entidad)..."),
+                self.tr("Una página web por cada clase (o profesor, aula...) en una carpeta"),
+            ),
+            "all_pdf": (
+                self.tr("Exportar todos (un PDF)..."),
+                self.tr("Todos los horarios del tipo del panel activo en un único PDF"),
+            ),
+            "gpu": (
+                self.tr("Exportar GPU (MiUntisWeb)..."),
+                self.tr("Archivos GPU del horario activo, para subirlos a MiUntisWeb"),
+            ),
+            "xml": (
+                self.tr("Exportar XML (Untis)..."),
+                self.tr("Todo el proyecto en XML para abrirlo en Untis"),
+            ),
         }
         for clave, accion in self._actions.items():
-            accion.setText(textos[clave])
+            set_texts(accion, *textos[clave])
         for pane in self.panes:
             pane.retranslate()
             pane.redraw()
@@ -476,6 +567,8 @@ class TimetablesWindow(QWidget):
         for pane in self.visible_panes():
             pane.load_entities()
             pane.reload()
+        if self.bridge.selection is not None:
+            self._on_selection_changed(*self.bridge.selection)
 
     # --- exportación -------------------------------------------------------------------- #
 
@@ -607,5 +700,11 @@ register(
         tab=RibbonTab.TIMETABLES,
         factory=lambda bridge: TimetablesWindow(bridge),
         order=5,
+        icon="timetables",
+        tooltip="Ver, imprimir y exportar los horarios de clases, profesores, aulas y materias.",
+        tooltip_de=(
+            "Stundenpläne von Klassen, Lehrkräften, Räumen und Fächern ansehen, drucken und "
+            "exportieren."
+        ),
     )
 )

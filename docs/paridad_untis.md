@@ -11,10 +11,11 @@ Datos de referencia: export real 2025-2026 (seudonimizado en
 
 | # | Tarea | Dónde | Prueba automática | Manual |
 | --- | --- | --- | --- | --- |
+| 0 | Crear un colegio desde cero sin Untis | Inicio → Crear un colegio nuevo | `test_untis_facade::test_colegio_desde_cero_hasta_los_horarios_de_cada_grupo`, `test_desktop_onboarding` | ☐ |
 | 1 | Abrir el XML exportado de Untis | Inicio → Abrir | `test_untis_facade::test_abrir_xml_real_deduce_recreos_y_activa_el_horario` | ☐ |
 | 2 | Importar archivos GPU de otra instalación | CLI `convert <carpeta> x.rsp` / Abrir carpeta | `test_cli_untis::test_convert_rsp_a_gpu_y_vuelta` | ☐ |
 | 3 | Guardar el proyecto y reabrirlo sin pérdidas | Inicio → Guardar (`.rsp`) | `test_untis_facade::test_guardar_y_reabrir_rsp`, `test_interop_rsp` | ☐ |
-| 4 | Revisar y corregir la rejilla de tiempo (horas, recreos, tarde) | Datos maestros → Rejillas de tiempo | `test_desktop_data_windows` (rejillas) | ☐ |
+| 4 | Crear la rejilla de tiempo desde cero y ajustarla (días, períodos, horas, recreos) | Asistente de colegio nuevo / Datos maestros → Rejillas de tiempo | `test_untis_facade::test_gestion_de_rejillas`, `test_desktop_usability`, `test_desktop_onboarding` | ☐ |
 | 5 | Dar de alta una clase, un profesor, un aula, una materia | Datos maestros → Clases / Profesores / Aulas / Materias | `test_untis_facade::test_alta_y_baja_de_entidades`, `test_desktop_data_windows` | ☐ |
 | 6 | Editar en la cuadrícula con validación inmediata (celda roja) | Cuadrícula de datos maestros | `test_untis_facade::test_edicion_invalida_devuelve_fallo_sin_cambiar_nada`, `test_desktop_data_windows` | ☐ |
 | 7 | Mostrar/ocultar y reordenar columnas; que se recuerde | Cabecera de la cuadrícula (menú contextual) | `test_desktop_data_windows` (persistencia de columnas) | ☐ |

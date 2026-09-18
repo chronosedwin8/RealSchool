@@ -20,6 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication.instance()
     if not isinstance(app, QApplication):
         app = QApplication(args)
+    app.setOrganizationName("RealSchool")
     app.setApplicationName("RealSchool")
     app.setStyleSheet(APP_QSS)
     bridge = FacadeBridge()
@@ -29,8 +30,8 @@ def main(argv: list[str] | None = None) -> int:
     ventana.show()
     if len(args) > 1:
         ventana.open_path(args[1])
-    else:
-        bridge.new("Nuevo colegio")
+    # Sin argumento no se crea nada: la página de Inicio ofrece crear un colegio
+    # con el asistente, abrir uno, importar de Untis o probar el ejemplo.
     if os.environ.get("REALSCHOOL_SMOKE") == "1":
         # Prueba de humo del binario: arranca, abre y sale limpio.
         pestanas = ventana.ribbon.count()

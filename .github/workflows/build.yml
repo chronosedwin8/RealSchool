@@ -86,6 +86,7 @@ jobs:
           pyinstaller --onefile --windowed --clean --name realschool
           --collect-all ortools
           --add-data "src/untis_desktop/translations${{ runner.os == 'Windows' && ';' || ':' }}untis_desktop/translations"
+          --add-data "src/untis_desktop/icons${{ runner.os == 'Windows' && ';' || ':' }}untis_desktop/icons"
           packaging/desktop_entry.py
 
       - name: Smoke test (arranca sin pantalla y sale)

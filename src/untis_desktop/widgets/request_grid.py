@@ -8,13 +8,13 @@ deseo de día completo. Los recreos se ven en gris y no se pueden pintar.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QModelIndex, QPoint, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent
-from PySide6.QtWidgets import QAbstractItemView, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableWidget, QTableWidgetItem
 
 from scheduling_platform.application import RequestGrid
 
-from ..theme import BREAK_COLOR, day_name, request_color
+from ..theme import BREAK_COLOR, day_name, request_color, text_color_for
 
 #: Una celda pintable: `(día, período)`; período `None` = día completo.
 type RequestCell = tuple[int, int | None]
@@ -23,6 +23,20 @@ type RequestCell = tuple[int, int | None]
 def request_text(value: int) -> str:
     """Texto de una celda: el valor con signo (vacío si no hay deseo)."""
     return f"{value:+d}" if value else ""
+
+
+def request_meaning(value: int) -> str:
+    """Qué significa un valor de deseo -3..+3, en palabras."""
+    textos = {
+        -3: QCoreApplication.translate("RequestGrid", "-3: imposible, nunca aquí"),
+        -2: QCoreApplication.translate("RequestGrid", "-2: muy poco deseable"),
+        -1: QCoreApplication.translate("RequestGrid", "-1: poco deseable"),
+        0: QCoreApplication.translate("RequestGrid", "0: sin deseo (borra el valor)"),
+        1: QCoreApplication.translate("RequestGrid", "+1: deseable"),
+        2: QCoreApplication.translate("RequestGrid", "+2: bastante deseable"),
+        3: QCoreApplication.translate("RequestGrid", "+3: muy deseable"),
+    }
+    return textos.get(max(-3, min(3, value)), "")
 
 
 class RequestGridWidget(QTableWidget):
@@ -45,6 +59,9 @@ class RequestGridWidget(QTableWidget):
         self.verticalHeader().setSectionsClickable(True)
         self.verticalHeader().sectionClicked.connect(self._on_day_header)
         self.horizontalHeader().setDefaultSectionSize(44)
+        self.horizontalHeader().setMinimumSectionSize(36)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.verticalHeader().setDefaultSectionSize(30)
 
     # --- contenido ------------------------------------------------------------ #
 
@@ -59,6 +76,9 @@ class RequestGridWidget(QTableWidget):
         self.setColumnCount(len(grid.periods) + 1)
         self.setVerticalHeaderLabels([day_name(d, language) for d in grid.days])
         self.setHorizontalHeaderLabels([self.tr("Día"), *(str(p) for p in grid.periods)])
+        cabecera = self.horizontalHeaderItem(0)
+        if cabecera is not None:
+            cabecera.setToolTip(self.tr("Deseo para el día entero (clic en el nombre del día)"))
         for fila, dia in enumerate(grid.days):
             self._set_cell(fila, 0, grid.day_values.get(dia, 0), is_break=False)
             for col, periodo in enumerate(grid.periods, start=1):
@@ -71,11 +91,20 @@ class RequestGridWidget(QTableWidget):
         if is_break:
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             item.setBackground(QColor(BREAK_COLOR))
+            item.setToolTip(self.tr("Recreo: no hay clase"))
         else:
             item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            item.setBackground(request_color(value))
-            if abs(value) >= 2:
-                item.setForeground(QColor("#ffffff"))
+            fondo = request_color(value)
+            item.setBackground(fondo)
+            item.setForeground(text_color_for(fondo))
+            periodos = self.grid.periods if self.grid is not None else ()
+            if column == 0:
+                donde = self.tr("Todo el día")
+            elif column - 1 < len(periodos):
+                donde = self.tr("Período {0}").format(periodos[column - 1])
+            else:
+                donde = ""
+            item.setToolTip(f"{donde}: {request_meaning(value)}")
         self.setItem(row, column, item)
 
     def cell_of(self, row: int, column: int) -> RequestCell | None:

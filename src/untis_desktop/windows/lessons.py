@@ -8,8 +8,9 @@ la navegación con teclado es la de una hoja de cálculo y ordenar/filtrar es
 trivial; la lección se distingue por el número y el sombreado alterno.
 
 Filtro por clase / profesor / materia / todas, que sigue la selección
-sincronizada. Barra de suma abajo: períodos frente a capacidad de la rejilla
-(en rojo si la supera).
+sincronizada. Barra de suma abajo, con icono de estado: períodos frente a
+capacidad de la rejilla (en rojo si la supera). Las sub-filas de un acople
+llevan el icono de enlace; cada cabecera explica su columna al pasar el ratón.
 """
 
 from __future__ import annotations
@@ -26,11 +27,11 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QSpinBox,
     QTableView,
     QVBoxLayout,
@@ -39,10 +40,12 @@ from PySide6.QtWidgets import (
 
 from scheduling_platform.application import EditResult, MasterKind, UntisLessonRow
 
+from ..icons import icon
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
-from ..theme import ERROR_COLOR
+from ..theme import ERROR_COLOR, fmt_int
 from ..widgets.master_grid import ChoiceDelegate, entity_ids, is_checked
+from ..widgets.uikit import Banner, EmptyHint, icon_pixmap, set_texts, tool_button
 
 type AnyIndex = QModelIndex | QPersistentModelIndex
 
@@ -190,20 +193,20 @@ class LessonsModel(QAbstractTableModel):
 
     def _tooltips(self) -> tuple[str, ...]:
         return (
-            self.tr("Número de lección"),
-            self.tr("Clases"),
-            self.tr("Profesor"),
-            self.tr("Materia"),
-            self.tr("Aula"),
-            self.tr("Períodos por semana"),
-            self.tr("Dobles mín-máx"),
-            self.tr("Bloque"),
-            self.tr("Rejilla de tiempo"),
-            self.tr("Fijada"),
-            self.tr("Ignorar en la optimización"),
-            self.tr("No más de un período el mismo día"),
-            self.tr("Valor semanal"),
-            self.tr("Períodos colocados en el horario activo"),
+            self.tr("Nº: número de la lección; las sub-filas con enlace son líneas del acople"),
+            self.tr("Cl: clases que reciben la lección, separadas por comas"),
+            self.tr("Prof: profesor que da la lección; elígelo de la lista"),
+            self.tr("Mat: materia de la lección; elígela de la lista"),
+            self.tr("Aula: aula que pide la lección; elígela de la lista"),
+            self.tr("Per/sem: cuántos períodos de esta lección hay a la semana"),
+            self.tr("Dobles: cuántos dobles (dos períodos seguidos) quieres, mín-máx; escribe 1-2"),
+            self.tr("Bloque: tamaño de los bloques de períodos seguidos, p. ej. 3"),
+            self.tr("Rejilla: rejilla de tiempo en la que se coloca la lección"),
+            self.tr("Fijar: la optimización no mueve los períodos ya colocados"),
+            self.tr("Ignorar: la lección no se coloca ni cuenta en la optimización"),
+            self.tr("No mismo día: como mucho un período de esta lección al día"),
+            self.tr("Valor semanal: horas que cuenta para la carga del profesor"),
+            self.tr("Colocadas: períodos ya colocados en el horario activo (amarillo si faltan)"),
         )
 
     # --- API de Qt ----------------------------------------------------------- #
@@ -247,8 +250,17 @@ class LessonsModel(QAbstractTableModel):
             return QColor("#f3f4f6") if fila.shade else None
         if role == Qt.ItemDataRole.ForegroundRole and campo == "number" and not fila.is_first:
             return QColor(_SUB_ROW_COLOR)
-        if role == Qt.ItemDataRole.ToolTipRole and error:
-            return error
+        if role == Qt.ItemDataRole.DecorationRole and campo == "number" and not fila.is_first:
+            return icon("couple")
+        if role == Qt.ItemDataRole.ToolTipRole:
+            if error:
+                return error
+            if campo == "number" and fila.lesson.is_coupled:
+                return self.tr("Lección {0} acoplada: línea {1} de {2}").format(
+                    fila.lesson.number, fila.line + 1, len(fila.lesson.lines)
+                )
+            if campo == "placed" and fila.is_first and fila.lesson.unplaced:
+                return self.tr("Faltan {0} período(s) por colocar").format(fila.lesson.unplaced)
         return None
 
     def flags(self, index: AnyIndex) -> Qt.ItemFlag:
@@ -338,6 +350,12 @@ class NewLessonDialog(QDialog):
         botones = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        botones.button(QDialogButtonBox.StandardButton.Ok).setIcon(icon("lesson_add"))
+        botones.button(QDialogButtonBox.StandardButton.Cancel).setIcon(icon("unplace"))
+        self.subject.setToolTip(self.tr("Materia que se enseña en la lección"))
+        self.teacher.setToolTip(self.tr("Profesor que la da (se puede dejar vacío)"))
+        self.classes.setToolTip(self.tr("Marca las clases que reciben la lección"))
+        self.periods.setToolTip(self.tr("Cuántos períodos a la semana"))
         botones.accepted.connect(self.accept)
         botones.rejected.connect(self.reject)
         raiz = QVBoxLayout(self)
@@ -372,23 +390,21 @@ class LessonsWindow(QWidget):
         super().__init__()
         self.bridge = bridge
         self._loading = False
+        self._sized = False
 
         self.mode_combo = QComboBox()
+        iconos = {"class": "classes", "teacher": "teachers", "subject": "subjects", "all": "table"}
         for clave in MODE_KEYS:
-            self.mode_combo.addItem(clave, clave)
+            self.mode_combo.addItem(icon(iconos[clave]), clave, clave)
         self.mode_combo.currentIndexChanged.connect(self._on_mode)
         self.entity_combo = QComboBox()
         self.entity_combo.setMinimumWidth(140)
         self.entity_combo.currentIndexChanged.connect(self._on_entity)
 
-        self.new_button = QPushButton()
-        self.new_button.clicked.connect(self.new_lesson)
-        self.couple_button = QPushButton()
-        self.couple_button.clicked.connect(self.couple)
-        self.uncouple_button = QPushButton()
-        self.uncouple_button.clicked.connect(self.uncouple)
-        self.remove_button = QPushButton()
-        self.remove_button.clicked.connect(self.remove)
+        self.new_button = tool_button("lesson_add", self.new_lesson)
+        self.couple_button = tool_button("couple", self.couple)
+        self.uncouple_button = tool_button("uncouple", self.uncouple)
+        self.remove_button = tool_button("delete", self.remove)
 
         self.model = LessonsModel(bridge)
         self.view = QTableView()
@@ -406,18 +422,22 @@ class LessonsWindow(QWidget):
         self.view.horizontalHeader().setSectionsMovable(True)
         self.view.selectionModel().currentRowChanged.connect(self._on_current_row)
         self.view.doubleClicked.connect(self._on_double_click)
+        self.hint = EmptyHint(self.view)
 
+        self.sum_icon = QLabel()
         self.sum_bar = QLabel()
         self.sum_bar.setMargin(4)
-        self.message = QLabel()
-        self.message.setWordWrap(True)
-        self.message.setStyleSheet(f"background: {ERROR_COLOR}; padding: 3px;")
+        self.sum_frame = QFrame()
+        self.sum_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        suma = QHBoxLayout(self.sum_frame)
+        suma.setContentsMargins(6, 0, 6, 0)
+        suma.addWidget(self.sum_icon)
+        suma.addWidget(self.sum_bar, 1)
+        self.message = Banner("error")
         self.message.hide()
 
         barra = QHBoxLayout()
-        barra.addWidget(self.mode_combo)
-        barra.addWidget(self.entity_combo)
-        barra.addStretch(1)
+        barra.setSpacing(4)
         for boton in (
             self.new_button,
             self.couple_button,
@@ -425,12 +445,18 @@ class LessonsWindow(QWidget):
             self.remove_button,
         ):
             barra.addWidget(boton)
+        barra.addSpacing(16)
+        self.filter_label = QLabel()
+        barra.addWidget(self.filter_label)
+        barra.addWidget(self.mode_combo)
+        barra.addWidget(self.entity_combo)
+        barra.addStretch(1)
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(4, 4, 4, 4)
         raiz.addLayout(barra)
         raiz.addWidget(self.view, 1)
         raiz.addWidget(self.message)
-        raiz.addWidget(self.sum_bar)
+        raiz.addWidget(self.sum_frame)
 
         self.model.edit_failed.connect(self.show_message)
         bridge.refreshed.connect(self.refresh)
@@ -528,32 +554,86 @@ class LessonsWindow(QWidget):
             self.model.set_lessons(filas)
         if actual is not None:
             self._select_row(self.model.row_of(*actual))
+        if self.model.lessons and not self._sized:
+            # Primera carga con datos: anchos según el contenido (una sola vez).
+            self._sized = True
+            self.view.resizeColumnsToContents()
+            cabecera = self.view.horizontalHeader()
+            for col, (_campo, nivel) in enumerate(COLUMNS):
+                minimo = 110 if nivel == "line" else 70
+                cabecera.resizeSection(col, max(cabecera.sectionSize(col), minimo))
         self._update_sum_bar()
+        self._update_hint()
+        self._update_buttons()
+
+    def hint_text(self) -> str:
+        """Ayuda que se ve sobre la tabla vacía ("" si hay lecciones)."""
+        if not self.bridge.has_session:
+            return self.tr("Abre o crea un proyecto para ver sus lecciones.")
+        if self.model.lessons:
+            return ""
+        if self.mode != "all" and not self.entity:
+            return self.tr("Elige arriba una clase, profesor o materia, o pasa a «Todas».")
+        if self.mode == "all":
+            return self.tr(
+                "Aún no hay lecciones. Pulsa «Nueva lección» para decir qué materia da "
+                "cada profesor a cada clase y cuántas horas a la semana."
+            )
+        return self.tr(
+            "No hay lecciones de {0}. Pulsa «Nueva lección» para crear la primera."
+        ).format(self.entity)
+
+    def _update_hint(self) -> None:
+        self.hint.show_hint(self.hint_text())
+
+    def _update_buttons(self) -> None:
+        abierto = self.bridge.has_session
+        hay = self.current_lesson() is not None
+        self.new_button.setEnabled(abierto)
+        for boton in (self.couple_button, self.uncouple_button, self.remove_button):
+            boton.setEnabled(abierto and hay)
+
+    def _set_sum_state(self, kind: str) -> None:
+        self.sum_icon.setPixmap(icon_pixmap(kind, "button"))
+        self.sum_icon.setProperty("state", kind)
 
     def _update_sum_bar(self) -> None:
         self.sum_bar.setStyleSheet("")
         if not self.bridge.has_session:
             self.sum_bar.setText("")
+            self.sum_icon.clear()
             return
         if self.mode in ("class", "teacher") and self.entity:
             r = self.bridge.service.load_summary(self.bridge.session, self.mode, self.entity)
             self.sum_bar.setText(
-                self.tr("{0}: períodos {1} / capacidad {2} — colocados {3}").format(
-                    self.entity, r.periods, r.capacity, r.placed
+                self.tr("{0}: períodos {1} / capacidad {2} · colocados {3}").format(
+                    self.entity, fmt_int(r.periods), fmt_int(r.capacity), fmt_int(r.placed)
                 )
             )
             if r.overloaded:
                 self.sum_bar.setStyleSheet(f"background: {ERROR_COLOR}; font-weight: bold;")
+                self.sum_bar.setToolTip(
+                    self.tr("Hay más períodos que huecos en su rejilla: no caben todos")
+                )
+                self._set_sum_state("error")
+            elif r.placed < r.periods:
+                self.sum_bar.setToolTip(self.tr("Quedan períodos sin colocar en el horario"))
+                self._set_sum_state("warning")
+            else:
+                self.sum_bar.setToolTip(self.tr("Todo cabe y todo está colocado"))
+                self._set_sum_state("ok")
             self.sum_bar.setProperty("overloaded", r.overloaded)
             return
         lecciones = self.model.lessons
         periodos = sum(le.periods_per_week for le in lecciones if not le.ignore)
         colocados = sum(min(le.placed, le.periods_per_week) for le in lecciones if not le.ignore)
         self.sum_bar.setText(
-            self.tr("{0} lecciones: períodos {1} — colocados {2}").format(
-                len(lecciones), periodos, colocados
+            self.tr("{0} lecciones: períodos {1} · colocados {2}").format(
+                fmt_int(len(lecciones)), fmt_int(periodos), fmt_int(colocados)
             )
         )
+        self.sum_bar.setToolTip(self.tr("Suma de períodos semanales y de los ya colocados"))
+        self._set_sum_state("ok" if colocados >= periodos else "warning")
         self.sum_bar.setProperty("overloaded", False)
 
     # --- selección de lección ------------------------------------------------- #
@@ -592,6 +672,7 @@ class LessonsWindow(QWidget):
         self._select_row(fila)
 
     def _on_current_row(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        self._update_buttons()
         fila = self.model.line_at(current.row())
         if fila is not None and not self._loading:
             self.bridge.select_lesson(fila.lesson.number)
@@ -672,8 +753,7 @@ class LessonsWindow(QWidget):
         return self._run(lambda number, _line: svc.remove_lesson(self.bridge.session, number))
 
     def show_message(self, text: str) -> None:
-        self.message.setText(text)
-        self.message.setVisible(bool(text))
+        self.message.show_message(text, "error")
         if text:
             self.bridge.status.emit(text)
 
@@ -688,12 +768,34 @@ class LessonsWindow(QWidget):
         }
         for i, clave in enumerate(MODE_KEYS):
             self.mode_combo.setItemText(i, nombres[clave])
-        self.new_button.setText(self.tr("Nueva lección"))
-        self.couple_button.setText(self.tr("Acoplar"))
-        self.couple_button.setToolTip(self.tr("Añade una línea al acople de la lección"))
-        self.uncouple_button.setText(self.tr("Desacoplar"))
-        self.uncouple_button.setToolTip(self.tr("Quita la línea seleccionada del acople"))
-        self.remove_button.setText(self.tr("Borrar"))
+        self.filter_label.setText(self.tr("Mostrar:"))
+        self.mode_combo.setToolTip(
+            self.tr("Qué lecciones se ven: de una clase, profesor, materia o todas")
+        )
+        self.entity_combo.setToolTip(self.tr("La clase, profesor o materia cuyas lecciones se ven"))
+        set_texts(
+            self.new_button,
+            self.tr("Nueva lección"),
+            self.tr("Crea una lección: materia, profesor, clases y períodos por semana"),
+        )
+        set_texts(
+            self.couple_button,
+            self.tr("Acoplar"),
+            self.tr(
+                "Añade una línea al acople de la lección: otro profesor o grupo a la misma hora"
+            ),
+        )
+        set_texts(
+            self.uncouple_button,
+            self.tr("Desacoplar"),
+            self.tr("Quita la línea seleccionada del acople"),
+        )
+        set_texts(
+            self.remove_button,
+            self.tr("Borrar"),
+            self.tr("Borra la lección seleccionada y sus períodos colocados (se puede deshacer)"),
+        )
+        self._update_hint()
         self.model.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, len(COLUMNS) - 1)
         self._update_sum_bar()
 
@@ -706,5 +808,11 @@ register(
         tab=RibbonTab.LESSONS,
         factory=LessonsWindow,
         order=1,
+        icon="lessons",
+        tooltip="Qué materia da cada profesor a cada clase y cuántas horas a la semana.",
+        tooltip_de=(
+            "Welches Fach jede Lehrkraft in jeder Klasse unterrichtet und wie viele Stunden pro "
+            "Woche."
+        ),
     )
 )

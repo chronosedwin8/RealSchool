@@ -31,9 +31,9 @@ from scheduling_platform.application import (
 from untis_desktop.export import FORMATS, cell_lines, html_to_pdf, timetable_html
 from untis_desktop.qt_bridge import FacadeBridge
 from untis_desktop.registry import RibbonTab, load_windows, spec
-from untis_desktop.theme import TARGET_NO_COLOR, TARGET_OK_COLOR
+from untis_desktop.theme import TARGET_NO_COLOR, TARGET_OK_COLOR, fmt_int
 from untis_desktop.windows.diagnosis import DiagnosisPanel, entity_of
-from untis_desktop.windows.evaluation import EvaluationWindow
+from untis_desktop.windows.evaluation import EvaluationWindow, fmt_signed
 from untis_desktop.windows.optimization import DEFAULT_LIMITS, OptimizationWindow
 from untis_desktop.windows.planning import FIXED_ROLE, PlanningWindow
 from untis_desktop.windows.timetables import TimetablesWindow
@@ -88,6 +88,11 @@ def _busiest_class(b: FacadeBridge) -> str:
 def _text(item: QTableWidgetItem | None) -> str:
     assert item is not None
     return item.text()
+
+
+def _number(item: QTableWidgetItem | None) -> int:
+    """Entero de una celda con separador de miles (`1.234` -> 1234)."""
+    return int(_text(item).replace(".", ""))
 
 
 def _busy(b: FacadeBridge) -> bool:
@@ -169,7 +174,7 @@ def test_optimizacion_progreso_y_detener(
     bridge.optimize_progress.emit(OptimizeProgress("improvement", 80, 1100, 1100, 1, 4.0))
     assert w.phase_label.text() == "improvement"
     assert w.iteration_label.text() == "80"
-    assert w.best_label.text() == "1100" and w.current_label.text() == "1100"
+    assert w.best_label.text() == "1.100" and w.current_label.text() == "1.100"
     assert w.unplaced_label.text() == "1" and w.elapsed_label.text() == "4.0 s"
     assert w.chart.points == [(2.5, 1200), (4.0, 1100)]
     llamadas: list[bool] = []
@@ -196,13 +201,13 @@ def test_optimizacion_reparar_en_la_ventana(qtbot: QtBot, bridge: FacadeBridge) 
     assert w.outcome is salida
     assert w.result_label.text() == salida.message
     assert w.log.toPlainText().splitlines() == list(salida.log)
-    assert w.chart.points and w.best_label.text() == str(salida.evaluation.total)
+    assert w.chart.points and w.best_label.text() == fmt_int(salida.evaluation.total)
     assert w.start_button.isEnabled() and not w.stop_button.isEnabled()
     ev.refresh()
     assert len(ev.summaries) == 2
     activo = next(t for t in ev.summaries if t.active)
     assert activo.id == salida.timetable_id and activo.clashes == 0
-    assert ev.total_label.text() == str(salida.evaluation.total)
+    assert ev.total_label.text() == fmt_int(salida.evaluation.total)
 
 
 def test_optimizacion_en_hilo_se_detiene(qtbot: QtBot, bridge: FacadeBridge) -> None:
@@ -231,12 +236,12 @@ def test_evaluacion_cifras_y_desglose(qtbot: QtBot, bridge: FacadeBridge) -> Non
     w.refresh()
     esperado = bridge.service.evaluation(bridge.session)
     assert esperado is not None
-    assert w.total_label.text() == str(esperado.total)
-    assert w.unplaced_label.text() == str(esperado.unplaced_periods)
-    assert w.clashes_label.text() == str(esperado.clashes)
-    assert w.soft_label.text() == str(esperado.soft_points)
+    assert w.total_label.text() == fmt_int(esperado.total)
+    assert w.unplaced_label.text() == fmt_int(esperado.unplaced_periods)
+    assert w.clashes_label.text() == fmt_int(esperado.clashes)
+    assert w.soft_label.text() == fmt_int(esperado.soft_points)
     assert w.criteria_table.rowCount() == len(esperado.criteria)
-    puntos = [int(_text(w.criteria_table.item(f, 5))) for f in range(len(esperado.criteria))]
+    puntos = [_number(w.criteria_table.item(f, 5)) for f in range(len(esperado.criteria))]
     assert puntos == sorted(puntos, reverse=True)
     assert sum(w.tab_subtotals().values()) == sum(c.points for c in esperado.criteria)
     assert w.tabs_table.rowCount() == len(w.tab_subtotals())
@@ -265,13 +270,13 @@ def test_evaluacion_activar_borrar_comparar(qtbot: QtBot, two_bridge: FacadeBrid
     pb = {c.criterion: c.points for c in eb.criteria}
     for k in pa:
         assert deltas[k] == pb.get(k, 0) - pa[k]
-    assert _text(w.compare_table.item(0, 3)) == f"{eb.total - ea.total:+d}"
+    assert _text(w.compare_table.item(0, 3)) == fmt_signed(eb.total - ea.total)
 
     cambios: list[str] = []
     b.project_changed.connect(cambios.append)
     assert w.activate("untis").ok
     assert b.session.active_timetable == "untis" and cambios
-    assert w.total_label.text() == str(ea.total)
+    assert w.total_label.text() == fmt_int(ea.total)
 
     assert w.delete(otro).ok
     assert [t.id for t in w.summaries] == ["untis"]

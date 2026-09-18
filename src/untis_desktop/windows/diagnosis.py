@@ -8,7 +8,12 @@ lección o a la entidad y abre el Diálogo de planificación.
 
 Calcular el diagnóstico cuesta 0,1-0,3 s en un colegio real, así que el panel
 solo se recalcula si está visible y agrupa las ediciones seguidas (espera
-corta) para no frenar el arrastre en el Diálogo de planificación.
+corta) para no frenar el arrastre en el Diálogo de planificación. Al abrir otro
+proyecto el árbol viejo se vacía enseguida (aunque el panel esté oculto) y se
+recalcula en cuanto se ve.
+
+Los grupos se muestran con nombres legibles (la etiqueta del criterio o una
+frase para cada código de hallazgo), nunca con el código interno.
 """
 
 from __future__ import annotations
@@ -21,7 +26,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QLabel,
-    QStyle,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -29,8 +33,14 @@ from PySide6.QtWidgets import (
 
 from scheduling_platform.application import CRITERION_TEXTS, DiagnosisItem, DiagnosisView
 
+from ..icons import icon
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
+from ..theme import fmt_int
+from ..widgets.uikit import Banner
+
+#: Icono de cada rama del árbol.
+BRANCH_ICONS: dict[str, str] = {"datos": "table", "horario": "timetables"}
 
 #: Rol con el índice del hallazgo en `DiagnosisPanel.items`.
 ITEM_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -65,19 +75,25 @@ class DiagnosisPanel(QWidget):
         self._stale = True
 
         self.summary = QLabel()
+        self.summary.setWordWrap(True)
+        fuerte = self.summary.font()
+        fuerte.setBold(True)
+        self.summary.setFont(fuerte)
         self.model = QStandardItemModel(self)
         self.tree = QTreeView()
         self.tree.setModel(self.model)
         self.tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tree.setUniformRowHeights(True)
-        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.tree.header().setStretchLastSection(False)
+        self.tree.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.tree.setIndentation(14)
         self.tree.doubleClicked.connect(self._on_double_clicked)
+        self.hint = Banner("tip")
 
         capa = QVBoxLayout(self)
         capa.setContentsMargins(2, 2, 2, 2)
         capa.addWidget(self.summary)
         capa.addWidget(self.tree, 1)
+        capa.addWidget(self.hint)
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -85,21 +101,53 @@ class DiagnosisPanel(QWidget):
         self._timer.timeout.connect(self.refresh)
 
         bridge.refreshed.connect(self._on_refreshed)
+        bridge.project_opened.connect(self._on_project_opened)
         bridge.language_changed.connect(lambda _lang: self._retranslate())
         self._retranslate()
 
     # --- textos -------------------------------------------------------------- #
 
     def _retranslate(self) -> None:
-        self.model.setHorizontalHeaderLabels(
-            [self.tr("Diagnóstico"), self.tr("Cantidad"), self.tr("Suma")]
+        self._set_headers()
+        self.hint.setText(
+            self.tr(
+                "Doble clic en un hallazgo para ir a su lección en el Diálogo de planificación."
+            )
         )
         if self.view is not None:
             self._fill(self.view)
         else:
-            self.summary.setText(self.tr("Sin proyecto"))
+            self._show_pending()
 
-    def _group_label(self, group: str) -> str:
+    def _set_headers(self) -> None:
+        self.model.setHorizontalHeaderLabels([self.tr("Hallazgo"), self.tr("Nº"), self.tr("Suma")])
+        for col, ayuda in enumerate(
+            (
+                self.tr("Qué problema es; despliega el grupo para ver cada caso"),
+                self.tr("Cuántos casos hay en el grupo"),
+                self.tr("Cantidad total (p. ej. períodos o huecos) del grupo"),
+            )
+        ):
+            cabecera = self.model.horizontalHeaderItem(col)
+            if cabecera is not None:
+                cabecera.setToolTip(ayuda)
+        cabecera_vista = self.tree.header()
+        if cabecera_vista.count() >= 3:
+            cabecera_vista.setStretchLastSection(False)
+            cabecera_vista.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            cabecera_vista.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            cabecera_vista.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+
+    def _show_pending(self) -> None:
+        """Texto del resumen mientras no hay diagnóstico calculado."""
+        self.summary.setStyleSheet("")
+        if self.bridge.has_session:
+            self.summary.setText(self.tr("Calculando el diagnóstico..."))
+        else:
+            self.summary.setText(self.tr("Sin proyecto: abre o crea uno para ver su diagnóstico."))
+
+    def group_label(self, group: str) -> str:
+        """Nombre legible de un grupo (criterio o código de hallazgo)."""
         textos = CRITERION_TEXTS.get(group)
         if textos is not None:
             return textos[1] if self.bridge.language == "de" and textos[1] else textos[0]
@@ -108,16 +156,68 @@ class DiagnosisPanel(QWidget):
             "choque_teacher": self.tr("Choques de profesores"),
             "choque_class": self.tr("Choques de clases"),
             "choque_room": self.tr("Choques de aulas"),
+            "choque_time_request": self.tr("Deseos imposibles (-3) incumplidos"),
+            "grid_sin_periodos": self.tr("Rejillas sin períodos"),
+            "clase_rejilla_inexistente": self.tr("Clases con una rejilla que no existe"),
+            "clase_aula_base_inexistente": self.tr("Clases con un aula base que no existe"),
+            "profesor_aula_base_inexistente": self.tr("Profesores con un aula base que no existe"),
+            "aula_alternativa_inexistente": self.tr("Aulas alternativas que no existen"),
+            "aula_cadena_ciclica": self.tr("Aulas alternativas en círculo"),
+            "linea_materia_inexistente": self.tr("Líneas con una materia que no existe"),
+            "linea_profesor_inexistente": self.tr("Líneas con un profesor que no existe"),
+            "linea_clase_inexistente": self.tr("Líneas con una clase que no existe"),
+            "linea_grupo_inexistente": self.tr("Líneas con un grupo de alumnos que no existe"),
+            "linea_aula_inexistente": self.tr("Líneas con un aula que no existe"),
+            "linea_sin_alumnos": self.tr("Líneas sin clases ni grupo"),
+            "leccion_duplicada": self.tr("Lecciones con el número repetido"),
+            "leccion_sin_horas": self.tr("Lecciones sin períodos por semana"),
+            "leccion_rejilla_inexistente": self.tr("Lecciones con una rejilla que no existe"),
+            "dobles_imposibles": self.tr("Dobles que no pueden cumplirse"),
+            "clase_sobrecargada": self.tr("Clases con más períodos que huecos"),
+            "deseo_contradictorio": self.tr("Deseos de tiempo contradictorios"),
         }
-        return especiales.get(group, group.replace("_", " "))
+        texto = especiales.get(group)
+        if texto is not None:
+            return texto
+        legible = group.replace("_", " ").strip()
+        return legible[:1].upper() + legible[1:]
+
+    def group_help(self, group: str) -> str:
+        """Ayuda emergente de un grupo: qué cuenta y qué hacer."""
+        textos = CRITERION_TEXTS.get(group)
+        if textos is not None and textos[2]:
+            return f"{self.group_label(group)}\n{textos[2]}"
+        if group.startswith("choque_"):
+            return self.tr(
+                "{0}\nUn recurso está ocupado dos veces a la misma hora. Corrígelo moviendo "
+                "una de las lecciones o con Reparar en Optimización."
+            ).format(self.group_label(group))
+        if group == "no_colocados":
+            return self.tr(
+                "{0}\nPeríodos que aún no tienen hora. Arrástralos desde la lista del "
+                "Diálogo de planificación."
+            ).format(self.group_label(group))
+        return self.tr(
+            "{0}\nError en los datos de entrada: corrígelo en la ventana indicada."
+        ).format(self.group_label(group))
 
     # --- refresco perezoso ------------------------------------------------------ #
+
+    def _on_project_opened(self) -> None:
+        """Otro proyecto: el árbol viejo ya no vale; se vacía y se marca pendiente."""
+        self._stale = True
+        self.view = None
+        self.items = []
+        self.model.removeRows(0, self.model.rowCount())
+        self._show_pending()
 
     def _on_refreshed(self) -> None:
         if self.isVisible():
             self._timer.start()
         else:
             self._stale = True
+            if self.view is None:
+                self._show_pending()
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
@@ -132,7 +232,7 @@ class DiagnosisPanel(QWidget):
             self.view = None
             self.items = []
             self.model.removeRows(0, self.model.rowCount())
-            self.summary.setText(self.tr("Sin proyecto"))
+            self._show_pending()
             return
         self.view = self.bridge.service.diagnosis(self.bridge.session)
         self._fill(self.view)
@@ -140,12 +240,7 @@ class DiagnosisPanel(QWidget):
     def _fill(self, view: DiagnosisView) -> None:
         self.items = list(view.items)
         self.model.removeRows(0, self.model.rowCount())
-        estilo = self.style()
-        iconos = {
-            "error": estilo.standardIcon(QStyle.StandardPixmap.SP_MessageBoxCritical),
-            "warning": estilo.standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning),
-            "info": estilo.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation),
-        }
+        iconos = {"error": icon("error"), "warning": icon("warning"), "info": icon("info")}
         colores = {"error": QBrush(QColor("#b91c1c")), "warning": QBrush(QColor("#92400e"))}
         ramas = (("datos", self.tr("Datos de entrada")), ("horario", self.tr("Horario")))
         for rama, titulo in ramas:
@@ -158,8 +253,13 @@ class DiagnosisPanel(QWidget):
                 key=lambda kv: min(_SEVERITY_RANK.get(self.items[i].severity, 3) for i in kv[1]),
             )
             total = sum(len(v) for v in grupos.values())
-            nodo = QStandardItem(f"{titulo} ({total})")
+            nodo = QStandardItem(icon(BRANCH_ICONS[rama]), f"{titulo} ({total})")
             nodo.setData(rama, Qt.ItemDataRole.UserRole)
+            nodo.setToolTip(
+                self.tr("Problemas de los datos: se ven antes de optimizar")
+                if rama == "datos"
+                else self.tr("Problemas del horario activo: choques, huecos, deseos...")
+            )
             fuente = nodo.font()
             fuente.setBold(True)
             nodo.setFont(fuente)
@@ -170,9 +270,9 @@ class DiagnosisPanel(QWidget):
                     key=lambda s: _SEVERITY_RANK.get(s, 3),
                 )
                 suma = sum(self.items[i].amount for i in indices)
-                g = QStandardItem(self._group_label(grupo))
+                g = QStandardItem(self.group_label(grupo))
                 g.setData(grupo, Qt.ItemDataRole.UserRole)
-                g.setToolTip(grupo)
+                g.setToolTip(self.group_help(grupo))
                 if severidad in iconos:
                     g.setIcon(iconos[severidad])
                 if severidad in colores:
@@ -190,10 +290,14 @@ class DiagnosisPanel(QWidget):
             self.model.appendRow(fila_rama)
         for fila in range(self.model.rowCount()):
             self.tree.expand(self.model.index(fila, 0))
-        self.tree.resizeColumnToContents(1)
-        self.tree.resizeColumnToContents(2)
+        self._set_headers()
         self.summary.setText(
-            self.tr("{0} error(es), {1} advertencia(s)").format(view.errors, view.warnings)
+            self.tr("{0} error(es), {1} advertencia(s)").format(
+                fmt_int(view.errors), fmt_int(view.warnings)
+            )
+        )
+        self.summary.setStyleSheet(
+            "color: #b91c1c;" if view.errors else ("color: #92400e;" if view.warnings else "")
         )
 
     # --- consulta (pruebas y otras ventanas) --------------------------------- #
@@ -264,5 +368,10 @@ register(
         factory=lambda bridge: DiagnosisPanel(bridge),
         order=3,
         dock="right",
+        icon="diagnosis",
+        tooltip="Lista de problemas de los datos y del horario, con salto a cada lección.",
+        tooltip_de=(
+            "Liste der Probleme in den Daten und im Stundenplan, mit Sprung zu jedem Unterricht."
+        ),
     )
 )

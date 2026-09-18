@@ -12,7 +12,11 @@ desplegables de referencias y los hallazgos del diagnóstico de datos.
   `QSettings` por ventana y se restaura al construir (y tras cada recarga).
 - Edición en celda con validación inmediata: si la Fachada rechaza el valor la
   celda se pinta en rojo con el motivo como ayuda emergente, como en Untis.
-- Última fila en blanco: escribir un nombre corto añade la entidad.
+- Última fila en blanco (con un texto gris que lo explica): escribir un nombre
+  corto añade la entidad. El botón Añadir de la barra lleva a esa fila.
+- Barra de herramientas con iconos (Añadir, Borrar, Deseos, Columnas) y filtro
+  con lupa; ayuda emergente en cada cabecera con el significado de la columna.
+- Estado vacío: con la tabla sin filas se ve un texto que dice qué hacer.
 """
 
 from __future__ import annotations
@@ -31,21 +35,19 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence
+from PySide6.QtGui import QColor, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
-    QPushButton,
-    QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -59,8 +61,10 @@ from scheduling_platform.application import (
     ValueType,
 )
 
+from ..icons import icon
 from ..qt_bridge import FacadeBridge
 from ..theme import ERROR_COLOR
+from .uikit import Banner, EmptyHint, make_action, set_texts, tool_button
 
 type AnyIndex = QModelIndex | QPersistentModelIndex
 
@@ -97,7 +101,7 @@ def is_checked(value: object) -> bool:
 
 
 def warning_icon() -> QIcon:
-    return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning)
+    return icon("warning")
 
 
 # --------------------------------------------------------------------------- #
@@ -214,6 +218,54 @@ class MasterTableModel(QAbstractTableModel):
             return None
         return self.table.references.get(spec.field, ())
 
+    def field_help(self, field: str) -> str:
+        """Qué significa una columna y cómo se escribe (ayuda de la cabecera)."""
+        ayudas = {
+            "id": self.tr("identifica la fila en todas las ventanas; no se puede cambiar"),
+            "name": self.tr("el nombre largo que aparece en horarios e informes"),
+            "surname": self.tr("apellido del profesor"),
+            "forename": self.tr("nombre de pila del profesor"),
+            "email": self.tr("dirección de correo (para enviar el horario)"),
+            "text": self.tr("nota libre, no afecta al horario"),
+            "time_grid": self.tr("qué rejilla de tiempo (días y horas) usa; elígela de la lista"),
+            "home_room": self.tr("aula donde da clase normalmente; elígela de la lista"),
+            "department": self.tr("departamento al que pertenece; elígelo de la lista"),
+            "students": self.tr("número de alumnos (se compara con la capacidad del aula)"),
+            "level": self.tr("curso o nivel, p. ej. 7"),
+            "periods_per_day": self.tr(
+                "cuántas horas de clase puede tener al día; escribe mínimo-máximo, p. ej. 4-7"
+            ),
+            "lunch_break": self.tr(
+                "períodos libres para comer en la franja de mediodía; escribe p. ej. 1-2"
+            ),
+            "main_subjects_per_day": self.tr("máximo de períodos de materias principales al día"),
+            "main_subjects_consecutive": self.tr(
+                "máximo de materias principales seguidas sin otra en medio"
+            ),
+            "days_per_week_max": self.tr("días de la semana que puede venir como máximo"),
+            "ntp_per_day": self.tr(
+                "horas libres entre clases (huecos) al día; escribe mínimo-máximo, p. ej. 0-2"
+            ),
+            "ntp_per_week": self.tr("huecos a la semana; escribe mínimo-máximo, p. ej. 0-6"),
+            "consecutive_max": self.tr("períodos seguidos como máximo sin descanso"),
+            "status": self.tr("situación administrativa (texto libre)"),
+            "payroll_number": self.tr("número de personal o de nómina"),
+            "gender": self.tr("género (texto libre)"),
+            "capacity": self.tr("plazas del aula"),
+            "alternative_room": self.tr("aula que se usa si esta está ocupada"),
+            "room_weight": self.tr("0-4: cuánto importa dar clase en esta aula (4 = mucho)"),
+            "main_subject": self.tr("marcado: es materia principal (se reparte por las mañanas)"),
+            "not_same_day": self.tr("marcado: no dar esta materia dos veces el mismo día"),
+            "double_period_required": self.tr("marcado: la materia se da siempre en dobles"),
+            "required_room": self.tr("aula en la que se tiene que dar esta materia"),
+            "subject_group": self.tr("grupo de materias que no deben ir seguidas"),
+            "fore_color": self.tr("color del texto en los horarios, #RRGGBB"),
+            "back_color": self.tr("color de fondo en los horarios, #RRGGBB"),
+            "subject": self.tr("materia del grupo de alumnos; elígela de la lista"),
+            "classes": self.tr("clases separadas por comas"),
+        }
+        return ayudas.get(field, "")
+
     # --- API de Qt ----------------------------------------------------------- #
 
     def rowCount(self, parent: AnyIndex = QModelIndex()) -> int:  # noqa: B008 - firma de Qt
@@ -232,7 +284,9 @@ class MasterTableModel(QAbstractTableModel):
             if role == Qt.ItemDataRole.DisplayRole:
                 return spec.title(self.bridge.language)
             if role == Qt.ItemDataRole.ToolTipRole:
-                return spec.field
+                ayuda = self.field_help(spec.field)
+                titulo = spec.title(self.bridge.language)
+                return f"{titulo}: {ayuda}" if ayuda else titulo
             return None
         if orientation == Qt.Orientation.Vertical and role == Qt.ItemDataRole.DisplayRole:
             return "*" if self.is_blank_row(section) else str(section + 1)
@@ -268,15 +322,26 @@ class MasterTableModel(QAbstractTableModel):
             return self._icon
         return None
 
+    def blank_placeholder(self) -> str:
+        return self.tr("escribe aquí el nombre corto para añadir...")
+
     def _blank_data(self, col: int, role: int) -> object:
         if col != 0:
             return None
+        if role == Qt.ItemDataRole.DisplayRole:
+            return self.blank_placeholder()
+        if role == Qt.ItemDataRole.EditRole:
+            return ""
+        if role == Qt.ItemDataRole.DecorationRole:
+            return icon("add")
         if role == Qt.ItemDataRole.ToolTipRole:
-            return self._new_error or self.tr("Escribe un nombre corto para añadir")
+            return self._new_error or self.tr(
+                "Escribe un nombre corto y pulsa Intro para añadir una fila nueva"
+            )
         if role == Qt.ItemDataRole.BackgroundRole and self._new_error:
             return QColor(ERROR_COLOR)
         if role == Qt.ItemDataRole.ForegroundRole:
-            return QColor("#6b7280")
+            return QColor("#9ca3af")
         return None
 
     def flags(self, index: AnyIndex) -> Qt.ItemFlag:
@@ -350,6 +415,10 @@ class MasterTableModel(QAbstractTableModel):
             self.dataChanged.emit(indice, indice)
         return resultado.ok
 
+    def error_of_new(self) -> str:
+        """Motivo del último alta rechazada ("" si no hay)."""
+        return self._new_error
+
     def remove(self, key: str) -> EditResult:
         svc, kind = self.bridge.service, self.kind
         resultado = self.bridge.edit(lambda: svc.remove_master(self.bridge.session, kind, key))
@@ -366,6 +435,10 @@ class MasterFilterProxy(QSortFilterProxyModel):
         self._source = source
         self._text = ""
         self.setSourceModel(source)
+
+    @property
+    def filter_text(self) -> str:
+        return self._text
 
     def set_text(self, text: str) -> None:
         self.beginFilterChange()
@@ -414,15 +487,26 @@ class MasterDataGrid(QWidget):
         self.model = MasterTableModel(bridge, kind)
         self.proxy = MasterFilterProxy(self.model)
 
+        # --- barra de herramientas -------------------------------------------- #
+        self.add_button = tool_button("add", self.start_add)
+        self.remove_button = tool_button("delete", self.remove_selected)
+        self.requests_button = tool_button("requests", self.open_requests)
+        self.requests_button.setVisible(self.selection_kind is not None)
+        self.columns_menu = QMenu(self)
+        self.columns_menu.menuAction().setIcon(icon("columns"))
+        self.columns_menu.aboutToShow.connect(lambda: self._fill_columns_menu(self.columns_menu))
+        self.columns_button = tool_button("columns")
+        self.columns_button.setMenu(self.columns_menu)
+        self.columns_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.filter_edit = QLineEdit()
         self.filter_edit.setClearButtonEnabled(True)
-        self.filter_edit.textChanged.connect(self.proxy.set_text)
-        self.requests_button = QPushButton()
-        self.requests_button.clicked.connect(self.open_requests)
-        self.requests_button.setVisible(self.selection_kind is not None)
-        self.remove_button = QPushButton()
-        self.remove_button.clicked.connect(self.remove_selected)
+        self.filter_edit.setMaximumWidth(320)
+        self.search_action = self.filter_edit.addAction(
+            icon("search"), QLineEdit.ActionPosition.LeadingPosition
+        )
+        self.filter_edit.textChanged.connect(self._on_filter)
         self.count_label = QLabel()
+        self.count_label.setStyleSheet("color: #4b5563;")
 
         self.view = QTableView()
         self.view.setModel(self.proxy)
@@ -445,24 +529,30 @@ class MasterDataGrid(QWidget):
         header.sectionMoved.connect(lambda *_: self.save_layout())
         header.sectionResized.connect(lambda *_: self.save_layout())
         self.view.setSortingEnabled(True)
+        self.hint = EmptyHint(self.view)
 
-        self.remove_action = QAction(self)
+        self.add_action = make_action(self, "add", self.start_add)
+        self.remove_action = make_action(self, "delete", self.remove_selected)
         self.remove_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
         self.remove_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        self.remove_action.triggered.connect(self.remove_selected)
         self.view.addAction(self.remove_action)
-        self.requests_action = QAction(self)
-        self.requests_action.triggered.connect(self.open_requests)
+        self.requests_action = make_action(self, "requests", self.open_requests)
 
-        self.message = QLabel()
-        self.message.setWordWrap(True)
-        self.message.setStyleSheet(f"background: {ERROR_COLOR}; padding: 3px;")
+        self.message = Banner("error")
         self.message.hide()
 
         barra = QHBoxLayout()
+        barra.setSpacing(4)
+        for boton in (
+            self.add_button,
+            self.remove_button,
+            self.requests_button,
+            self.columns_button,
+        ):
+            barra.addWidget(boton)
+        barra.addSpacing(12)
         barra.addWidget(self.filter_edit, 1)
-        barra.addWidget(self.requests_button)
-        barra.addWidget(self.remove_button)
+        barra.addStretch(0)
         barra.addWidget(self.count_label)
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(4, 4, 4, 4)
@@ -473,6 +563,7 @@ class MasterDataGrid(QWidget):
         self.model.edit_failed.connect(self.show_message)
         selection = self.view.selectionModel()
         selection.currentRowChanged.connect(self._on_current_row)
+        selection.selectionChanged.connect(lambda *_: self._update_buttons())
         bridge.refreshed.connect(self.refresh)
         bridge.project_opened.connect(self.model.clear_errors)
         bridge.selection_changed.connect(self._on_selection)
@@ -494,12 +585,76 @@ class MasterDataGrid(QWidget):
                 # visible (solo una vez; con cientos de filas es lo más caro).
                 self._sized = True
                 self.view.horizontalHeader().resizeSections(QHeaderView.ResizeMode.ResizeToContents)
+            if self.model.table is not None and not self.model.rows:
+                # Tabla vacía: que se lea entero el texto de la fila en blanco.
+                cabecera = self.view.horizontalHeader()
+                cabecera.resizeSection(0, max(cabecera.sectionSize(0), 280))
         finally:
             self._restoring = previo
-        n = len(self.model.rows)
-        self.count_label.setText(self.tr("{0} filas").format(n))
+        self._update_count()
+        self._update_hint()
+        self._update_buttons()
         if self.bridge.selection is not None:
             self._on_selection(*self.bridge.selection)
+
+    def _update_count(self) -> None:
+        total = len(self.model.rows)
+        visibles = len(self.visible_keys()) if self.proxy.filter_text else total
+        if visibles != total:
+            texto = self.tr("{0} de {1} filas").format(visibles, total)
+        else:
+            texto = self.tr("{0} filas").format(total)
+        self.count_label.setText(texto)
+
+    def _empty_text(self) -> str:
+        textos = {
+            MasterKind.CLASSES: self.tr(
+                "Aún no hay clases. Pulsa Añadir o escribe un nombre corto en la fila vacía."
+            ),
+            MasterKind.TEACHERS: self.tr(
+                "Aún no hay profesores. Pulsa Añadir o escribe un nombre corto en la fila vacía."
+            ),
+            MasterKind.ROOMS: self.tr(
+                "Aún no hay aulas. Pulsa Añadir o escribe un nombre corto en la fila vacía."
+            ),
+            MasterKind.SUBJECTS: self.tr(
+                "Aún no hay materias. Pulsa Añadir o escribe un nombre corto en la fila vacía."
+            ),
+            MasterKind.DEPARTMENTS: self.tr(
+                "Aún no hay departamentos. Pulsa Añadir o escribe un nombre corto en la fila vacía."
+            ),
+            MasterKind.STUDENT_GROUPS: self.tr(
+                "Aún no hay grupos de alumnos. Pulsa Añadir o escribe un nombre corto "
+                "en la fila vacía."
+            ),
+        }
+        return textos[self.kind]
+
+    def hint_text(self) -> str:
+        """Texto de ayuda que se ve sobre la tabla ("" si hay filas visibles)."""
+        if self.model.table is None:
+            return self.tr("Abre o crea un proyecto para ver y editar sus datos.")
+        if not self.model.rows:
+            return self._empty_text()
+        if self.proxy.filter_text and not self.visible_keys():
+            return self.tr(
+                "Ninguna fila contiene «{0}». Borra el filtro para verlas todas."
+            ).format(self.filter_edit.text().strip())
+        return ""
+
+    def _update_hint(self) -> None:
+        self.hint.show_hint(self.hint_text())
+
+    def _update_buttons(self) -> None:
+        abierto = self.model.table is not None
+        hay_fila = self.current_key() is not None
+        self.add_button.setEnabled(abierto)
+        self.add_action.setEnabled(abierto)
+        self.remove_button.setEnabled(hay_fila)
+        self.remove_action.setEnabled(hay_fila)
+        self.requests_button.setEnabled(hay_fila)
+        self.requests_action.setEnabled(hay_fila)
+        self.columns_button.setEnabled(abierto)
 
     def _settings_key(self) -> str:
         return f"layouts/{self.window_key}/header"
@@ -542,17 +697,28 @@ class MasterDataGrid(QWidget):
     def header_menu(self) -> QMenu:
         """Menú de columnas (mostrar/ocultar), también usado por las pruebas."""
         menu = QMenu(self)
+        self._fill_columns_menu(menu)
+        return menu
+
+    def _fill_columns_menu(self, menu: QMenu) -> None:
+        """Una casilla por columna (marcada = visible) y Restablecer columnas."""
+        menu.clear()
+        menu.setToolTipsVisible(True)
         header = self.view.horizontalHeader()
         for i, spec in enumerate(self.model.columns):
             accion = menu.addAction(spec.title(self.bridge.language))
             accion.setCheckable(True)
             accion.setChecked(not header.isSectionHidden(i))
             accion.setEnabled(i != 0)
+            ayuda = self.model.field_help(spec.field)
+            accion.setToolTip(
+                self.tr("Muestra u oculta la columna: {0}").format(ayuda or spec.field)
+            )
             accion.toggled.connect(lambda visible, c=i: self.set_column_hidden(c, not visible))
         menu.addSeparator()
-        restablecer = menu.addAction(self.tr("Restablecer columnas"))
+        restablecer = menu.addAction(icon("undo"), self.tr("Restablecer columnas"))
+        restablecer.setToolTip(self.tr("Vuelve a mostrar todas las columnas en su orden original"))
         restablecer.triggered.connect(self.reset_layout)
-        return menu
 
     def reset_layout(self) -> None:
         header = self.view.horizontalHeader()
@@ -571,6 +737,11 @@ class MasterDataGrid(QWidget):
 
     def set_filter(self, text: str) -> None:
         self.filter_edit.setText(text)
+
+    def _on_filter(self, text: str) -> None:
+        self.proxy.set_text(text)
+        self._update_count()
+        self._update_hint()
 
     def visible_keys(self) -> list[str]:
         claves: list[str] = []
@@ -598,6 +769,7 @@ class MasterDataGrid(QWidget):
         return True
 
     def _on_current_row(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        self._update_buttons()
         if self._syncing or self.selection_kind is None or not current.isValid():
             return
         clave = self.model.key_at(self.proxy.mapToSource(current).row())
@@ -620,6 +792,37 @@ class MasterDataGrid(QWidget):
         if self.model.is_blank_row(fuente.row()):
             return None
         return self.model.references(fuente.column())
+
+    def blank_index(self) -> QModelIndex:
+        """Celda del nombre corto de la fila en blanco, en la vista."""
+        if self.model.table is None:
+            return QModelIndex()
+        return self.proxy.mapFromSource(self.model.index(len(self.model.rows), 0))
+
+    def start_add(self) -> bool:
+        """Añadir: lleva el cursor a la fila en blanco y abre su editor."""
+        if self.model.table is None:
+            return False
+        if self.filter_edit.text():
+            self.filter_edit.clear()
+        indice = self.blank_index()
+        if not indice.isValid():
+            return False
+        self.view.setFocus()
+        self.view.scrollTo(indice)
+        self.view.setCurrentIndex(indice)
+        self.view.edit(indice)
+        return True
+
+    def add_entity(self, entity_id: str) -> bool:
+        """Añade una fila con ese nombre corto y la selecciona."""
+        if not self.model.add(entity_id):
+            self.show_message(self.model.error_of_new())
+            return False
+        self.message.hide()
+        self.refresh()
+        self.select_key(entity_id.strip())
+        return True
 
     def remove_selected(self) -> bool:
         """Borra las filas seleccionadas; si alguna se usa, muestra el motivo."""
@@ -650,28 +853,71 @@ class MasterDataGrid(QWidget):
         self.bridge.select(self.selection_kind, clave)
 
     def show_message(self, text: str) -> None:
-        self.message.setText(text)
-        self.message.setVisible(bool(text))
+        self.message.show_message(text, "error")
         if text:
             self.bridge.status.emit(text)
 
-    def _row_menu(self, pos: QPoint) -> None:
+    def row_menu(self) -> QMenu:
+        """Menú contextual de una fila (también para las pruebas)."""
         menu = QMenu(self)
+        menu.setToolTipsVisible(True)
+        menu.addAction(self.add_action)
         if self.selection_kind is not None:
             menu.addAction(self.requests_action)
+        menu.addSeparator()
         menu.addAction(self.remove_action)
-        menu.exec(self.view.viewport().mapToGlobal(pos))
+        return menu
+
+    def _row_menu(self, pos: QPoint) -> None:
+        self.row_menu().exec(self.view.viewport().mapToGlobal(pos))
 
     # --- idioma ------------------------------------------------------------------- #
 
     def _retranslate(self) -> None:
-        self.filter_edit.setPlaceholderText(self.tr("Filtrar..."))
-        self.requests_button.setText(self.tr("Deseos"))
-        self.requests_button.setToolTip(self.tr("Deseos de tiempo de la fila seleccionada"))
-        self.remove_button.setText(self.tr("Borrar"))
-        self.requests_action.setText(self.tr("Deseos de tiempo..."))
-        self.remove_action.setText(self.tr("Borrar"))
-        self.count_label.setText(self.tr("{0} filas").format(len(self.model.rows)))
+        self.filter_edit.setPlaceholderText(self.tr("Filtrar por cualquier columna..."))
+        self.filter_edit.setToolTip(
+            self.tr("Escribe para ver solo las filas que contienen ese texto")
+        )
+        self.search_action.setToolTip(self.tr("Filtro: muestra solo las filas que coinciden"))
+        set_texts(
+            self.add_button,
+            self.tr("Añadir"),
+            self.tr("Añade una fila nueva: escribe su nombre corto en la fila vacía y pulsa Intro"),
+        )
+        set_texts(
+            self.add_action,
+            self.tr("Añadir"),
+            self.tr("Añade una fila nueva escribiendo su nombre corto"),
+        )
+        set_texts(
+            self.remove_button,
+            self.tr("Borrar"),
+            self.tr("Borra las filas seleccionadas (Supr); si alguna se usa, explica dónde"),
+        )
+        set_texts(
+            self.remove_action,
+            self.tr("Borrar"),
+            self.tr("Borra las filas seleccionadas; se puede deshacer"),
+        )
+        set_texts(
+            self.requests_button,
+            self.tr("Deseos"),
+            self.tr("Abre los deseos de tiempo (cuándo sí y cuándo no) de la fila seleccionada"),
+        )
+        set_texts(
+            self.requests_action,
+            self.tr("Deseos de tiempo..."),
+            self.tr("Abre los deseos de tiempo de esta fila"),
+        )
+        set_texts(
+            self.columns_button,
+            self.tr("Columnas"),
+            self.tr("Elige qué columnas se ven; también con clic derecho en la cabecera"),
+        )
+        self.columns_menu.menuAction().setText(self.tr("Columnas"))
+        self.columns_menu.menuAction().setToolTip(self.tr("Muestra u oculta columnas"))
+        self._update_count()
+        self._update_hint()
         n = self.model.columnCount()
         if n:
             self.model.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, n - 1)

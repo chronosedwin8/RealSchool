@@ -24,11 +24,13 @@ from PySide6.QtWidgets import (
 
 from scheduling_platform.application import EditResult
 
+from ..icons import icon
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
-from ..theme import request_color
+from ..theme import BREAK_COLOR, REQUEST_COLORS, request_color, text_color_for
 from ..widgets.master_grid import KIND_OF_SELECTION, entity_ids
-from ..widgets.request_grid import RequestCell, RequestGridWidget, request_text
+from ..widgets.request_grid import RequestCell, RequestGridWidget, request_meaning, request_text
+from ..widgets.uikit import Banner, Legend, exempt
 
 #: Tipos de entidad con deseos, en el orden del desplegable.
 REQUEST_KINDS: tuple[str, ...] = ("class", "teacher", "room", "subject")
@@ -38,6 +40,9 @@ UNSPECIFIED_KINDS: tuple[str, ...] = ("free_day", "free_morning", "free_afternoo
 
 #: Valores de la paleta.
 PALETTE: tuple[int, ...] = (-3, -2, -1, 0, 1, 2, 3)
+#: Desplazamiento de los ids del grupo de botones: `QButtonGroup` reserva el
+#: id -1 ("asigna tú uno"), así que el valor -1 no puede ser su propio id.
+PALETTE_ID_OFFSET = 10
 
 
 class RequestsWindow(QWidget):
@@ -50,8 +55,9 @@ class RequestsWindow(QWidget):
 
         self.kind_label = QLabel()
         self.kind_combo = QComboBox()
+        iconos = {"class": "classes", "teacher": "teachers", "room": "rooms", "subject": "subjects"}
         for kind in REQUEST_KINDS:
-            self.kind_combo.addItem(kind, kind)
+            self.kind_combo.addItem(icon(iconos[kind]), kind, kind)
         self.kind_combo.currentIndexChanged.connect(self._on_kind)
         self.entity_combo = QComboBox()
         self.entity_combo.setMinimumWidth(140)
@@ -60,6 +66,7 @@ class RequestsWindow(QWidget):
         self.palette_label = QLabel()
         self.palette_group = QButtonGroup(self)
         self.palette_group.setExclusive(True)
+        self.palette_buttons: dict[int, QToolButton] = {}
         paleta = QHBoxLayout()
         paleta.setSpacing(2)
         for valor in PALETTE:
@@ -68,20 +75,23 @@ class RequestsWindow(QWidget):
             boton.setText(request_text(valor) or "0")
             boton.setMinimumWidth(34)
             color = request_color(valor)
-            texto = "#ffffff" if abs(valor) >= 2 else "#111827"
+            texto = text_color_for(color).name()
+            exempt(boton, "el texto es el valor del deseo")
             boton.setStyleSheet(
                 f"QToolButton {{ background: {color.name()}; color: {texto}; }}"
                 "QToolButton:checked { border: 2px solid #111827; font-weight: bold; }"
             )
-            self.palette_group.addButton(boton, valor)
+            self.palette_group.addButton(boton, valor + PALETTE_ID_OFFSET)
+            self.palette_buttons[valor] = boton
             paleta.addWidget(boton)
-        self.palette_group.idClicked.connect(self.set_paint_value)
+        self.palette_group.idClicked.connect(
+            lambda ident: self.set_paint_value(ident - PALETTE_ID_OFFSET)
+        )
 
         self.grid = RequestGridWidget()
         self.grid.painted.connect(self._on_painted)
-        self.hint = QLabel()
-        self.hint.setWordWrap(True)
-        self.hint.setStyleSheet("color: #4b5563;")
+        self.hint = Banner("tip")
+        self.legend = Legend()
 
         self.unspecified_box = QGroupBox()
         no_especificados = QFormLayout(self.unspecified_box)
@@ -113,6 +123,7 @@ class RequestsWindow(QWidget):
         lateral.addWidget(self.unspecified_box)
         lateral.addStretch(1)
         centro.addLayout(lateral)
+        raiz.addWidget(self.legend)
         raiz.addLayout(centro, 1)
         raiz.addWidget(self.hint)
 
@@ -137,7 +148,7 @@ class RequestsWindow(QWidget):
 
     def set_paint_value(self, value: int) -> None:
         self.grid.paint_value = value
-        boton = self.palette_group.button(value)
+        boton = self.palette_buttons.get(value)
         if boton is not None and not boton.isChecked():
             boton.setChecked(True)
 
@@ -260,12 +271,44 @@ class RequestsWindow(QWidget):
             "free_morning": self.tr("Mañanas libres"),
             "free_afternoon": self.tr("Tardes libres"),
         }
+        ayudas = {
+            "free_day": self.tr("Cuántos días enteros libres quiere a la semana, sin decir cuáles"),
+            "free_morning": self.tr("Cuántas mañanas libres quiere a la semana, sin decir cuáles"),
+            "free_afternoon": self.tr("Cuántas tardes libres quiere a la semana, sin decir cuáles"),
+        }
         for tipo, etiqueta in self.unspecified_labels.items():
             etiqueta.setText(textos[tipo])
+            etiqueta.setToolTip(ayudas[tipo])
+            self.unspecified[tipo].setToolTip(ayudas[tipo])
+        self.kind_combo.setToolTip(
+            self.tr("De quién son los deseos: clase, profesor, aula o materia")
+        )
+        self.entity_combo.setToolTip(
+            self.tr("La clase, profesor, aula o materia cuyos deseos editas")
+        )
+        for valor in PALETTE:
+            boton = self.palette_buttons.get(valor)
+            if boton is not None:
+                boton.setToolTip(
+                    self.tr("{0}. Elige este valor y pinta las celdas con clic o arrastre").format(
+                        request_meaning(valor)
+                    )
+                )
+        self.legend.set_items(
+            [
+                (("fill", REQUEST_COLORS[-3]), self.tr("-3 imposible")),
+                (("fill", REQUEST_COLORS[-1]), self.tr("-1/-2 mejor no")),
+                (("fill", REQUEST_COLORS[0]), self.tr("0 sin deseo")),
+                (("fill", REQUEST_COLORS[1]), self.tr("+1/+2 mejor aquí")),
+                (("fill", REQUEST_COLORS[3]), self.tr("+3 muy deseable")),
+                (("fill", BREAK_COLOR), self.tr("recreo")),
+            ],
+            self.tr("Leyenda:"),
+        )
         self.hint.setText(
             self.tr(
-                "Clic o arrastre: pinta el valor elegido. Clic derecho: borra. "
-                "Clic en el día: deseo de día completo. -3 = imposible, +3 = muy deseable."
+                "Elige un valor en la paleta y pinta con clic o arrastrando. Clic derecho: borra. "
+                "Clic en el nombre del día: deseo para el día entero."
             )
         )
         self._load_grid()
@@ -279,5 +322,11 @@ register(
         tab=RibbonTab.MASTER_DATA,
         factory=RequestsWindow,
         order=8,
+        icon="requests",
+        tooltip="Marca cuándo puede y cuándo no tener clase cada profesor, clase, aula o materia.",
+        tooltip_de=(
+            "Legt fest, wann jede Lehrkraft, Klasse, jeder Raum oder jedes Fach Unterricht haben "
+            "kann und wann nicht."
+        ),
     )
 )

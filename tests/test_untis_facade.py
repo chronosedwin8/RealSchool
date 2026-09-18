@@ -479,3 +479,19 @@ def test_leccion_nueva_usa_el_aula_base_de_la_clase() -> None:
     assert s.project.lesson_by_number[int(r.message)].lines[0].room == "R1"
     r2 = SVC.add_lesson(s, subject="MAT", teacher="ANA", classes=("5A", "5B"), periods=1)
     assert s.project.lesson_by_number[int(r2.message)].lines[0].room is None
+
+
+def test_diagnostico_solo_de_datos_y_restablecer_ponderacion(real_path: Path) -> None:
+    s = SVC.open(real_path)
+    datos = SVC.data_diagnosis(s)
+    assert datos.items and {i.branch for i in datos.items} == {"datos"}
+    assert datos.items == tuple(i for i in SVC.diagnosis(s).items if i.branch == "datos")
+
+    assert SVC.set_slider(s, "teacher_gaps", 0).ok
+    assert SVC.set_slider(s, "class_gaps", 1).ok
+    assert SVC.reset_weighting(s).ok
+    assert s.project.weighting.as_dict() == SVC.default_weighting()
+    assert s.undo_label == "Ponderación por defecto"
+    assert SVC.undo(s) and s.project.weighting.class_gaps == 1  # un solo paso
+    SVC.redo(s)
+    assert SVC.reset_weighting(s).message  # ya estaban

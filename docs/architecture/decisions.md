@@ -64,3 +64,4 @@ El producto se reorienta a Untis sobre el motor congelado en `engine-1.0`.
 - [ADR-035 — Evaluador de referencia y fidelidad del puente](../adr/ADR-035-evaluacion-de-referencia-y-fidelidad-del-puente.md)
 - [ADR-036 — CP-SAT como reparador y pulidor por ventanas](../adr/ADR-036-cp-sat-reparador-y-pulidor.md)
 - [ADR-037 — Heurística de generación y Fachada Untis](../adr/ADR-037-heuristica-y-fachada-untis.md)
+- [ADR-038 — Independencia total desde la interfaz y usabilidad](../adr/ADR-038-independencia-y-usabilidad.md)

@@ -87,6 +87,7 @@ ICONS: Final[dict[str, tuple[str, str]]] = {
     "remove": ("minus", RED),
     "delete": ("trash-2", RED),
     "copy": ("copy", GREY),
+    "rename": ("pencil", GREY),
     "fix": ("pin", AMBER),
     "unfix": ("pin-off", AMBER),
     "unplace": ("x-circle", RED),

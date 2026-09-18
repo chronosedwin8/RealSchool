@@ -15,6 +15,8 @@ from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
     QLabel,
     QSlider,
     QTableWidget,
@@ -27,11 +29,30 @@ from PySide6.QtWidgets import (
 
 from scheduling_platform.application import EditResult, SliderView, WeightingTabView
 
+from ..icons import icon
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
+from ..theme import fmt_int
+from ..widgets.uikit import Banner, set_texts, tool_button
 
 #: Pestaña de la Fachada que no tiene deslizadores: aquí va la tabla de análisis.
 ANALYSIS_TAB = "analysis"
+
+#: Icono de cada pestaña de Ponderación.
+TAB_ICONS: dict[str, str] = {
+    "teachers_1": "teachers",
+    "teachers_2": "teachers",
+    "classes": "classes",
+    "subjects": "subjects",
+    "main_subjects": "tip",
+    "rooms": "rooms",
+    "period_distribution": "timetables",
+    "time_requests": "requests",
+    "analysis": "analysis",
+}
+
+#: Rol con el valor numérico de una celda de la tabla Análisis.
+VALUE_ROLE = Qt.ItemDataRole.UserRole + 1
 
 
 @dataclass(slots=True)
@@ -53,14 +74,20 @@ class WeightingWindow(QWidget):
         self.tabs = QTabWidget()
         self.help = QTextBrowser()
         self.help.setMaximumHeight(90)
-        self.message = QLabel()
-        self.message.setWordWrap(True)
-        self.message.setStyleSheet("background: #fef3c7; padding: 3px;")
+        self.message = Banner("warning")
         self.message.hide()
+        self.reset_button = tool_button("undo", self.reset_defaults)
+        self.intro = QLabel()
+        self.intro.setWordWrap(True)
+        self.intro.setStyleSheet("color: #4b5563;")
         self.analysis = QTableWidget(0, 6)
         self.analysis.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.analysis.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.analysis.verticalHeader().setVisible(False)
+        self.analysis.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.analysis.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.analysis_total = QLabel()
         self.sliders: dict[str, SliderRow] = {}
         self._views: tuple[WeightingTabView, ...] = ()
@@ -71,8 +98,12 @@ class WeightingWindow(QWidget):
         pagina.addWidget(self.analysis_total)
         pagina.addWidget(self.analysis, 1)
 
+        arriba = QHBoxLayout()
+        arriba.addWidget(self.intro, 1)
+        arriba.addWidget(self.reset_button)
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(4, 4, 4, 4)
+        raiz.addLayout(arriba)
         raiz.addWidget(self.tabs, 1)
         raiz.addWidget(self.message)
         raiz.addWidget(self.help)
@@ -111,7 +142,7 @@ class WeightingWindow(QWidget):
                 etiqueta.installEventFilter(self)
                 etiqueta.setProperty("criterion", sv.criterion)
                 valor = QLabel()
-                valor.setMinimumWidth(90)
+                valor.setMinimumWidth(170)
                 deslizador.valueChanged.connect(
                     lambda v, c=sv.criterion: self._on_value_changed(c, v)
                 )
@@ -122,8 +153,10 @@ class WeightingWindow(QWidget):
                 self.sliders[sv.criterion] = SliderRow(sv, etiqueta, deslizador, valor)
             rejilla.setRowStretch(len(vista.sliders), 1)
             rejilla.setColumnStretch(1, 1)
-            self._pages[vista.tab] = self.tabs.addTab(pagina, "")
-        self._pages[ANALYSIS_TAB] = self.tabs.addTab(self._analysis_page, "")
+            self._pages[vista.tab] = self.tabs.addTab(
+                pagina, icon(TAB_ICONS.get(vista.tab, "weighting")), ""
+            )
+        self._pages[ANALYSIS_TAB] = self.tabs.addTab(self._analysis_page, icon("analysis"), "")
 
     def refresh(self) -> None:
         views = (
@@ -159,7 +192,7 @@ class WeightingWindow(QWidget):
     def _on_value_changed(self, criterion: str, value: int) -> None:
         fila = self.sliders[criterion]
         if fila.slider.isSliderDown():
-            fila.value.setText(str(value))
+            fila.value.setText(self.level_name(value))
             return
         self.set_value(criterion, value)
 
@@ -176,12 +209,44 @@ class WeightingWindow(QWidget):
             return EditResult.success()
         svc = self.bridge.service
         resultado = self.bridge.edit(lambda: svc.set_slider(self.bridge.session, criterion, value))
-        self.message.setText(resultado.message)
-        self.message.setVisible(bool(resultado.message))
+        self.message.show_message(resultado.message, "warning" if resultado.ok else "error")
         if not resultado.ok and fila is not None:
             fila.slider.blockSignals(True)
             fila.slider.setValue(fila.view.value)
             fila.slider.blockSignals(False)
+        return resultado
+
+    def defaults(self) -> dict[str, int]:
+        """Valores de fábrica de los deslizadores (los de un proyecto nuevo)."""
+        return self.bridge.service.default_weighting()
+
+    def reset_defaults(self) -> EditResult:
+        """Vuelve a poner todos los deslizadores en su valor de fábrica."""
+        if not self.bridge.has_session:
+            return EditResult.failure(self.tr("No hay proyecto abierto"))
+        svc = self.bridge.service
+        fabrica = self.defaults()
+        actuales = {
+            sv.criterion: sv.value
+            for v in svc.weighting_tabs(self.bridge.session)
+            for sv in v.sliders
+        }
+        cambios = {c: v for c, v in fabrica.items() if actuales.get(c) != v}
+        if not cambios:
+            self.message.show_message(self.tr("Ya están los valores por defecto."), "ok")
+            return EditResult.success()
+
+        resultado = self.bridge.edit(lambda: svc.reset_weighting(self.bridge.session))
+        if resultado.ok:
+            self.message.show_message(
+                self.tr("Restablecidos {0} criterio(s) a su valor por defecto.").format(
+                    len(cambios)
+                ),
+                "ok",
+            )
+        else:
+            self.message.show_message(resultado.message, "error")
+        self.refresh()
         return resultado
 
     # --- ayuda -------------------------------------------------------------------- #
@@ -204,13 +269,32 @@ class WeightingWindow(QWidget):
     def _label(self, view: SliderView) -> str:
         return view.label_de if self.bridge.language == "de" else view.label
 
+    def level_name(self, value: int) -> str:
+        """Nombre de una posición del deslizador (0 = Desactivado ... 5 = Máximo)."""
+        nombres = {
+            0: self.tr("Desactivado"),
+            1: self.tr("Muy bajo"),
+            2: self.tr("Bajo"),
+            3: self.tr("Medio"),
+            4: self.tr("Alto"),
+            5: self.tr("Máximo"),
+        }
+        return self.tr("{0} ({1})").format(nombres.get(value, str(value)), value)
+
+    def value_text(self, view: SliderView) -> str:
+        """Texto junto al deslizador: "Medio (3) · peso 10"."""
+        return self.tr("{0} · peso {1}").format(self.level_name(view.value), fmt_int(view.weight))
+
     def _update_texts(self) -> None:
         for fila in self.sliders.values():
             texto = self._label(fila.view)
             fila.label.setText(texto)
             fila.label.setToolTip(fila.view.help)
             fila.slider.setToolTip(fila.view.help)
-            fila.value.setText(self.tr("{0} (peso {1})").format(fila.view.value, fila.view.weight))
+            fila.value.setText(self.value_text(fila.view))
+            fila.value.setToolTip(
+                self.tr("Posición del deslizador y peso con que cuenta cada violación")
+            )
         for vista in self._views:
             indice = self._pages.get(vista.tab)
             if indice is not None and vista.tab != ANALYSIS_TAB:
@@ -243,7 +327,9 @@ class WeightingWindow(QWidget):
             return
         self.analysis_total.setText(
             self.tr("Número de evaluación {0}: {1} sin colocar, {2} choque(s)").format(
-                evaluacion.total, evaluacion.unplaced_periods, evaluacion.clashes
+                fmt_int(evaluacion.total),
+                fmt_int(evaluacion.unplaced_periods),
+                fmt_int(evaluacion.clashes),
             )
         )
         etiquetas = {sv.criterion: self._label(sv) for v in self._views for sv in v.sliders}
@@ -253,23 +339,26 @@ class WeightingWindow(QWidget):
         lineas = sorted(evaluacion.criteria, key=lambda c: (-c.points, c.criterion))
         self.analysis.setRowCount(len(lineas))
         for fila, c in enumerate(lineas):
-            valores = (
+            valores: tuple[str | int, ...] = (
                 etiquetas.get(c.criterion, c.label),
                 pestanas.get(c.tab, c.tab),
-                str(c.slider),
-                str(c.weight),
-                str(c.violations),
-                str(c.points),
+                c.slider,
+                c.weight,
+                c.violations,
+                c.points,
             )
-            for col, texto in enumerate(valores):
-                item = QTableWidgetItem(texto)
+            for col, valor in enumerate(valores):
+                item = QTableWidgetItem(fmt_int(valor) if isinstance(valor, int) else valor)
+                if isinstance(valor, int):
+                    item.setData(VALUE_ROLE, valor)
+                if col == 1:
+                    item.setIcon(icon(TAB_ICONS.get(c.tab, "weighting")))
                 if col >= 2:
                     item.setTextAlignment(
                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                     )
                 item.setData(Qt.ItemDataRole.UserRole, c.criterion)
                 self.analysis.setItem(fila, col, item)
-        self.analysis.resizeColumnsToContents()
 
     def analysis_rows(self) -> list[tuple[str, int]]:
         """`(criterio, puntos)` de la tabla Análisis, en orden (pruebas)."""
@@ -277,7 +366,7 @@ class WeightingWindow(QWidget):
         for fila in range(self.analysis.rowCount()):
             item = self.analysis.item(fila, 5)
             if item is not None:
-                filas.append((str(item.data(Qt.ItemDataRole.UserRole)), int(item.text())))
+                filas.append((str(item.data(Qt.ItemDataRole.UserRole)), int(item.data(VALUE_ROLE))))
         return filas
 
     def _retranslate(self) -> None:
@@ -294,6 +383,17 @@ class WeightingWindow(QWidget):
         self.help.setPlaceholderText(
             self.tr("Pasa el ratón por un criterio para ver su explicación.")
         )
+        self.intro.setText(
+            self.tr(
+                "Cuánto importa cada criterio al optimizar: 0 = no se tiene en cuenta, "
+                "5 = lo más importante. Usa el 5 para muy pocos criterios."
+            )
+        )
+        set_texts(
+            self.reset_button,
+            self.tr("Restablecer valores por defecto"),
+            self.tr("Vuelve a poner todos los deslizadores como en un proyecto nuevo"),
+        )
         self._update_texts()
         self._analysis_dirty = True
         self._fill_analysis_if_visible()
@@ -307,5 +407,11 @@ register(
         tab=RibbonTab.MODULES,
         factory=WeightingWindow,
         order=1,
+        icon="weighting",
+        tooltip="Decide cuánto pesa cada criterio (huecos, dobles, deseos...) al optimizar.",
+        tooltip_de=(
+            "Legt fest, wie stark jedes Kriterium (Hohlstunden, Doppelstunden, Wünsche...) beim "
+            "Optimieren zählt."
+        ),
     )
 )
