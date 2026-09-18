@@ -19,6 +19,8 @@ SLIDER_MAX: Final = 5
 
 #: Un período sin colocar domina cualquier violación blanda, como en Untis.
 UNPLACED_PENALTY: Final = 100_000
+#: Un choque duro (o un deseo -3/+3 roto) pesa como un período sin colocar.
+CLASH_PENALTY: Final = UNPLACED_PENALTY
 
 
 def slider_to_weight(slider: int) -> int:

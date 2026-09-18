@@ -101,6 +101,9 @@ nav:
       - Intermedio: examples/intermediate/README.md
       - Avanzado: examples/advanced/README.md
   - Referencia de API:
+      - Modelo Untis: reference/untis_model.md
+      - Interoperabilidad: reference/interop.md
+      - Puente al motor: reference/bridge.md
       - Core: reference/core.md
       - SAL: reference/sal.md
       - Plugins: reference/plugins.md

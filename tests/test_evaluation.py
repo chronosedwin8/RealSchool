@@ -411,3 +411,15 @@ def test_real_evaluacion_es_rapida_y_determinista(anon: UntisProject) -> None:
     a = ev.evaluate(anon.timetables[0])
     b = ev.evaluate(anon.timetables[0])
     assert a == b
+
+
+def test_los_choques_cuentan_en_el_numero_de_evaluacion() -> None:
+    """Un horario con choques nunca puntúa mejor que uno limpio equivalente."""
+    from scheduling_platform.untis_model import CLASH_PENALTY
+
+    p, tt = _project(
+        (_lesson(1, per=1), _lesson(2, "ING", per=1, cls=("C2",))), {1: [(1, 1)], 2: [(1, 1)]}
+    )
+    e = Evaluator(p).evaluate(tt)
+    assert e.clashes == 1
+    assert e.total == e.soft_points + CLASH_PENALTY

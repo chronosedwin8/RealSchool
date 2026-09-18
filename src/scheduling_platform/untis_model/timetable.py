@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from .weighting import UNPLACED_PENALTY
+from .weighting import CLASH_PENALTY, UNPLACED_PENALTY
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,8 +69,12 @@ class Evaluation:
 
     @property
     def total(self) -> int:
-        """Número de evaluación; los períodos sin colocar dominan."""
-        return self.soft_points + self.unplaced_periods * UNPLACED_PENALTY
+        """Número de evaluación; no colocados y choques dominan a lo blando."""
+        return (
+            self.soft_points
+            + self.unplaced_periods * UNPLACED_PENALTY
+            + self.clashes * CLASH_PENALTY
+        )
 
     def by_contribution(self) -> tuple[CriterionScore, ...]:
         """Criterios ordenados de mayor a menor contribución."""

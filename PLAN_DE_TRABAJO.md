@@ -220,7 +220,7 @@ en un *worktree* limpio del commit, y un commit `R<n>: <entregable>`.
 | R0 – Congelar el motor | ✅ | Etiqueta `engine-1.0`, ADR-034, fronteras por AST, `academic` obsoleto. 478 tests. |
 | R1 – `untis_model` + `interop` | ✅ | Modelo Untis, XML (ida y vuelta, 100 % de campos), GPU001-007/016, `.rsp`, convertidor `.bjs`. 654 tests. |
 | R2 – `bridge` + ponderación | ✅ | Traducción sin inferir acoples, evaluador de referencia (38 criterios), recreos deducidos, Reparar y Pulir con CP-SAT, desglose por criterio (ADR-035, ADR-036). |
-| R3 – `heuristic` | en curso | Colocación por dificultad + intercambios con evaluación incremental; estrategias A/B/D/E. |
+| R3 – `heuristic` | ✅ | Colocación + recocido con evaluación incremental exacta; A (60 s) y B (300 s) sin choques ni no colocados y con 8.322 puntos blandos frente a 118.418 del horario de Untis (ADR-037). Fachada Untis y CLI `solve`/`evaluate`. |
 | R4 – UI Untis | pendiente | Cinta + ventanas MDI, datos maestros, lecciones, deseos, ponderación, optimización, diagnóstico; es/de. |
 | R5 – Planificación y salida | pendiente | Diálogo de planificación, horarios con formatos, impresión/PDF/HTML. |
 

@@ -30,6 +30,7 @@ from ..application import (
     ProjectValidateCommand,
     ValidateCommand,
 )
+from ..application.commands.untis_ops import EvaluateCommand, SolveCommand
 
 app = typer.Typer(
     add_completion=True,
@@ -76,8 +77,46 @@ def convert(
     ),
     output_format: str = _FORMAT,
 ) -> None:
-    """Importa un origen externo (Untis XML) a un proyecto .schedule."""
+    """Convierte entre Untis XML, GPU (carpeta), .rsp y el antiguo .bjs."""
     _run(ConvertCommand(source, dest, name=name), output_format)
+
+
+@app.command()
+def solve(
+    project: str,
+    strategy: str = typer.Option("A", "--strategy", "-s", help="A | B | D | E | repair."),
+    time_limit: float | None = typer.Option(None, "--time-limit", "-t", help="Segundos."),
+    seed: int = typer.Option(0, help="Semilla (resultados reproducibles)."),
+    out: str | None = typer.Option(None, "--out", "-o", help="Proyecto .rsp de salida."),
+    optimize_teachers: bool = typer.Option(
+        False, "--optimize-teachers", help="Elige profesor para las líneas sin profesor."
+    ),
+    polish: bool = typer.Option(True, "--polish/--no-polish", help="Pulido tras reparar."),
+    output_format: str = _FORMAT,
+) -> None:
+    """Ejecuta una estrategia de optimización Untis y guarda el proyecto .rsp."""
+    _run(
+        SolveCommand(
+            project,
+            strategy=strategy,
+            time_limit=time_limit,
+            seed=seed,
+            out=out,
+            optimize_teachers=optimize_teachers,
+            polish=polish,
+        ),
+        output_format,
+    )
+
+
+@app.command()
+def evaluate(
+    project: str,
+    timetable: str | None = typer.Option(None, help="Id del horario (por defecto, el activo)."),
+    output_format: str = _FORMAT,
+) -> None:
+    """Número de evaluación y desglose por criterio de un horario."""
+    _run(EvaluateCommand(project, timetable=timetable), output_format)
 
 
 @app.command()

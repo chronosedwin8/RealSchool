@@ -186,3 +186,22 @@ def test_academic_esta_obsoleto() -> None:
 
     with pytest.warns(DeprecationWarning, match="untis_model"):
         importlib.reload(academic)
+
+
+def test_la_plataforma_no_importa_la_gui() -> None:
+    """Heredada de la GUI anterior: el motor y el producto nunca importan `untis_desktop`."""
+    malos: list[str] = []
+    for f in sorted(PLATFORM.rglob("*.py")):
+        arbol = ast.parse(f.read_text(encoding="utf-8"), filename=str(f))
+        for nodo in ast.walk(arbol):
+            nombres: list[str] = []
+            if isinstance(nodo, ast.Import):
+                nombres = [a.name for a in nodo.names]
+            elif isinstance(nodo, ast.ImportFrom) and nodo.module and not nodo.level:
+                nombres = [nodo.module]
+            malos += [
+                f"{f.relative_to(SRC)} -> {n}"
+                for n in nombres
+                if n.split(".")[0] == "untis_desktop"
+            ]
+    assert malos == [], f"La plataforma no puede depender de la GUI: {malos}"

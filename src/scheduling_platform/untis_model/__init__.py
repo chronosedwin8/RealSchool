@@ -39,6 +39,7 @@ from .requests import TimeRequest, UnspecifiedKind, UnspecifiedRequest
 from .time_grid import PeriodDef, TimeGrid, hhmm_to_minutes, minutes_to_hhmm
 from .timetable import Assignment, CriterionScore, Evaluation, Timetable
 from .weighting import (
+    CLASH_PENALTY,
     SLIDER_MAX,
     SLIDER_MIN,
     SLIDER_WEIGHTS,
@@ -50,6 +51,7 @@ from .weighting import (
 )
 
 __all__ = [
+    "CLASH_PENALTY",
     "LINES_PER_LESSON",
     "REQUEST_MAX",
     "REQUEST_MIN",

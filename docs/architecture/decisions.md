@@ -54,3 +54,13 @@ del diseño. Aquí están ordenados por fase.
 
 - [ADR-031 — Fachada `EngineService` como frontera única GUI↔motor](../adr/ADR-031-fachada-engine-service.md)
 - [ADR-032 — Arquitectura de la app de escritorio (PySide6)](../adr/ADR-032-app-escritorio-pyside6.md)
+- [ADR-033 — Semana lectiva por sección](../adr/ADR-033-semana-lectiva-por-seccion.md)
+
+## Refactorización Untis (R0–R5)
+
+El producto se reorienta a Untis sobre el motor congelado en `engine-1.0`.
+
+- [ADR-034 — Reorientación del producto a Untis](../adr/ADR-034-reorientacion-a-untis.md)
+- [ADR-035 — Evaluador de referencia y fidelidad del puente](../adr/ADR-035-evaluacion-de-referencia-y-fidelidad-del-puente.md)
+- [ADR-036 — CP-SAT como reparador y pulidor por ventanas](../adr/ADR-036-cp-sat-reparador-y-pulidor.md)
+- [ADR-037 — Heurística de generación y Fachada Untis](../adr/ADR-037-heuristica-y-fachada-untis.md)

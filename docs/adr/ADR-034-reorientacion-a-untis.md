@@ -4,7 +4,7 @@
 
 Supersede a `Prompt3.md`, `PLAN_DE_TRABAJO.md` y
 `FasesPosteriores/ARCHITECTURE_AND_BENCHMARK.md` en todo lo que contradiga.
-Anexo y fuente de verdad: [`REFACTOR_UNTIS_MAESTRO.md`](../../REFACTOR_UNTIS_MAESTRO.md).
+Anexo y fuente de verdad: `REFACTOR_UNTIS_MAESTRO.md`, en la raíz del repositorio.
 
 ## Contexto
 
