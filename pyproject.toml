@@ -45,13 +45,14 @@ dev = [
 
 [project.scripts]
 schedule-engine = "scheduling_platform.cli.main:app"
-schedule-desktop = "scheduling_desktop.app:main"
+schedule-desktop = "untis_desktop.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 scheduling_platform = ["py.typed"]
+untis_desktop = ["py.typed", "translations/*.qm", "translations/*.ts"]
 
 [tool.ruff]
 target-version = "py314"

@@ -127,6 +127,9 @@ def _clock(minutes: int) -> str:
 class UntisService:
     """Casos de uso del producto, en vocabulario Untis."""
 
+    def __init__(self) -> None:
+        self._delta_cache: tuple[UntisProject, Timetable, Evaluator, int] | None = None
+
     # ===================================================================== #
     # Ciclo de vida
     # ===================================================================== #
@@ -1222,8 +1225,22 @@ class UntisService:
         nuevo = self._moved(session.project, tt, lesson, source, target)
         if nuevo is None:
             return None
-        ev = Evaluator(session.project)
-        return ev.evaluate(nuevo).total - ev.evaluate(tt).total
+        ev, base = self._base_evaluation(session.project, tt)
+        return ev.evaluate(nuevo).total - base
+
+    def _base_evaluation(self, project: UntisProject, tt: Timetable) -> tuple[Evaluator, int]:
+        """Evaluador y total del horario actual, cacheados mientras no cambien.
+
+        El Diálogo de planificación pide un delta por celda al pasar el ratón;
+        sin caché cada consulta evaluaría dos horarios completos.
+        """
+        cache = self._delta_cache
+        if cache is not None and cache[0] is project and cache[1] is tt:
+            return cache[2], cache[3]
+        ev = Evaluator(project)
+        total = ev.evaluate(tt).total
+        self._delta_cache = (project, tt, ev, total)
+        return ev, total
 
     def move_session(
         self,

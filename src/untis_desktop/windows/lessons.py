@@ -1,0 +1,710 @@
+"""Ventana Lecciones: la ventana de datos más importante (sección 8).
+
+Una fila por línea de acople: la primera fila de cada lección lleva las columnas
+de la lección (Per/sem, Dobles, Bloque...) y las siguientes solo las de su línea
+(profesor, materia, clases, aula), como en Untis. Se eligió una tabla plana en
+vez de un árbol porque los acoples se ven siempre (no hay que desplegar nada),
+la navegación con teclado es la de una hoja de cálculo y ordenar/filtrar es
+trivial; la lección se distingue por el número y el sombreado alterno.
+
+Filtro por clase / profesor / materia / todas, que sigue la selección
+sincronizada. Barra de suma abajo: períodos frente a capacidad de la rejilla
+(en rojo si la supera).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt, Signal
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QSpinBox,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
+
+from scheduling_platform.application import EditResult, MasterKind, UntisLessonRow
+
+from ..qt_bridge import FacadeBridge
+from ..registry import RibbonTab, WindowSpec, register
+from ..theme import ERROR_COLOR
+from ..widgets.master_grid import ChoiceDelegate, entity_ids, is_checked
+
+type AnyIndex = QModelIndex | QPersistentModelIndex
+
+#: Nivel de cada columna: `number` (solo lectura), `line` (línea del acople),
+#: `lesson` (lección), `bool` (casilla de la lección) o `placed` (solo lectura).
+COLUMNS: tuple[tuple[str, str], ...] = (
+    ("number", "number"),
+    ("classes", "line"),
+    ("teacher", "line"),
+    ("subject", "line"),
+    ("room", "line"),
+    ("periods_per_week", "lesson"),
+    ("double_periods", "lesson"),
+    ("block", "lesson"),
+    ("time_grid", "lesson"),
+    ("fixed", "bool"),
+    ("ignore", "bool"),
+    ("not_same_day", "bool"),
+    ("weekly_value", "lesson"),
+    ("placed", "placed"),
+)
+FIELDS: tuple[str, ...] = tuple(f for f, _ in COLUMNS)
+LEVEL: dict[str, str] = dict(COLUMNS)
+
+#: Modos de filtro: `(clave, tipo de selección, MasterKind de la lista)`.
+MODES: tuple[tuple[str, str, MasterKind | None], ...] = (
+    ("class", "class", MasterKind.CLASSES),
+    ("teacher", "teacher", MasterKind.TEACHERS),
+    ("subject", "subject", MasterKind.SUBJECTS),
+    ("all", "", None),
+)
+MODE_KEYS: tuple[str, ...] = tuple(m for m, _, _ in MODES)
+
+_SUB_ROW_COLOR = "#6b7280"
+_UNPLACED_COLOR = "#fef3c7"
+
+
+@dataclass(frozen=True, slots=True)
+class LessonLine:
+    """Una fila de la tabla: una línea de una lección."""
+
+    lesson: UntisLessonRow
+    line: int
+    shade: bool
+    """Sombreado alterno por lección (no por fila)."""
+
+    @property
+    def is_first(self) -> bool:
+        return self.line == 0
+
+
+def _lesson_text(row: UntisLessonRow, field: str) -> str:
+    valores: dict[str, str] = {
+        "number": str(row.number),
+        "periods_per_week": str(row.periods_per_week),
+        "double_periods": row.double_periods,
+        "block": row.block,
+        "time_grid": row.time_grid,
+        "fixed": "x" if row.fixed else "",
+        "ignore": "x" if row.ignore else "",
+        "not_same_day": "x" if row.not_same_day else "",
+        "weekly_value": f"{row.weekly_value:g}" if row.weekly_value else "",
+        "placed": str(row.placed),
+    }
+    return valores.get(field, "")
+
+
+def _line_text(row: UntisLessonRow, line: int, field: str) -> str:
+    linea = row.lines[line]
+    valores: dict[str, str] = {
+        "classes": linea.classes,
+        "teacher": linea.teacher,
+        "subject": linea.subject,
+        "room": linea.room,
+    }
+    return valores.get(field, "")
+
+
+class LessonsModel(QAbstractTableModel):
+    """Lecciones filtradas, aplanadas a una fila por línea."""
+
+    edit_failed = Signal(str)
+
+    def __init__(self, bridge: FacadeBridge) -> None:
+        super().__init__()
+        self.bridge = bridge
+        self.lessons: tuple[UntisLessonRow, ...] = ()
+        self._rows: list[LessonLine] = []
+        self._errors: dict[tuple[int, int, str], str] = {}
+        """`(lección, línea, campo) -> motivo` (línea -1 = columna de la lección)."""
+
+    def set_lessons(self, lessons: tuple[UntisLessonRow, ...]) -> None:
+        self.beginResetModel()
+        self.lessons = lessons
+        self._rows = [
+            LessonLine(le, i, n % 2 == 1)
+            for n, le in enumerate(lessons)
+            for i in range(max(1, len(le.lines)))
+        ]
+        numeros = {le.number for le in lessons}
+        self._errors = {k: v for k, v in self._errors.items() if k[0] in numeros}
+        self.endResetModel()
+
+    def clear_errors(self) -> None:
+        self._errors.clear()
+
+    def line_at(self, row: int) -> LessonLine | None:
+        return self._rows[row] if 0 <= row < len(self._rows) else None
+
+    def row_of(self, number: int, line: int = 0) -> int:
+        return next(
+            (i for i, r in enumerate(self._rows) if r.lesson.number == number and r.line == line),
+            -1,
+        )
+
+    def error_at(self, number: int, line: int, field: str) -> str:
+        return self._errors.get((number, line, field), "")
+
+    def text(self, row: int, field: str) -> str:
+        fila = self._rows[row]
+        nivel = LEVEL[field]
+        if nivel == "line":
+            return _line_text(fila.lesson, fila.line, field) if fila.lesson.lines else ""
+        if not fila.is_first and field != "number":
+            return ""
+        return _lesson_text(fila.lesson, field)
+
+    def _titles(self) -> tuple[str, ...]:
+        return (
+            self.tr("Nº"),
+            self.tr("Cl"),
+            self.tr("Prof"),
+            self.tr("Mat"),
+            self.tr("Aula"),
+            self.tr("Per/sem"),
+            self.tr("Dobles"),
+            self.tr("Bloque"),
+            self.tr("Rejilla"),
+            self.tr("Fijar"),
+            self.tr("Ignorar"),
+            self.tr("No mismo día"),
+            self.tr("Valor semanal"),
+            self.tr("Colocadas"),
+        )
+
+    def _tooltips(self) -> tuple[str, ...]:
+        return (
+            self.tr("Número de lección"),
+            self.tr("Clases"),
+            self.tr("Profesor"),
+            self.tr("Materia"),
+            self.tr("Aula"),
+            self.tr("Períodos por semana"),
+            self.tr("Dobles mín-máx"),
+            self.tr("Bloque"),
+            self.tr("Rejilla de tiempo"),
+            self.tr("Fijada"),
+            self.tr("Ignorar en la optimización"),
+            self.tr("No más de un período el mismo día"),
+            self.tr("Valor semanal"),
+            self.tr("Períodos colocados en el horario activo"),
+        )
+
+    # --- API de Qt ----------------------------------------------------------- #
+
+    def rowCount(self, parent: AnyIndex = QModelIndex()) -> int:  # noqa: B008 - firma de Qt
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent: AnyIndex = QModelIndex()) -> int:  # noqa: B008 - firma de Qt
+        return 0 if parent.isValid() else len(COLUMNS)
+
+    def headerData(
+        self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole
+    ) -> object:
+        if orientation != Qt.Orientation.Horizontal or not 0 <= section < len(COLUMNS):
+            return None
+        if role == Qt.ItemDataRole.DisplayRole:
+            return self._titles()[section]
+        if role == Qt.ItemDataRole.ToolTipRole:
+            return self._tooltips()[section]
+        return None
+
+    def data(self, index: AnyIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
+        if not index.isValid():
+            return None
+        fila = self._rows[index.row()]
+        campo, nivel = COLUMNS[index.column()]
+        texto = self.text(index.row(), campo)
+        linea = fila.line if nivel == "line" else -1
+        error = self._errors.get((fila.lesson.number, linea, campo), "")
+        if role == Qt.ItemDataRole.DisplayRole:
+            return "" if nivel == "bool" else texto
+        if role == Qt.ItemDataRole.EditRole:
+            return texto
+        if role == Qt.ItemDataRole.CheckStateRole and nivel == "bool" and fila.is_first:
+            return Qt.CheckState.Checked if texto else Qt.CheckState.Unchecked
+        if role == Qt.ItemDataRole.BackgroundRole:
+            if error:
+                return QColor(ERROR_COLOR)
+            if nivel == "placed" and fila.is_first and fila.lesson.unplaced:
+                return QColor(_UNPLACED_COLOR)
+            return QColor("#f3f4f6") if fila.shade else None
+        if role == Qt.ItemDataRole.ForegroundRole and campo == "number" and not fila.is_first:
+            return QColor(_SUB_ROW_COLOR)
+        if role == Qt.ItemDataRole.ToolTipRole and error:
+            return error
+        return None
+
+    def flags(self, index: AnyIndex) -> Qt.ItemFlag:
+        if not index.isValid():
+            return Qt.ItemFlag.NoItemFlags
+        base = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        fila = self._rows[index.row()]
+        nivel = COLUMNS[index.column()][1]
+        if nivel == "line" and fila.lesson.lines:
+            return base | Qt.ItemFlag.ItemIsEditable
+        if nivel == "lesson" and fila.is_first:
+            return base | Qt.ItemFlag.ItemIsEditable
+        if nivel == "bool" and fila.is_first:
+            return base | Qt.ItemFlag.ItemIsUserCheckable
+        return base
+
+    def setData(self, index: AnyIndex, value: Any, role: int = Qt.ItemDataRole.EditRole) -> bool:
+        if not index.isValid() or not self.bridge.has_session:
+            return False
+        campo, nivel = COLUMNS[index.column()]
+        if role == Qt.ItemDataRole.CheckStateRole and nivel == "bool":
+            texto = "x" if is_checked(value) else ""
+        elif role == Qt.ItemDataRole.EditRole and nivel in ("line", "lesson"):
+            texto = "" if value is None else str(value)
+        else:
+            return False
+        return self.edit(index.row(), campo, texto).ok
+
+    def edit(self, row: int, field: str, text: str) -> EditResult:
+        """Edita una celda (de la línea o de la lección) a través del puente."""
+        fila = self.line_at(row)
+        nivel = LEVEL.get(field)
+        if fila is None or nivel not in ("line", "lesson", "bool"):
+            return EditResult.failure(self.tr("Columna no editable"))
+        if text == self.text(row, field):
+            return EditResult.success()
+        svc, numero = self.bridge.service, fila.lesson.number
+        if nivel == "line":
+            linea = fila.line
+            clave = (numero, linea, field)
+            resultado = self.bridge.edit(
+                lambda: svc.set_line_field(self.bridge.session, numero, linea, field, text)
+            )
+        else:
+            clave = (numero, -1, field)
+            resultado = self.bridge.edit(
+                lambda: svc.set_lesson_field(self.bridge.session, numero, field, text)
+            )
+        if resultado.ok:
+            self._errors.pop(clave, None)
+        else:
+            self._errors[clave] = self.tr("Valor rechazado «{0}»: {1}").format(
+                text, resultado.message
+            )
+            self.edit_failed.emit(resultado.message)
+        col = FIELDS.index(field)
+        self.dataChanged.emit(self.index(row, col), self.index(row, col))
+        return resultado
+
+
+class NewLessonDialog(QDialog):
+    """Datos de una lección nueva: materia, profesor, clases y períodos."""
+
+    def __init__(self, bridge: FacadeBridge, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Nueva lección"))
+        self.subject = QComboBox()
+        self.subject.addItems(list(entity_ids(bridge, MasterKind.SUBJECTS)))
+        self.teacher = QComboBox()
+        self.teacher.addItems(["", *entity_ids(bridge, MasterKind.TEACHERS)])
+        self.classes = QListWidget()
+        for clase in entity_ids(bridge, MasterKind.CLASSES):
+            item = QListWidgetItem(clase)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self.classes.addItem(item)
+        self.periods = QSpinBox()
+        self.periods.setRange(1, 40)
+        self.periods.setValue(1)
+        if bridge.selection is not None and bridge.selection[0] == "class":
+            self.check_classes((bridge.selection[1],))
+        formulario = QFormLayout()
+        formulario.addRow(self.tr("Materia"), self.subject)
+        formulario.addRow(self.tr("Profesor"), self.teacher)
+        formulario.addRow(self.tr("Clases"), self.classes)
+        formulario.addRow(self.tr("Períodos por semana"), self.periods)
+        botones = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        botones.accepted.connect(self.accept)
+        botones.rejected.connect(self.reject)
+        raiz = QVBoxLayout(self)
+        raiz.addLayout(formulario)
+        raiz.addWidget(botones)
+
+    def check_classes(self, classes: tuple[str, ...]) -> None:
+        for i in range(self.classes.count()):
+            item = self.classes.item(i)
+            marcado = item.text() in classes
+            item.setCheckState(Qt.CheckState.Checked if marcado else Qt.CheckState.Unchecked)
+
+    def values(self) -> tuple[str, str | None, tuple[str, ...], int]:
+        """`(materia, profesor o None, clases, períodos)`."""
+        clases = tuple(
+            self.classes.item(i).text()
+            for i in range(self.classes.count())
+            if self.classes.item(i).checkState() == Qt.CheckState.Checked
+        )
+        return (
+            self.subject.currentText(),
+            self.teacher.currentText() or None,
+            clases,
+            self.periods.value(),
+        )
+
+
+class LessonsWindow(QWidget):
+    """Lecciones por clase, profesor, materia o todas, con barra de suma."""
+
+    def __init__(self, bridge: FacadeBridge) -> None:
+        super().__init__()
+        self.bridge = bridge
+        self._loading = False
+
+        self.mode_combo = QComboBox()
+        for clave in MODE_KEYS:
+            self.mode_combo.addItem(clave, clave)
+        self.mode_combo.currentIndexChanged.connect(self._on_mode)
+        self.entity_combo = QComboBox()
+        self.entity_combo.setMinimumWidth(140)
+        self.entity_combo.currentIndexChanged.connect(self._on_entity)
+
+        self.new_button = QPushButton()
+        self.new_button.clicked.connect(self.new_lesson)
+        self.couple_button = QPushButton()
+        self.couple_button.clicked.connect(self.couple)
+        self.uncouple_button = QPushButton()
+        self.uncouple_button.clicked.connect(self.uncouple)
+        self.remove_button = QPushButton()
+        self.remove_button.clicked.connect(self.remove)
+
+        self.model = LessonsModel(bridge)
+        self.view = QTableView()
+        self.view.setModel(self.model)
+        self.view.setItemDelegate(ChoiceDelegate(self._choices, self.view))
+        self.view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.view.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.AnyKeyPressed
+        )
+        self.view.verticalHeader().setVisible(False)
+        self.view.verticalHeader().setDefaultSectionSize(22)
+        self.view.horizontalHeader().setSectionsMovable(True)
+        self.view.selectionModel().currentRowChanged.connect(self._on_current_row)
+        self.view.doubleClicked.connect(self._on_double_click)
+
+        self.sum_bar = QLabel()
+        self.sum_bar.setMargin(4)
+        self.message = QLabel()
+        self.message.setWordWrap(True)
+        self.message.setStyleSheet(f"background: {ERROR_COLOR}; padding: 3px;")
+        self.message.hide()
+
+        barra = QHBoxLayout()
+        barra.addWidget(self.mode_combo)
+        barra.addWidget(self.entity_combo)
+        barra.addStretch(1)
+        for boton in (
+            self.new_button,
+            self.couple_button,
+            self.uncouple_button,
+            self.remove_button,
+        ):
+            barra.addWidget(boton)
+        raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(4, 4, 4, 4)
+        raiz.addLayout(barra)
+        raiz.addWidget(self.view, 1)
+        raiz.addWidget(self.message)
+        raiz.addWidget(self.sum_bar)
+
+        self.model.edit_failed.connect(self.show_message)
+        bridge.refreshed.connect(self.refresh)
+        bridge.project_opened.connect(self.model.clear_errors)
+        bridge.selection_changed.connect(self.follow_selection)
+        bridge.lesson_selected.connect(self.select_lesson)
+        bridge.language_changed.connect(lambda _lang: self._retranslate())
+        self._retranslate()
+        if bridge.selection is not None:
+            self.follow_selection(*bridge.selection)
+        self.refresh()
+
+    # --- filtro --------------------------------------------------------------- #
+
+    @property
+    def mode(self) -> str:
+        return str(self.mode_combo.currentData() or "all")
+
+    @property
+    def entity(self) -> str:
+        return self.entity_combo.currentText() if self.mode != "all" else ""
+
+    def set_filter(self, mode: str, entity_id: str = "") -> None:
+        """Cambia el filtro (`class`, `teacher`, `subject` o `all`)."""
+        self._loading = True
+        try:
+            self.mode_combo.setCurrentIndex(MODE_KEYS.index(mode))
+            self._fill_entities()
+            if entity_id:
+                self.entity_combo.setCurrentIndex(max(0, self.entity_combo.findText(entity_id)))
+        finally:
+            self._loading = False
+        self.refresh()
+
+    def follow_selection(self, kind: str, entity_id: str) -> None:
+        if kind in ("class", "teacher", "subject") and (kind, entity_id) != (
+            self.mode,
+            self.entity,
+        ):
+            self.set_filter(kind, entity_id)
+
+    def _fill_entities(self) -> None:
+        actual = self.entity_combo.currentText()
+        tipo = {m: k for m, _, k in MODES}.get(self.mode)
+        ids = entity_ids(self.bridge, tipo) if tipo is not None else ()
+        self.entity_combo.clear()
+        self.entity_combo.addItems(list(ids))
+        self.entity_combo.setEnabled(tipo is not None)
+        if actual in ids:
+            self.entity_combo.setCurrentIndex(ids.index(actual))
+
+    def _on_mode(self, _index: int) -> None:
+        if self._loading:
+            return
+        self._loading = True
+        try:
+            self._fill_entities()
+        finally:
+            self._loading = False
+        self.refresh()
+        self._announce()
+
+    def _on_entity(self, _index: int) -> None:
+        if self._loading:
+            return
+        self.refresh()
+        self._announce()
+
+    def _announce(self) -> None:
+        if self.mode != "all" and self.entity:
+            self.bridge.select(self.mode, self.entity)
+
+    # --- carga ------------------------------------------------------------------ #
+
+    def refresh(self) -> None:
+        actual = self.current_lesson()
+        self._loading = True
+        try:
+            self._fill_entities()
+        finally:
+            self._loading = False
+        if not self.bridge.has_session:
+            self.model.set_lessons(())
+        else:
+            svc, s = self.bridge.service, self.bridge.session
+            entidad = self.entity or None
+            if self.mode == "class":
+                filas = svc.lessons(s, class_id=entidad) if entidad else ()
+            elif self.mode == "teacher":
+                filas = svc.lessons(s, teacher_id=entidad) if entidad else ()
+            elif self.mode == "subject":
+                filas = svc.lessons(s, subject_id=entidad) if entidad else ()
+            else:
+                filas = svc.lessons(s)
+            self.model.set_lessons(filas)
+        if actual is not None:
+            self._select_row(self.model.row_of(*actual))
+        self._update_sum_bar()
+
+    def _update_sum_bar(self) -> None:
+        self.sum_bar.setStyleSheet("")
+        if not self.bridge.has_session:
+            self.sum_bar.setText("")
+            return
+        if self.mode in ("class", "teacher") and self.entity:
+            r = self.bridge.service.load_summary(self.bridge.session, self.mode, self.entity)
+            self.sum_bar.setText(
+                self.tr("{0}: períodos {1} / capacidad {2} — colocados {3}").format(
+                    self.entity, r.periods, r.capacity, r.placed
+                )
+            )
+            if r.overloaded:
+                self.sum_bar.setStyleSheet(f"background: {ERROR_COLOR}; font-weight: bold;")
+            self.sum_bar.setProperty("overloaded", r.overloaded)
+            return
+        lecciones = self.model.lessons
+        periodos = sum(le.periods_per_week for le in lecciones if not le.ignore)
+        colocados = sum(min(le.placed, le.periods_per_week) for le in lecciones if not le.ignore)
+        self.sum_bar.setText(
+            self.tr("{0} lecciones: períodos {1} — colocados {2}").format(
+                len(lecciones), periodos, colocados
+            )
+        )
+        self.sum_bar.setProperty("overloaded", False)
+
+    # --- selección de lección ------------------------------------------------- #
+
+    def current_lesson(self) -> tuple[int, int] | None:
+        """`(lección, línea)` de la fila actual."""
+        fila = self.model.line_at(self.view.currentIndex().row())
+        return (fila.lesson.number, fila.line) if fila is not None else None
+
+    def _select_row(self, row: int) -> None:
+        """Mueve la fila actual sin volver a anunciar la lección (evita ecos)."""
+        if row < 0:
+            return
+        indice = self.model.index(row, 0)
+        previo = self._loading
+        self._loading = True
+        try:
+            self.view.setCurrentIndex(indice)
+        finally:
+            self._loading = previo
+        self.view.scrollTo(indice)
+
+    def select_lesson(self, number: int) -> None:
+        """Enfoca una lección (desde Diagnóstico, horarios...); si está filtrada, muestra todas."""
+        actual = self.current_lesson()
+        if actual is not None and actual[0] == number:
+            return
+        fila = self.model.row_of(number)
+        if fila < 0:
+            if not self.bridge.has_session or not any(
+                le.number == number for le in self.bridge.service.lessons(self.bridge.session)
+            ):
+                return
+            self.set_filter("all")
+            fila = self.model.row_of(number)
+        self._select_row(fila)
+
+    def _on_current_row(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        fila = self.model.line_at(current.row())
+        if fila is not None and not self._loading:
+            self.bridge.select_lesson(fila.lesson.number)
+
+    def _on_double_click(self, index: QModelIndex) -> None:
+        fila = self.model.line_at(index.row())
+        if fila is not None:
+            self.bridge.select_lesson(fila.lesson.number)
+
+    # --- órdenes -------------------------------------------------------------- #
+
+    def _choices(self, index: AnyIndex) -> tuple[str, ...] | None:
+        campo = COLUMNS[index.column()][0]
+        tipos = {
+            "teacher": MasterKind.TEACHERS,
+            "subject": MasterKind.SUBJECTS,
+            "room": MasterKind.ROOMS,
+        }
+        if campo in tipos:
+            return entity_ids(self.bridge, tipos[campo])
+        if campo == "time_grid" and self.bridge.has_session:
+            return tuple(g.id for g in self.bridge.service.grids(self.bridge.session))
+        return None
+
+    def new_lesson(self) -> None:
+        dialogo = NewLessonDialog(self.bridge, self)
+        if dialogo.exec() == QDialog.DialogCode.Accepted:
+            self.create_lesson(*dialogo.values())
+
+    def create_lesson(
+        self, subject: str, teacher: str | None, classes: tuple[str, ...], periods: int
+    ) -> EditResult:
+        """Añade la lección y la selecciona; devuelve su número en `message`."""
+        if not self.bridge.has_session:
+            return EditResult.failure(self.tr("No hay proyecto abierto"))
+        svc = self.bridge.service
+        resultado = self.bridge.edit(
+            lambda: svc.add_lesson(
+                self.bridge.session,
+                subject=subject,
+                teacher=teacher,
+                classes=classes,
+                periods=periods,
+            )
+        )
+        if not resultado.ok:
+            self.show_message(resultado.message)
+            return resultado
+        self.refresh()
+        self.select_lesson(int(resultado.message))
+        return resultado
+
+    def _run(self, build: Callable[[int, int], EditResult]) -> EditResult:
+        actual = self.current_lesson()
+        if actual is None or not self.bridge.has_session:
+            resultado = EditResult.failure(self.tr("Selecciona una lección"))
+        else:
+            resultado = self.bridge.edit(lambda: build(*actual))
+        if not resultado.ok:
+            self.show_message(resultado.message)
+        else:
+            self.message.hide()
+        return resultado
+
+    def couple(self) -> EditResult:
+        """Acopla una línea nueva a la lección actual."""
+        svc = self.bridge.service
+        return self._run(lambda number, _line: svc.add_line(self.bridge.session, number))
+
+    def uncouple(self) -> EditResult:
+        """Quita la línea actual del acople."""
+        svc = self.bridge.service
+        return self._run(lambda number, line: svc.remove_line(self.bridge.session, number, line))
+
+    def remove(self) -> EditResult:
+        """Borra la lección actual."""
+        svc = self.bridge.service
+        return self._run(lambda number, _line: svc.remove_lesson(self.bridge.session, number))
+
+    def show_message(self, text: str) -> None:
+        self.message.setText(text)
+        self.message.setVisible(bool(text))
+        if text:
+            self.bridge.status.emit(text)
+
+    # --- idioma ------------------------------------------------------------------- #
+
+    def _retranslate(self) -> None:
+        nombres = {
+            "class": self.tr("Por clase"),
+            "teacher": self.tr("Por profesor"),
+            "subject": self.tr("Por materia"),
+            "all": self.tr("Todas"),
+        }
+        for i, clave in enumerate(MODE_KEYS):
+            self.mode_combo.setItemText(i, nombres[clave])
+        self.new_button.setText(self.tr("Nueva lección"))
+        self.couple_button.setText(self.tr("Acoplar"))
+        self.couple_button.setToolTip(self.tr("Añade una línea al acople de la lección"))
+        self.uncouple_button.setText(self.tr("Desacoplar"))
+        self.uncouple_button.setToolTip(self.tr("Quita la línea seleccionada del acople"))
+        self.remove_button.setText(self.tr("Borrar"))
+        self.model.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, len(COLUMNS) - 1)
+        self._update_sum_bar()
+
+
+register(
+    WindowSpec(
+        key="lessons",
+        title="Lecciones",
+        title_de="Unterricht",
+        tab=RibbonTab.LESSONS,
+        factory=LessonsWindow,
+        order=1,
+    )
+)
