@@ -19,13 +19,16 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from scheduling_platform.untis_model import (
     Absence,
     EntityKind,
     Holiday,
+    PeriodDef,
     Substitution,
     SubstitutionKind,
+    TimeGrid,
     Timetable,
     UntisProject,
     parse_date,
@@ -107,17 +110,23 @@ class AbsenceRow:
     last_period: int | None = None
     reason: str = ""
     text: str = ""
+    first_label: str = ""
+    """Rótulo del colegio para `first_period` (con hora cero, la primera es 0)."""
+    last_label: str = ""
+    """Rótulo del colegio para `last_period`."""
 
     @property
     def periods_label(self) -> str:
         """Horas que abarca, p. ej. `"3-6"`, `"desde 3"` o `"todo el día"`."""
+        primera = self.first_label or str(self.first_period)
+        ultima = self.last_label or str(self.last_period)
         if self.first_period is None and self.last_period is None:
             return "todo el día"
         if self.first_period is not None and self.last_period is not None:
-            return f"{self.first_period}-{self.last_period}"
+            return f"{primera}-{ultima}"
         if self.first_period is not None:
-            return f"desde {self.first_period}"
-        return f"hasta {self.last_period}"
+            return f"desde {primera}"
+        return f"hasta {ultima}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +151,8 @@ class DayRow:
     note: str = ""
     absence: str = ""
     """Id de la ausencia que la provoca."""
+    period_label: str = ""
+    """Rótulo del colegio para esa hora; vacío = el mismo `period`."""
 
     @property
     def decided(self) -> bool:
@@ -201,6 +212,33 @@ class CandidateRow:
 
 
 @dataclass(frozen=True, slots=True)
+class AbsenceWindowView:
+    """Tramo de una ausencia traducido de horas de reloj a números de hora.
+
+    Untis anota las ausencias con horas de reloj ("desde 18/09 07:00 hasta
+    18/09 17:40"); el modelo las guarda como números de hora (`Absence`). Esta
+    vista es el puente entre las dos formas, en los dos sentidos: lleva los
+    números que hay que guardar y las horas de reloj ya normalizadas, que son
+    las que rellenan el diálogo cuando se pide la jornada entera.
+    """
+
+    first: int | None = None
+    """Primera hora tocada, con la numeración del modelo; `None` = ninguna."""
+    last: int | None = None
+    """Última hora tocada; `None` = ninguna."""
+    from_time: str = ""
+    """`HH:MM` en que empieza la primera hora tocada (vacío si no hay ninguna)."""
+    to_time: str = ""
+    """`HH:MM` en que termina la última hora tocada (vacío si no hay ninguna)."""
+    grid: str = ""
+    """Id de la rejilla con la que se ha traducido; vacío si la entidad no tiene."""
+    label: str = ""
+    """Texto para la ventana: la traducción o el motivo de que no haya ninguna."""
+    found: bool = False
+    """`True` si el tramo toca al menos una hora de clase."""
+
+
+@dataclass(frozen=True, slots=True)
 class CounterRow:
     """Contador de sustituciones de un profesor."""
 
@@ -244,6 +282,37 @@ def _period_or_none(valor: int | None, campo: str) -> int | None:
     return valor
 
 
+def _clock_to_minutes(valor: str) -> int:
+    """`HH:MM` -> minutos desde medianoche; lanza `ValueError` con su texto."""
+    partes = valor.strip().split(":")
+    if len(partes) != 2 or not all(p.isdigit() for p in partes):
+        raise ValueError(f"Hora de reloj inválida (HH:MM): {valor!r}")
+    horas, minutos = int(partes[0]), int(partes[1])
+    if not (0 <= horas <= 23 and 0 <= minutos <= 59):
+        raise ValueError(f"Hora de reloj fuera del día: {valor!r}")
+    return horas * 60 + minutos
+
+
+def _minutes_to_clock(minutos: int) -> str:
+    """Minutos desde medianoche -> `HH:MM` (lo que lee una persona)."""
+    return f"{minutos // 60:02d}:{minutos % 60:02d}"
+
+
+def _label_or_empty(project: UntisProject, numero: int | None) -> str:
+    """Rótulo de esa hora, o vacío si no hay hora (`None` = sin límite)."""
+    return "" if numero is None else _period_label(project, numero)
+
+
+def _period_label(project: UntisProject, numero: int) -> str:
+    """Rótulo del colegio para esa hora.
+
+    El modelo numera las horas desde 1, pero un colegio con "hora cero" las
+    rotula desde 0 (`SchoolInfo.first_period`). Ese 0 es una hora de verdad,
+    nunca un "sin límite": lo de "sin límite" se dice siempre con `None`.
+    """
+    return str(numero + project.school.first_period - 1)
+
+
 # --------------------------------------------------------------------------- #
 # Mixin de la Fachada
 # --------------------------------------------------------------------------- #
@@ -251,6 +320,12 @@ def _period_or_none(valor: int | None, campo: str) -> int | None:
 
 class SubstitutionMixin:
     """Calendario, ausencias y parte del día. Lo hereda `UntisService`."""
+
+    if TYPE_CHECKING:  # pragma: no cover - lo aporta `UntisService`
+
+        @staticmethod
+        def _grid_of(project: UntisProject, kind: str, entity_id: str) -> TimeGrid | None:
+            """Rejilla propia de la entidad (la de la clase; la más usada si no)."""
 
     # --- apoyos ---------------------------------------------------------- #
 
@@ -282,6 +357,8 @@ class SubstitutionMixin:
             last_period=a.last_period,
             reason=a.reason,
             text=a.text,
+            first_label=_label_or_empty(project, a.first_period),
+            last_label=_label_or_empty(project, a.last_period),
         )
 
     # --- calendario ------------------------------------------------------- #
@@ -333,6 +410,79 @@ class SubstitutionMixin:
         vigentes = p.absences_on(date) if date else p.absences
         filas = [self._absence_row(p, a) for a in vigentes]
         return tuple(sorted(filas, key=lambda f: (f.begin, f.entity_kind, f.entity_id, f.id)))
+
+    def absence_periods(
+        self,
+        session: UntisSession,
+        kind: str,
+        entity_id: str,
+        from_time: str = "",
+        to_time: str = "",
+    ) -> AbsenceWindowView:
+        """Traduce un tramo de horas de reloj a los números de hora que toca.
+
+        Es lo que hace Untis al anotar una ausencia: se escribe "desde 07:00
+        hasta 17:40" y el programa deduce las horas lectivas afectadas. Una
+        hora de la rejilla entra en el tramo si **se solapa** con
+        `[from_time, to_time)`; `from_time` vacío significa desde el principio
+        de la jornada y `to_time` vacío hasta el final, de modo que sin horas
+        sale el día entero.
+
+        La rejilla es la de la entidad (`kind` es `teacher`, `class` o `room`);
+        la de un profesor es la que más usa. Si la entidad no tiene rejilla, si
+        las horas no valen o si el tramo no toca ninguna hora, la vista vuelve
+        con `first` y `last` en `None`, `found` en `False` y el motivo en
+        `label`.
+
+        La vista trae además el tramo en formato `HH:MM`, que es el camino
+        inverso: pedirlo sin horas da el principio y el final de la jornada.
+        """
+        p = session.project
+        rejilla = self._grid_of(p, kind, entity_id)
+        horas = rejilla.teaching_periods if rejilla is not None else ()
+        if rejilla is None or not horas:
+            return AbsenceWindowView(label=f"{entity_id} no tiene ninguna rejilla de horas")
+        jornada = (min(h.start for h in horas), max(h.end for h in horas))
+        try:
+            desde = _clock_to_minutes(from_time) if from_time.strip() else jornada[0]
+            hasta = _clock_to_minutes(to_time) if to_time.strip() else jornada[1]
+        except ValueError as exc:
+            return AbsenceWindowView(grid=rejilla.id, label=str(exc))
+        dentro = [h for h in horas if h.start < hasta and h.end > desde]
+        if not dentro:
+            return AbsenceWindowView(
+                grid=rejilla.id,
+                label=(
+                    f"De {_minutes_to_clock(desde)} a {_minutes_to_clock(hasta)} "
+                    "no hay ninguna hora de clase"
+                ),
+            )
+        return self._window_view(p, rejilla.id, dentro[0], dentro[-1])
+
+    @staticmethod
+    def _window_view(
+        project: UntisProject, grid_id: str, primera: PeriodDef, ultima: PeriodDef
+    ) -> AbsenceWindowView:
+        """Vista ya resuelta: números de hora, tramo de reloj y su descripción."""
+        inicio, fin = _minutes_to_clock(primera.start), _minutes_to_clock(ultima.end)
+        rotulo_a, rotulo_b = (
+            _period_label(project, primera.number),
+            _period_label(project, ultima.number),
+        )
+        texto = (
+            f"Solo la hora {rotulo_a} (de {inicio} a {fin})"
+            if primera.number == ultima.number
+            else f"De la hora {rotulo_a} ({inicio}) a la hora {rotulo_b} ({fin})"
+        )
+        return AbsenceWindowView(
+            first=primera.number,
+            last=ultima.number,
+            from_time=inicio,
+            to_time=fin,
+            grid=grid_id,
+            label=texto,
+            found=True,
+        )
 
     def add_absence(
         self,
@@ -456,6 +606,7 @@ class SubstitutionMixin:
             filas.append(
                 DayRow(
                     period=hora,
+                    period_label=_period_label(project, hora),
                     lesson=leccion,
                     subject=clase.subject if clase is not None else "",
                     teachers=clase.teachers if clase is not None else (),

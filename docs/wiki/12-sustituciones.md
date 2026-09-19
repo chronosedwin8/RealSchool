@@ -14,7 +14,8 @@ La ventana tiene tres columnas:
 - **Ausencias del día**: quién falta ese día, con los botones **Añadir** y **Quitar**.
 - **Clases afectadas**: las clases tocadas por esas ausencias y las decisiones ya tomadas, con
   los botones **Proponer sustituto**, **Suprimir**, **Cambiar aula** y **Quitar decisión**.
-- **Contadores**: cuántas sustituciones lleva cada profesor.
+- **Disponibles / Contadores**: a la derecha, quién puede cubrir la clase seleccionada y
+  cuántas sustituciones lleva cada profesor.
 
 ## El día a día
 
@@ -44,17 +45,24 @@ sustituir en él. Se deshace como cualquier otro cambio, con Ctrl+Z.
 2. **Falta un:** elige **Profesor**, **Clase** o **Aula**. No solo faltan personas: una clase
    entera de excursión o un aula en obras también cambian el día.
 3. **Quién:** elige de la lista el profesor, la clase o el aula concreta.
-4. **Desde el día:** y **Hasta el día:** el primer y el último día de la ausencia, este último
-   incluido. Para una ausencia de un solo día, deja las dos fechas iguales.
-5. **Desde la hora:** y **Hasta la hora:** solo si la ausencia no ocupa la jornada entera. El
-   guion `-` significa desde el principio o hasta el final de la jornada.
-6. **Motivo:** texto libre: enfermedad, curso, excursión. Sale luego en la lista y en la
+4. **Duración:** deja marcado **Todo el día** si falta la jornada entera. Si no, quítale la
+   marca y se abren las horas de reloj.
+5. **Desde el día:** _fecha_ **a las** _hora_ y **Hasta el día:** _fecha_ **a las** _hora_.
+   Las horas son de reloj, como en Untis: "desde el 18/09 a las 07:00 hasta el 18/09 a las
+   12:20". Para una ausencia de un solo día, deja las dos fechas iguales.
+6. Debajo, **Se traduce en:** te dice qué horas de clase quedan dentro: "De la hora 0 (07:00)
+   a la hora 7 (12:20)", o "Solo la hora 5 (de 10:00 a 10:45)". Si el tramo no toca ninguna
+   hora de clase, lo dice y no deja guardar.
+7. **Motivo:** texto libre: enfermedad, curso, excursión. Sale luego en la lista y en la
    explicación de cada clase afectada.
-7. Acepta. La ausencia aparece en la lista con su id.
+8. Acepta. La ausencia aparece en la lista con su id.
 
-En una ausencia de varios días, las horas acotan solo el primer día y el último. "Del lunes a
-5ª hasta el miércoles a 2ª" se escribe con **Desde la hora:** 5 y **Hasta la hora:** 2: el
-martes falta entero.
+En una ausencia de varios días, las horas acotan solo el primer día y el último; los días de
+en medio faltan enteros. "Del lunes a las 10:00 hasta el miércoles a las 09:35" se escribe
+poniendo esas dos fechas con esas dos horas.
+
+Las horas se numeran como en tu colegio: si la jornada empieza en la hora 0, el programa la
+llama 0, igual que Untis.
 
 La lista **Ausencias del día** tiene las columnas **Quién**, **Tipo**, **Desde**, **Hasta** y
 **Motivo**. Pasa el ratón por el motivo y verás las horas que abarca ("3-6", "desde 3", "todo
@@ -85,17 +93,30 @@ ejemplo "Falta T012 (enfermedad)".
 Si la lista sale vacía pone "Ningún cambio este día": ese día nadie falta o nadie afectado
 tenía clase.
 
-## Pedir la propuesta de sustituto
+## Los profesores disponibles
+
+A la derecha hay un panel con dos pestañas. La primera, **Disponibles**, enseña siempre quién
+puede cubrir la clase que tengas seleccionada en el parte del día:
 
 1. Selecciona la fila de la clase que quieres cubrir.
-2. Pulsa **Proponer sustituto**. Se abre el cuadro "Proponer sustituto".
+2. El encabezado dice para qué es: "Disponibles para la hora 3, BaumH".
 3. La tabla lista a los profesores posibles **del mejor al peor**, con las columnas
-   **Profesor**, **Nombre**, **Puntos** y **Por qué**.
-4. Elige uno y acepta (o haz doble clic en su fila). Queda asignado.
+   **Profesor**, **Por qué**, **Sustituciones** y **Reserva**.
+4. Haz doble clic en el que quieras, o selecciónalo y pulsa **Asignar**. Queda asignado.
 
-En el cuadro hay una nota que resume el criterio: "El primero de la lista es el mejor: se
-prefiere a quien ya está en el centro, luego a quien da la materia o al grupo, y después a
-quien menos sustituciones lleva. Nunca se propone a quien tiene clase o está ausente."
+La columna **Por qué** explica el puesto de cada uno: "ya está en el centro, da la materia, 0
+sustituciones". El criterio es: primero quien ya está en el colegio a esa hora, luego quien da
+esa materia o da clase a ese grupo, y después quien menos sustituciones lleva. Nunca se
+propone a quien tiene clase, está de guardia, está ausente o tiene la reserva al máximo.
+
+El botón **Proponer sustituto** de abajo es un atajo: pone directamente al primero de la
+lista, que es el mejor.
+
+Si no hay nada seleccionado, o la clase ya está resuelta, o no falta ningún profesor en ella,
+el panel lo dice en vez de quedarse vacío.
+
+La segunda pestaña, **Contadores**, es la de siempre: cuántas sustituciones lleva cada
+profesor en el curso.
 
 ### Quién no sale nunca en la lista
 

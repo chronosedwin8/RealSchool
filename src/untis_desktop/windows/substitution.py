@@ -7,17 +7,25 @@ elige la fecha y se ve, de un vistazo:
 - las **clases afectadas** por esas ausencias y las decisiones ya tomadas;
 - los **contadores** de sustituciones de cada profesor, para repartir con justicia.
 
-Para cada clase afectada se puede pedir "Proponer sustituto": la Fachada
-devuelve los profesores posibles ordenados de mejor a peor, cada uno con la
-razón de su puesto (ya está en el centro, da la materia, cuántas sustituciones
-lleva...). También se puede suprimir la clase o cambiarle el aula.
+A la derecha hay un panel permanente de **profesores disponibles** (como el
+"Propuesta -> Sustitución" de Untis): al elegir una clase afectada se llena con
+los profesores que podrían cubrirla, de mejor a peor, cada uno con la razón de
+su puesto (ya está en el centro, da la materia, cuántas sustituciones lleva...).
+Un doble clic, o el botón "Asignar", lo pone de sustituto. En la pestaña de al
+lado siguen los contadores. También se puede suprimir la clase o cambiarle el
+aula.
+
+Las ausencias se escriben con **horas de reloj**, como en Untis ("desde el
+18/09 a las 07:00 hasta el 18/09 a las 17:40"); quien las traduce a números de
+hora es la Fachada, que es la que conoce la rejilla de cada entidad.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, QTime
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QDateEdit,
     QDialog,
@@ -28,9 +36,10 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
+    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +47,7 @@ from PySide6.QtWidgets import (
 from scheduling_platform.application import EditResult, MasterKind
 from scheduling_platform.application.untis.substitution import (
     AbsenceRow,
+    AbsenceWindowView,
     CandidateRow,
     DayReport,
     DayRow,
@@ -53,6 +63,9 @@ from ..widgets.uikit import Banner, EmptyHint, tool_button
 
 #: Formato Untis de las fechas (`AAAAMMDD`).
 DATE_FORMAT = "yyyyMMdd"
+
+#: Formato de las horas de reloj de una ausencia (`07:00`), igual que en Untis.
+CLOCK_FORMAT = "HH:mm"
 
 #: Tipos de entidad que pueden faltar, en el orden del desplegable.
 ABSENCE_KINDS: tuple[str, ...] = ("teacher", "class", "room")
@@ -87,8 +100,30 @@ def _table(columns: int) -> QTableWidget:
     return tabla
 
 
+def _day_and_time(date_edit: QDateEdit, at_label: QLabel, time_edit: QTimeEdit) -> QWidget:
+    """Fila "el [fecha] a las [HH:MM]" para el formulario de la ausencia."""
+    caja = QWidget()
+    capa = QHBoxLayout(caja)
+    capa.setContentsMargins(0, 0, 0, 0)
+    capa.addWidget(date_edit)
+    capa.addWidget(at_label)
+    capa.addWidget(time_edit)
+    capa.addStretch(1)
+    return caja
+
+
 class AbsenceDialog(QDialog):
-    """Alta de una ausencia: quién falta, qué días y de qué hora a qué hora."""
+    """Alta de una ausencia: quién falta, desde qué día y hora hasta cuáles.
+
+    Se escribe como en Untis, con **horas de reloj**: "desde el 18/09 a las
+    07:00 hasta el 18/09 a las 17:40". La casilla "Todo el día" viene marcada,
+    que es el caso normal; al desmarcarla los relojes se rellenan con el
+    principio y el final de la jornada de esa entidad.
+
+    La traducción de reloj a números de hora la hace la Fachada
+    (`absence_periods`), que es la que conoce la rejilla; aquí solo se enseña
+    en qué se traduce y se pasan los números ya calculados.
+    """
 
     def __init__(self, bridge: FacadeBridge, day: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -99,29 +134,37 @@ class AbsenceDialog(QDialog):
         self.kind_combo.currentIndexChanged.connect(lambda _i: self._load_entities())
         self.entity_combo = QComboBox()
         self.entity_combo.setMinimumWidth(140)
+        self.entity_combo.currentIndexChanged.connect(lambda _i: self._update_window())
         fecha = QDate.fromString(day, DATE_FORMAT)
         self.begin = QDateEdit(fecha if fecha.isValid() else QDate.currentDate())
         self.end = QDateEdit(fecha if fecha.isValid() else QDate.currentDate())
         for caja in (self.begin, self.end):
             caja.setCalendarPopup(True)
             caja.setDisplayFormat("dd/MM/yyyy")
-        self.first_period = QSpinBox()
-        self.last_period = QSpinBox()
-        for horas in (self.first_period, self.last_period):
-            horas.setRange(0, 20)
-            horas.setSpecialValueText("-")
+            caja.dateChanged.connect(lambda _d: self._update_window())
+        self.begin_time = QTimeEdit(QTime(8, 0))
+        self.end_time = QTimeEdit(QTime(14, 0))
+        for reloj in (self.begin_time, self.end_time):
+            reloj.setDisplayFormat(CLOCK_FORMAT)
+            reloj.setEnabled(False)
+            reloj.timeChanged.connect(lambda _t: self._update_window())
+        self.all_day = QCheckBox()
+        self.all_day.setChecked(True)
+        self.all_day.toggled.connect(self._toggle_all_day)
         self.reason = QLineEdit()
+        self.window_label = QLabel()
+        self.window_label.setWordWrap(True)
 
         self.labels: dict[str, QLabel] = {}
         formulario = QFormLayout()
         for clave, campo in (
             ("kind", self.kind_combo),
             ("entity", self.entity_combo),
-            ("begin", self.begin),
-            ("end", self.end),
-            ("first", self.first_period),
-            ("last", self.last_period),
+            ("all_day", self.all_day),
+            ("begin", _day_and_time(self.begin, self._at_label("begin_at"), self.begin_time)),
+            ("end", _day_and_time(self.end, self._at_label("end_at"), self.end_time)),
             ("reason", self.reason),
+            ("window", self.window_label),
         ):
             etiqueta = QLabel()
             self.labels[clave] = etiqueta
@@ -138,9 +181,19 @@ class AbsenceDialog(QDialog):
         self._load_entities()
         self._retranslate()
 
+    def _at_label(self, clave: str) -> QLabel:
+        """Etiqueta "a las" entre la fecha y el reloj (se traduce como el resto)."""
+        self.labels.setdefault(clave, QLabel())
+        return self.labels[clave]
+
     def _load_entities(self) -> None:
         self.entity_combo.clear()
         self.entity_combo.addItems(list(entity_ids(self.bridge, KIND_MASTER[self.kind])))
+
+    @property
+    def facade(self) -> SubstitutionMixin:
+        """La Fachada, que traduce las horas de reloj a números de hora."""
+        return self.bridge.service
 
     @property
     def kind(self) -> str:
@@ -150,10 +203,53 @@ class AbsenceDialog(QDialog):
     def entity(self) -> str:
         return self.entity_combo.currentText()
 
+    @property
+    def from_time(self) -> str:
+        """Hora de reloj `HH:MM` de inicio (vacía si falta todo el día)."""
+        if self.all_day.isChecked():
+            return ""
+        return str(self.begin_time.time().toString(CLOCK_FORMAT))
+
+    @property
+    def to_time(self) -> str:
+        """Hora de reloj `HH:MM` de fin (vacía si falta todo el día)."""
+        if self.all_day.isChecked():
+            return ""
+        return str(self.end_time.time().toString(CLOCK_FORMAT))
+
+    def window_view(self, whole_day: bool = False) -> AbsenceWindowView:
+        """Traducción del tramo elegido a números de hora (la hace la Fachada).
+
+        Con `whole_day` se pide la jornada entera de la entidad, que es de
+        donde salen las horas con las que se rellenan los relojes.
+        """
+        if not self.bridge.has_session or not self.entity:
+            return AbsenceWindowView()
+        desde = "" if whole_day else self.from_time
+        hasta = "" if whole_day else self.to_time
+        return self.facade.absence_periods(
+            self.bridge.session, self.kind, self.entity, desde, hasta
+        )
+
+    @property
+    def error(self) -> str:
+        """Por qué no vale el tramo elegido (vacío si vale o es todo el día)."""
+        if self.all_day.isChecked():
+            return ""
+        vista = self.window_view()
+        return "" if vista.found else vista.label
+
     def values(self) -> tuple[str, str, str, str, int | None, int | None, str]:
-        """Lo que hay que pasar a la Fachada."""
-        primera = self.first_period.value() or None
-        ultima = self.last_period.value() or None
+        """Lo que hay que pasar a la Fachada (las horas, ya como números).
+
+        Todo el día son las dos horas en `None` ("sin límite"), que no es lo
+        mismo que la hora 0: un colegio con hora cero la tiene de verdad.
+        """
+        primera: int | None = None
+        ultima: int | None = None
+        if not self.all_day.isChecked():
+            vista = self.window_view()
+            primera, ultima = vista.first, vista.last
         return (
             self.kind,
             self.entity,
@@ -164,6 +260,32 @@ class AbsenceDialog(QDialog):
             self.reason.text(),
         )
 
+    def _toggle_all_day(self, checked: bool) -> None:
+        """Sin "todo el día" se editan las horas, rellenas con la jornada."""
+        for reloj in (self.begin_time, self.end_time):
+            reloj.setEnabled(not checked)
+        if not checked:
+            self._fill_day_times()
+        self._update_window()
+
+    def _fill_day_times(self) -> None:
+        """Pone en los relojes el principio y el final de la jornada."""
+        jornada = self.window_view(whole_day=True)
+        if not jornada.found:
+            return
+        relojes = ((self.begin_time, jornada.from_time), (self.end_time, jornada.to_time))
+        for reloj, texto in relojes:
+            hora = QTime.fromString(texto, CLOCK_FORMAT)
+            if not hora.isValid():
+                continue
+            reloj.blockSignals(True)
+            reloj.setTime(hora)
+            reloj.blockSignals(False)
+
+    def _update_window(self) -> None:
+        """Reescribe la línea que dice en qué horas se traduce la ausencia."""
+        self.window_label.setText(self.window_view().label)
+
     def _retranslate(self) -> None:
         self.setWindowTitle(self.tr("Nueva ausencia"))
         nombres = {
@@ -173,80 +295,39 @@ class AbsenceDialog(QDialog):
         }
         for i, kind in enumerate(ABSENCE_KINDS):
             self.kind_combo.setItemText(i, nombres[kind])
+        self.all_day.setText(self.tr("Todo el día"))
+        self.all_day.setToolTip(
+            self.tr("Falta la jornada entera; quítale la marca para dar horas de reloj")
+        )
         textos = {
             "kind": (self.tr("Falta un:"), self.tr("Qué falta: un profesor, una clase o un aula")),
             "entity": (self.tr("Quién:"), self.tr("El profesor, la clase o el aula que falta")),
+            "all_day": (self.tr("Duración:"), self.tr("Toda la jornada o un tramo de horas")),
             "begin": (self.tr("Desde el día:"), self.tr("Primer día de la ausencia")),
+            "begin_at": (self.tr("a las"), self.tr("Hora de reloj a la que empieza la ausencia")),
             "end": (self.tr("Hasta el día:"), self.tr("Último día de la ausencia (incluido)")),
-            "first": (
-                self.tr("Desde la hora:"),
-                self.tr("Primera hora del primer día; - = desde el principio de la jornada"),
-            ),
-            "last": (
-                self.tr("Hasta la hora:"),
-                self.tr("Última hora del último día; - = hasta el final de la jornada"),
-            ),
+            "end_at": (self.tr("a las"), self.tr("Hora de reloj a la que termina la ausencia")),
             "reason": (
                 self.tr("Motivo:"),
                 self.tr("Por qué falta: enfermedad, curso, excursión..."),
+            ),
+            "window": (
+                self.tr("Se traduce en:"),
+                self.tr("Horas de clase que quedan dentro del tramo elegido"),
             ),
         }
         for clave, (texto, ayuda) in textos.items():
             self.labels[clave].setText(texto)
             self.labels[clave].setToolTip(ayuda)
-
-
-class CandidatesDialog(QDialog):
-    """Candidatos a cubrir una clase, del mejor al peor, con su explicación."""
-
-    def __init__(self, rows: tuple[CandidateRow, ...], parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.rows = rows
-        self.table = _table(4)
-        self.table.setRowCount(len(rows))
-        for i, fila in enumerate(rows):
-            self.table.setItem(i, 0, _cell(fila.teacher, fila.name))
-            self.table.setItem(i, 1, _cell(fila.name))
-            self.table.setItem(i, 2, _cell(str(fila.score)))
-            self.table.setItem(i, 3, _cell(fila.reason, fila.reason))
-        if rows:
-            self.table.selectRow(0)
-        self.table.doubleClicked.connect(lambda _i: self.accept())
-        self.hint = Banner("tip")
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        self.buttons.accepted.connect(self.accept)
-        self.buttons.rejected.connect(self.reject)
-        capa = QVBoxLayout(self)
-        capa.addWidget(self.table, 1)
-        capa.addWidget(self.hint)
-        capa.addWidget(self.buttons)
-        self.resize(560, 360)
-        self._retranslate()
-
-    @property
-    def teacher(self) -> str:
-        """Profesor elegido (vacío si no hay ninguno)."""
-        fila = self.table.currentRow()
-        return self.rows[fila].teacher if 0 <= fila < len(self.rows) else ""
-
-    def _retranslate(self) -> None:
-        self.setWindowTitle(self.tr("Proponer sustituto"))
-        self.table.setHorizontalHeaderLabels(
-            [self.tr("Profesor"), self.tr("Nombre"), self.tr("Puntos"), self.tr("Por qué")]
-        )
-        self.hint.setText(
-            self.tr(
-                "El primero de la lista es el mejor: se prefiere a quien ya está en el centro, "
-                "luego a quien da la materia o al grupo, y después a quien menos sustituciones "
-                "lleva. Nunca se propone a quien tiene clase o está ausente."
-            )
-        )
+        self._update_window()
 
 
 class SubstitutionWindow(QWidget):
-    """Parte del día: ausencias, clases afectadas, sustitutos y contadores."""
+    """Parte del día: ausencias, clases afectadas, disponibles y contadores.
+
+    La columna de la derecha son dos pestañas: "Disponibles", que sigue a la
+    fila elegida en "Clases afectadas" y al día, y "Contadores", la de siempre.
+    """
 
     def __init__(self, bridge: FacadeBridge) -> None:
         super().__init__()
@@ -254,6 +335,7 @@ class SubstitutionWindow(QWidget):
         self.report: DayReport | None = None
         self.rows: tuple[DayRow, ...] = ()
         self.absence_rows: tuple[AbsenceRow, ...] = ()
+        self.available_rows: tuple[CandidateRow, ...] = ()
 
         self.date_label = QLabel()
         self.date_edit = QDateEdit(QDate.currentDate())
@@ -298,10 +380,38 @@ class SubstitutionWindow(QWidget):
         capa_dia.addWidget(self.day_table, 1)
         capa_dia.addLayout(botones_dia)
 
-        self.counter_box = QGroupBox()
+        self.available_page = QWidget()
+        self.available_header = QLabel()
+        self.available_header.setWordWrap(True)
+        self.available_table = _table(4)
+        # Con el colegio real hay más de cien disponibles por hora: la columna
+        # larga se estira en vez de medirse fila a fila, que es lo que cuesta.
+        cabecera_disp = self.available_table.horizontalHeader()
+        cabecera_disp.setStretchLastSection(False)
+        cabecera_disp.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        # El nombre y los dos contadores ocupan lo justo: el resto es para la
+        # explicación, que es lo que hay que leer para decidir.
+        for columna in (0, 2, 3):
+            cabecera_disp.setSectionResizeMode(columna, QHeaderView.ResizeMode.ResizeToContents)
+        self.available_table.doubleClicked.connect(lambda _i: self.assign_selected())
+        self.available_empty = EmptyHint(self.available_table)
+        self.assign_button = tool_button("activate", self.assign_selected)
+        botones_disp = QHBoxLayout()
+        botones_disp.addWidget(self.assign_button)
+        botones_disp.addStretch(1)
+        capa_disp = QVBoxLayout(self.available_page)
+        capa_disp.addWidget(self.available_header)
+        capa_disp.addWidget(self.available_table, 1)
+        capa_disp.addLayout(botones_disp)
+
+        self.counter_page = QWidget()
         self.counter_table = _table(4)
-        capa_contadores = QVBoxLayout(self.counter_box)
+        capa_contadores = QVBoxLayout(self.counter_page)
         capa_contadores.addWidget(self.counter_table, 1)
+
+        self.right_tabs = QTabWidget()
+        self.right_tabs.addTab(self.available_page, "")
+        self.right_tabs.addTab(self.counter_page, "")
 
         self.hint = Banner("tip")
         barra = QHBoxLayout()
@@ -316,13 +426,14 @@ class SubstitutionWindow(QWidget):
         centro = QHBoxLayout()
         centro.addWidget(self.absence_box, 2)
         centro.addWidget(self.day_box, 5)
-        centro.addWidget(self.counter_box, 2)
+        centro.addWidget(self.right_tabs, 4)
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(4, 4, 4, 4)
         raiz.addLayout(barra)
         raiz.addLayout(centro, 1)
         raiz.addWidget(self.hint)
 
+        self.day_table.itemSelectionChanged.connect(self._fill_available)
         bridge.refreshed.connect(self.refresh)
         bridge.language_changed.connect(lambda _lang: self._retranslate())
         self._retranslate()
@@ -374,6 +485,7 @@ class SubstitutionWindow(QWidget):
             self.day_empty.show_hint(self.tr("Sin proyecto: abre o crea uno."))
             self.absence_empty.show_hint(self.tr("Sin proyecto."))
             self.weekday_label.setText("")
+            self._fill_available()
             self._update_holiday_button()
             return
         sesion = self.bridge.session
@@ -384,6 +496,7 @@ class SubstitutionWindow(QWidget):
         self.weekday_label.setText(self._weekday_text(parte))
         self._fill_absences()
         self._fill_day()
+        self._fill_available()
         self._fill_counters()
         self._update_holiday_button()
 
@@ -411,7 +524,7 @@ class SubstitutionWindow(QWidget):
     def _fill_day(self) -> None:
         self.day_table.setRowCount(len(self.rows))
         for i, fila in enumerate(self.rows):
-            self.day_table.setItem(i, 0, _cell(str(fila.period)))
+            self.day_table.setItem(i, 0, _cell(fila.period_label or str(fila.period)))
             self.day_table.setItem(i, 1, _cell(str(fila.lesson)))
             self.day_table.setItem(i, 2, _cell(fila.subject))
             self.day_table.setItem(i, 3, _cell(", ".join(fila.classes)))
@@ -426,6 +539,70 @@ class SubstitutionWindow(QWidget):
             self.day_empty.show_hint("")
             if self.day_table.currentRow() < 0:
                 self.day_table.selectRow(0)
+
+    def _fill_available(self) -> None:
+        """Llena el panel de la derecha con quién puede cubrir la clase elegida.
+
+        Es el "Propuesta -> Sustitución" de Untis: siempre visible y siempre
+        referido a la fila elegida en "Clases afectadas". Las filas vienen ya
+        ordenadas de mejor a peor de la Fachada, así que se pintan tal cual.
+        """
+        self.available_rows = ()
+        self.available_table.setRowCount(0)
+        titulo = self.tr("Profesores disponibles")
+        if not self.bridge.has_session:
+            self._show_available(titulo, self.tr("Sin proyecto: abre o crea uno."))
+            return
+        fila = self.current_row()
+        if fila is None:
+            self._show_available(
+                titulo, self.tr("Elige una clase afectada para ver quién puede cubrirla.")
+            )
+            return
+        titulo = self.tr("Disponibles para la hora {0}, {1}").format(
+            fila.period_label or fila.period, self._lesson_text(fila)
+        )
+        if fila.decided:
+            self._show_available(
+                titulo,
+                self.tr("Ya está resuelta ({0}). Quita la decisión para volver a elegir.").format(
+                    fila.kind_label
+                ),
+            )
+            return
+        if not fila.absent_teachers:
+            self._show_available(
+                titulo, self.tr("Aquí no falta ningún profesor: no hace falta sustituto.")
+            )
+            return
+        filas = self.candidates()
+        if not filas:
+            self._show_available(titulo, self.tr("Nadie está libre a esa hora."))
+            return
+        self.available_rows = filas
+        self.available_table.setUpdatesEnabled(False)
+        self.available_table.setRowCount(len(filas))
+        for i, c in enumerate(filas):
+            self.available_table.setItem(i, 0, _cell(c.teacher, c.name))
+            self.available_table.setItem(i, 1, _cell(c.reason, c.reason))
+            self.available_table.setItem(i, 2, _cell(str(c.counter)))
+            self.available_table.setItem(i, 3, _cell(str(c.lock)))
+        self.available_table.setUpdatesEnabled(True)
+        self._show_available(titulo, "")
+        self.available_table.selectRow(0)
+
+    def _show_available(self, title: str, hint: str) -> None:
+        """Encabezado del panel y, si no hay a quién proponer, por qué."""
+        self.available_header.setText(title)
+        self.available_empty.show_hint(hint)
+        self.assign_button.setEnabled(not hint)
+
+    @staticmethod
+    def _lesson_text(fila: DayRow) -> str:
+        """Materia y grupos de una clase afectada, p. ej. `COROK9 (K9A, K9B)`."""
+        grupos = ", ".join(fila.classes)
+        materia = fila.subject or str(fila.lesson)
+        return f"{materia} ({grupos})" if grupos else materia
 
     def _fill_counters(self) -> None:
         filas = self.facade.substitution_counters(self.bridge.session)
@@ -480,6 +657,8 @@ class SubstitutionWindow(QWidget):
         dialogo = AbsenceDialog(self.bridge, self.date, self)
         if dialogo.exec() != QDialog.DialogCode.Accepted:
             return EditResult.failure("")
+        if dialogo.error:
+            return EditResult.failure(dialogo.error)
         return self.add_absence(*dialogo.values())
 
     def _update_holiday_button(self) -> None:
@@ -542,17 +721,20 @@ class SubstitutionWindow(QWidget):
         )
 
     def propose(self) -> EditResult:
-        """Muestra los candidatos ordenados y asigna el elegido."""
-        fila = self.current_row()
-        if fila is None:
+        """Atajo: pone al primero del panel de disponibles, que es el mejor."""
+        if self.current_row() is None:
             return EditResult.failure(self.tr("Elige una clase del parte del día"))
-        filas = self.candidates()
-        if not filas:
+        if not self.available_rows:
             return EditResult.failure(self.tr("Nadie está libre esa hora"))
-        dialogo = CandidatesDialog(filas, self)
-        if dialogo.exec() != QDialog.DialogCode.Accepted or not dialogo.teacher:
-            return EditResult.failure("")
-        return self.assign(dialogo.teacher)
+        self.available_table.selectRow(0)
+        return self.assign(self.available_rows[0].teacher)
+
+    def assign_selected(self) -> EditResult:
+        """Pone de sustituto al profesor elegido en el panel de disponibles."""
+        i = self.available_table.currentRow()
+        if not 0 <= i < len(self.available_rows):
+            return EditResult.failure(self.tr("Elige un profesor de la lista de disponibles"))
+        return self.assign(self.available_rows[i].teacher)
 
     def assign(self, teacher: str) -> EditResult:
         """Pone a ese profesor a cubrir la clase seleccionada."""
@@ -657,7 +839,7 @@ class SubstitutionWindow(QWidget):
         )
         self.propose_button.setText(self.tr("Proponer sustituto"))
         self.propose_button.setToolTip(
-            self.tr("Muestra quién puede cubrirla, del mejor al peor, con el motivo del orden")
+            self.tr("Atajo: pone al primero de la lista de disponibles, que es el mejor")
         )
         self.cancel_button.setText(self.tr("Suprimir"))
         self.cancel_button.setToolTip(self.tr("La clase no se da ese día"))
@@ -665,15 +847,41 @@ class SubstitutionWindow(QWidget):
         self.room_button.setToolTip(self.tr("Da otra aula a esta clase solo ese día"))
         self.clear_button.setText(self.tr("Quitar decisión"))
         self.clear_button.setToolTip(self.tr("Deja la clase otra vez sin resolver"))
-        self.counter_box.setTitle(self.tr("Contadores"))
+        self.right_tabs.setTabText(0, self.tr("Disponibles"))
+        self.right_tabs.setTabToolTip(
+            0, self.tr("Quién puede cubrir la clase elegida, del mejor al peor")
+        )
+        self.right_tabs.setTabText(1, self.tr("Contadores"))
+        self.right_tabs.setTabToolTip(
+            1, self.tr("Cuántas sustituciones lleva cada profesor en el curso")
+        )
+        self.available_table.setHorizontalHeaderLabels(
+            [
+                self.tr("Profesor"),
+                self.tr("Por qué"),
+                self.tr("Sustituciones"),
+                self.tr("Reserva"),
+            ]
+        )
+        self.available_table.setToolTip(
+            self.tr(
+                "El primero de la lista es el mejor: se prefiere a quien ya está en el centro, "
+                "luego a quien da la materia o al grupo, y después a quien menos sustituciones "
+                "lleva. Nunca se propone a quien tiene clase o está ausente."
+            )
+        )
+        self.assign_button.setText(self.tr("Asignar"))
+        self.assign_button.setToolTip(
+            self.tr("Pone al profesor elegido a cubrir la clase (también con doble clic)")
+        )
         self.counter_table.setHorizontalHeaderLabels(
             [self.tr("Profesor"), self.tr("Puntos"), self.tr("Asumidas"), self.tr("Reserva")]
         )
         self.hint.setText(
             self.tr(
-                "Elige el día, da de alta quién falta y resuelve cada clase: proponer un "
-                "sustituto, suprimirla o cambiarle el aula. Los contadores dicen cuántas "
-                "sustituciones lleva cada profesor para repartirlas con justicia."
+                "Elige el día, da de alta quién falta y resuelve cada clase: elegir un "
+                "sustituto en el panel de la derecha, suprimirla o cambiarle el aula. Los "
+                "contadores dicen cuántas sustituciones lleva cada profesor."
             )
         )
         self.refresh()

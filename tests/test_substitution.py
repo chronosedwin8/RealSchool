@@ -20,6 +20,7 @@ import dataclasses
 from collections.abc import Iterator
 
 import pytest
+from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication, QTableWidget
 from pytestqt.qtbot import QtBot
 
@@ -34,6 +35,7 @@ from scheduling_platform.untis_model import (
     PeriodDef,
     Room,
     SchoolClass,
+    SchoolInfo,
     Subject,
     Substitution,
     SubstitutionKind,
@@ -869,9 +871,9 @@ def test_ventana_propone_candidatos_y_asigna(
     ventana.day_table.selectRow(0)
     filas = ventana.candidates()
     assert [f.teacher for f in filas] == ["BEA", "FRAN", "DORA", "ELI", "GIL", "HUGO"]
-    dialogo = ventana_mod.CandidatesDialog(filas, ventana)
-    assert dialogo.teacher == "BEA"
-    assert _texto(dialogo.table, 0, 3).startswith("Ya está en el centro")
+    assert [f.teacher for f in ventana.available_rows] == [f.teacher for f in filas]
+    assert _texto(ventana.available_table, 0, 0) == "BEA"
+    assert _texto(ventana.available_table, 0, 1).startswith("Ya está en el centro")
     assert ventana.assign("BEA").ok
     qapp.processEvents()
     assert _texto(ventana.day_table, 0, 7) == "BEA"
@@ -950,15 +952,17 @@ def test_ventana_dialogo_de_ausencia_trae_los_datos(
     dialogo.kind_combo.setCurrentIndex(2)
     assert dialogo.kind == "room" and dialogo.entity == "R1"
     dialogo.kind_combo.setCurrentIndex(0)
-    dialogo.first_period.setValue(3)
+    dialogo.all_day.setChecked(False)
+    dialogo.begin_time.setTime(QTime(9, 30))
+    dialogo.end_time.setTime(QTime(11, 0))
     kind, entidad, inicio, fin, primera, ultima, _motivo = dialogo.values()
     assert (kind, entidad, inicio, fin, primera, ultima) == (
         "teacher",
         "ANA",
         LUNES,
         LUNES,
+        2,
         3,
-        None,
     )
 
 
@@ -970,3 +974,228 @@ def test_ventana_en_aleman_conserva_los_datos(
     qapp.processEvents()
     assert ventana.day_table.rowCount() == 1
     assert ventana.counter_table.rowCount() == len(ventana.bridge.session.project.teachers)
+
+
+# --------------------------------------------------------------------------- #
+# De horas de reloj a números de hora (como escribe la ausencia Untis)
+# --------------------------------------------------------------------------- #
+
+
+def test_el_tramo_de_reloj_coge_todas_las_horas_que_solapa() -> None:
+    """Una hora entra si se solapa con el tramo, aunque sea un minuto."""
+    vista = SVC.absence_periods(_sesion(), "teacher", "ANA", "08:30", "10:30")
+    assert (vista.first, vista.last, vista.found) == (1, 3, True)
+    assert vista.grid == "G"
+    assert vista.label == "De la hora 1 (08:00) a la hora 3 (10:45)"
+    assert (vista.from_time, vista.to_time) == ("08:00", "10:45")
+
+
+def test_un_tramo_dentro_de_una_sola_hora_da_esa_hora() -> None:
+    vista = SVC.absence_periods(_sesion(), "class", "5A", "08:10", "08:20")
+    assert (vista.first, vista.last) == (1, 1)
+    assert vista.label == "Solo la hora 1 (de 08:00 a 08:45)"
+
+
+def test_un_tramo_fuera_de_la_jornada_no_toca_ninguna_hora() -> None:
+    """Sin horas dentro no se inventa nada: primera y última se quedan vacías."""
+    for desde, hasta in (("14:00", "15:00"), ("06:00", "07:00"), ("10:00", "09:00")):
+        vista = SVC.absence_periods(_sesion(), "teacher", "ANA", desde, hasta)
+        assert (vista.first, vista.last, vista.found) == (None, None, False)
+        assert "no hay ninguna hora de clase" in vista.label
+
+
+def test_sin_horas_de_reloj_la_ausencia_es_de_toda_la_jornada() -> None:
+    """Y de paso da el camino inverso: el principio y el final del día."""
+    vista = SVC.absence_periods(_sesion(), "teacher", "ANA")
+    assert (vista.first, vista.last) == (1, 6)
+    assert (vista.from_time, vista.to_time) == ("08:00", "13:45")
+    assert vista.label == "De la hora 1 (08:00) a la hora 6 (13:45)"
+
+
+def test_un_colegio_con_hora_cero_rotula_sus_horas_desde_el_0() -> None:
+    """La hora 0 es una hora de verdad; el "sin límite" se dice con `None`."""
+    s = _sesion(_con(_base(), school=SchoolInfo(first_period=0)))
+    vista = SVC.absence_periods(s, "teacher", "ANA", "08:00", "09:30")
+    assert (vista.first, vista.last) == (1, 2)  # la numeración del modelo no cambia
+    assert vista.label == "De la hora 0 (08:00) a la hora 1 (09:45)"
+    corta = SVC.absence_periods(s, "teacher", "ANA", "08:10", "08:20")
+    assert corta.label == "Solo la hora 0 (de 08:00 a 08:45)"
+    assert corta.first == 1 and corta.found
+
+
+def test_una_hora_de_reloj_mal_escrita_o_sin_rejilla_se_explica() -> None:
+    mala = SVC.absence_periods(_sesion(), "teacher", "ANA", "las ocho")
+    assert not mala.found and "HH:MM" in mala.label
+    sin_rejilla = SVC.absence_periods(_sesion(_con(_base(), time_grids=())), "teacher", "ANA")
+    assert not sin_rejilla.found and "rejilla" in sin_rejilla.label
+
+
+# --------------------------------------------------------------------------- #
+# El diálogo de la ausencia, con horas de reloj
+# --------------------------------------------------------------------------- #
+
+
+def test_dialogo_de_ausencia_todo_el_dia(
+    qtbot: QtBot, ventana: ventana_mod.SubstitutionWindow
+) -> None:
+    dialogo = ventana_mod.AbsenceDialog(ventana.bridge, LUNES, ventana)
+    qtbot.addWidget(dialogo)
+    assert dialogo.all_day.isChecked()
+    assert not dialogo.begin_time.isEnabled() and not dialogo.end_time.isEnabled()
+    assert dialogo.window_label.text() == "De la hora 1 (08:00) a la hora 6 (13:45)"
+    assert dialogo.values()[4:6] == (None, None)
+    assert dialogo.error == ""
+
+
+def test_dialogo_de_ausencia_con_horas_de_reloj(
+    qtbot: QtBot, ventana: ventana_mod.SubstitutionWindow
+) -> None:
+    dialogo = ventana_mod.AbsenceDialog(ventana.bridge, LUNES, ventana)
+    qtbot.addWidget(dialogo)
+    dialogo.all_day.setChecked(False)
+    assert dialogo.begin_time.isEnabled() and dialogo.end_time.isEnabled()
+    # Al desmarcar "todo el día" los relojes traen la jornada de esa entidad.
+    assert dialogo.from_time == "08:00" and dialogo.to_time == "13:45"
+
+    dialogo.begin_time.setTime(QTime(9, 30))
+    dialogo.end_time.setTime(QTime(10, 30))
+    assert dialogo.window_label.text() == "De la hora 2 (09:00) a la hora 3 (10:45)"
+    assert dialogo.values()[4:6] == (2, 3)
+    assert dialogo.error == ""
+
+    dialogo.begin_time.setTime(QTime(19, 0))
+    dialogo.end_time.setTime(QTime(20, 0))
+    assert "no hay ninguna hora de clase" in dialogo.window_label.text()
+    assert dialogo.error == dialogo.window_label.text()
+
+    dialogo.all_day.setChecked(True)
+    assert dialogo.error == "" and dialogo.values()[4:6] == (None, None)
+
+
+# --------------------------------------------------------------------------- #
+# El panel de profesores disponibles (Propuesta -> Sustitución)
+# --------------------------------------------------------------------------- #
+
+
+def test_panel_de_disponibles_se_llena_al_elegir_una_clase(
+    ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
+) -> None:
+    assert ventana.add_absence("teacher", "ANA", LUNES).ok
+    qapp.processEvents()
+    ventana.day_table.selectRow(0)
+    assert ventana.available_header.text() == "Disponibles para la hora 1, MAT (5A)"
+    assert [f.teacher for f in ventana.available_rows] == [
+        "BEA",
+        "FRAN",
+        "DORA",
+        "ELI",
+        "GIL",
+        "HUGO",
+    ]
+    assert ventana.available_table.rowCount() == 6
+    assert _texto(ventana.available_table, 0, 0) == "BEA"
+    assert _texto(ventana.available_table, 0, 2) == "0"  # sustituciones
+    assert _texto(ventana.available_table, 5, 3) == "5"  # la reserva de HUGO
+    assert ventana.available_empty.text() == ""
+
+
+def test_panel_de_disponibles_dice_por_que_esta_vacio(
+    ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
+) -> None:
+    assert ventana.day_table.rowCount() == 0
+    assert ventana.available_table.rowCount() == 0
+    assert "Elige una clase afectada" in ventana.available_empty.text()
+    assert not ventana.assign_button.isEnabled()
+
+    assert ventana.add_absence("teacher", "ANA", LUNES).ok
+    qapp.processEvents()
+    ventana.day_table.selectRow(0)
+    assert ventana.assign_button.isEnabled()
+    assert ventana.cancel_lesson().ok
+    qapp.processEvents()
+    assert ventana.available_table.rowCount() == 0
+    assert "Ya está resuelta" in ventana.available_empty.text()
+
+
+def test_panel_de_disponibles_asigna_con_doble_clic_y_con_el_boton(
+    ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
+) -> None:
+    assert ventana.add_absence("teacher", "ANA", LUNES).ok
+    qapp.processEvents()
+    ventana.day_table.selectRow(0)
+    ventana.available_table.selectRow(1)  # FRAN, el segundo de la lista
+    ventana.available_table.doubleClicked.emit(ventana.available_table.currentIndex())
+    qapp.processEvents()
+    assert _texto(ventana.day_table, 0, 7) == "FRAN"
+
+    assert ventana.clear_decision().ok
+    qapp.processEvents()
+    ventana.day_table.selectRow(0)
+    ventana.available_table.selectRow(0)
+    assert ventana.assign_selected().ok
+    qapp.processEvents()
+    assert _texto(ventana.day_table, 0, 7) == "BEA"
+
+
+def test_proponer_sustituto_es_un_atajo_al_primero_de_la_lista(
+    ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
+) -> None:
+    assert ventana.add_absence("teacher", "ANA", LUNES).ok
+    qapp.processEvents()
+    ventana.day_table.selectRow(0)
+    assert ventana.propose().ok
+    qapp.processEvents()
+    assert _texto(ventana.day_table, 0, 7) == "BEA"
+    assert not ventana.assign_selected().ok  # ya resuelta: el panel se vacía
+
+
+def test_panel_de_disponibles_se_actualiza_al_cambiar_de_dia(
+    ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
+) -> None:
+    assert ventana.add_absence("teacher", "ANA", LUNES).ok
+    assert ventana.add_absence("teacher", "ELI", MARTES).ok
+    qapp.processEvents()
+    ventana.day_table.selectRow(0)
+    assert ventana.available_header.text() == "Disponibles para la hora 1, MAT (5A)"
+
+    ventana.next_day()
+    qapp.processEvents()
+    assert ventana.date == MARTES
+    assert ventana.available_header.text() == "Disponibles para la hora 1, MAT (5B)"
+    assert ventana.available_table.rowCount() > 0
+    assert "ANA" in [f.teacher for f in ventana.available_rows]
+
+
+def test_los_contadores_siguen_en_su_pestana(
+    ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
+) -> None:
+    assert ventana.right_tabs.count() == 2
+    assert ventana.right_tabs.tabText(0) == "Disponibles"
+    assert ventana.right_tabs.tabText(1) == "Contadores"
+    assert ventana.counter_table.rowCount() == 8
+    assert ventana.add_absence("teacher", "ANA", LUNES).ok
+    qapp.processEvents()
+    ventana.day_table.selectRow(0)
+    assert ventana.assign("BEA").ok
+    qapp.processEvents()
+    assert _texto(ventana.counter_table, 0, 0) == "BEA"
+    assert _texto(ventana.counter_table, 0, 1) == "1"
+    assert _texto(ventana.counter_table, 0, 2) == "1"
+
+
+def test_un_colegio_con_hora_cero_la_rotula_igual_en_toda_la_ventana(
+    qtbot: QtBot, bridge: FacadeBridge, qapp: QApplication
+) -> None:
+    """Lo que el colegio llama "hora 0" se llama 0 en la lista y en el panel."""
+    bridge.attach(_sesion(_con(_base(), school=SchoolInfo(first_period=0))))
+    w = ventana_mod.SubstitutionWindow(bridge)
+    qtbot.addWidget(w)
+    w.set_date(LUNES)
+    w.refresh()
+    assert w.add_absence("teacher", "ANA", LUNES, first_period=1, last_period=2).ok
+    qapp.processEvents()
+    w.day_table.selectRow(0)
+    assert _texto(w.day_table, 0, 0) == "0"
+    assert w.available_header.text() == "Disponibles para la hora 0, MAT (5A)"
+    celda = w.absence_table.item(0, 4)
+    assert celda is not None and celda.toolTip() == "0-1"
