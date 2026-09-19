@@ -231,7 +231,10 @@ def _valid_date(valor: str, campo: str) -> str:
     texto = valor.strip()
     if not texto:
         raise ValueError(f"Falta la fecha de {campo} (AAAAMMDD)")
-    parse_date(texto)
+    try:
+        parse_date(texto)
+    except ValueError as exc:
+        raise ValueError(f"Fecha inválida (AAAAMMDD): {texto!r} ({exc})") from exc
     return texto
 
 
@@ -365,7 +368,9 @@ class SubstitutionMixin:
             return EditResult.failure(str(exc))
         if final < inicio:
             return EditResult.failure("La ausencia termina antes de empezar")
-        if primera is not None and ultima is not None and primera > ultima:
+        if primera is not None and ultima is not None and primera > ultima and final == inicio:
+            # En varios días las horas acotan días distintos ("del lunes a 5ª
+            # hasta el miércoles a 2ª"); en un solo día sería contradictorio.
             return EditResult.failure("La primera hora es posterior a la última")
         ident = _next_id({a.id for a in p.absences}, ABSENCE_PREFIX)
         try:
@@ -595,8 +600,9 @@ class SubstitutionMixin:
     ) -> EditResult:
         """Pone a un profesor a cubrir una clase.
 
-        Sin `force` solo acepta a quien la Fachada propondría: quien está
-        ocupado a esa hora o ausente se rechaza con el motivo.
+        Sin `force` solo acepta a quien la Fachada propondría: se rechaza a
+        quien a esa hora tiene clase, guardia de recreo o ya otra sustitución, a
+        quien está ausente y a quien tiene la reserva de sustitución en 9.
         """
         try:
             dia = _valid_date(date, "día")
@@ -616,7 +622,8 @@ class SubstitutionMixin:
             }
             if teacher not in posibles:
                 return EditResult.failure(
-                    f"{teacher} no está libre esa hora (usa force=True para ponerlo igualmente)"
+                    f"{teacher} no se puede proponer esa hora: está ocupado, ausente o "
+                    "con reserva 9 (usa force=True para ponerlo igualmente)"
                 )
         ausente = info.teachers[0] if info is not None and info.teachers else ""
         return self._decide(

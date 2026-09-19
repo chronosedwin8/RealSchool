@@ -145,7 +145,10 @@ class Absence:
             self.first_period is not None
             and self.last_period is not None
             and self.first_period > self.last_period
+            and self.last_day == self.begin
         ):
+            # En una ausencia de varios días las horas acotan días distintos:
+            # "del lunes a 3ª hasta el miércoles a 2ª" es correcto.
             raise ValueError(f"Ausencia {self.id!r}: la primera hora es posterior a la última")
 
     @property

@@ -37,15 +37,20 @@ Los candidatos se ordenan de mejor a peor por estos criterios, **en este orden**
 (el primero que los distinga manda; ver `Candidate.score`):
 
 a) **Libre y no ausente**: no es un criterio de orden sino un filtro duro. Quien
-   tiene clase a esa hora, ya está puesto como sustituto a esa hora o está
-   ausente **no se propone nunca**.
-b) **Ya está en el colegio** ese día (tiene clase o una sustitución antes o
-   después) frente a quien tendría que venir solo para esto.
+   a esa hora tiene clase, guardia de recreo o ya está puesto como sustituto,
+   quien está ausente y quien tiene la reserva de sustitución al máximo
+   (`LOCK_NEVER`) **no se propone nunca**.
+b) **Ya está en el colegio** ese día (tiene clase, guardia de recreo o una
+   sustitución antes o después) frente a quien tendría que venir solo para esto.
 c) **Conoce el trabajo**: da esa materia a alguien, o da clase a alguno de los
    grupos afectados.
 d) **Menos sustituciones acumuladas** en el contador (`COUNTER_SIGN`).
-e) **Menos reserva de sustitución** (`Teacher.substitution_lock`, 0-9): cuanto
-   más alto, menos se le debe proponer.
+e) **Menos reserva de sustitución** (`Teacher.substitution_lock`): 1-8 solo
+   penalizan el orden (cuanto más alta, más atrás); 9 lo deja fuera.
+
+Las guardias de recreo (`UntisProject.supervisions`) se comparan por número de
+período: en la rejilla de tiempo los recreos son períodos propios, con su propio
+número, igual que las horas lectivas.
 
 A igualdad de todo, manda el id del profesor, para que el orden sea siempre el
 mismo con los mismos datos.
@@ -72,6 +77,8 @@ COUNTER_CAP = 99
 SCORE_PER_SUBSTITUTION = 10
 #: Reserva de sustitución máxima (`Teacher.substitution_lock`).
 LOCK_MAX = 9
+#: Reserva que significa "no proponerlo nunca": filtro duro, no penalización.
+LOCK_NEVER = 9
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,10 +320,17 @@ def counters(
 
 
 def _busy_teachers(
-    project: UntisProject, clases: tuple[DayLesson, ...], fecha: str, hora: int
+    project: UntisProject,
+    clases: tuple[DayLesson, ...],
+    fecha: str,
+    dia_semana: int,
+    hora: int,
 ) -> set[str]:
-    """Profesores que ya tienen algo a esa hora: clase propia o sustitución puesta."""
+    """Profesores con algo a esa hora: clase, guardia de recreo o sustitución."""
     ocupados = {t for c in clases if c.period == hora for t in c.teachers}
+    for g in project.supervisions:
+        if g.teacher and g.day == dia_semana and g.period == hora:
+            ocupados.add(g.teacher)
     for s in project.substitutions_on(fecha):
         if s.period == hora and s.teacher:
             ocupados.add(s.teacher)
@@ -333,10 +347,24 @@ def _absent_teachers(project: UntisProject, fecha: str, hora: int) -> set[str]:
 
 
 def _at_school(
-    project: UntisProject, clases: tuple[DayLesson, ...], fecha: str, hora: int, profesor: str
+    project: UntisProject,
+    clases: tuple[DayLesson, ...],
+    fecha: str,
+    dia_semana: int,
+    hora: int,
+    profesor: str,
 ) -> bool:
-    """`True` si ese profesor ya está en el colegio ese día por otra cosa."""
+    """`True` si ese profesor ya está en el colegio ese día por otra cosa.
+
+    Cuenta la clase propia, la guardia de recreo y la sustitución ya puesta: una
+    guardia obliga a venir igual que una clase.
+    """
     if any(c.period != hora and profesor in c.teachers for c in clases):
+        return True
+    if any(
+        g.teacher == profesor and g.day == dia_semana and g.period != hora
+        for g in project.supervisions
+    ):
         return True
     return any(s.period != hora and s.teacher == profesor for s in project.substitutions_on(fecha))
 
@@ -379,29 +407,34 @@ def candidates(
 ) -> tuple[Candidate, ...]:
     """Profesores que podrían cubrir esa clase, de mejor a peor.
 
-    Filtro duro (criterio a): se descarta a quien está ausente, a quien tiene
-    clase o ya una sustitución a esa hora y a los profesores de la propia
-    lección. El orden de los que quedan sigue los criterios (b) a (e)
-    documentados arriba; `Candidate.score` es la puntuación equivalente (a más
-    puntos, mejor) y `Candidate.reason` la explica en una frase.
+    Filtro duro (criterio a): se descarta a quien está ausente, a quien a esa
+    hora tiene clase, guardia de recreo o ya una sustitución, a los profesores
+    de la propia lección y a quien tiene la reserva de sustitución en
+    `LOCK_NEVER` (9 = no proponerlo nunca). El orden de los que quedan sigue los
+    criterios (b) a (e) documentados arriba; `Candidate.score` es la puntuación
+    equivalente (a más puntos, mejor) y `Candidate.reason` la explica en una
+    frase.
     """
     objetivo = day_lesson(project, timetable, fecha, hora, leccion)
     if objetivo is None:
         return ()
+    dia_semana = weekday_of(fecha)
     clases = day_lessons(project, timetable, fecha)
-    fuera = _busy_teachers(project, clases, fecha, hora) | _absent_teachers(project, fecha, hora)
+    fuera = _busy_teachers(project, clases, fecha, dia_semana, hora) | _absent_teachers(
+        project, fecha, hora
+    )
     fuera.update(objetivo.teachers)
     contadores = counters(project)
     grupos_objetivo = set(objetivo.classes)
     propuestas: list[Candidate] = []
     for profe in project.teachers:
-        if profe.id in fuera:
+        if profe.id in fuera or profe.substitution_lock >= LOCK_NEVER:
             continue
         materias, grupos = _teaching_profile(project, profe.id)
         da_materia = bool(objetivo.subject) and objetivo.subject in materias
         da_grupo = bool(grupos_objetivo & grupos)
         conoce = da_materia or da_grupo
-        en_centro = _at_school(project, clases, fecha, hora, profe.id)
+        en_centro = _at_school(project, clases, fecha, dia_semana, hora, profe.id)
         contador = contadores.get(profe.id, 0)
         lock = profe.substitution_lock
         puntos = (

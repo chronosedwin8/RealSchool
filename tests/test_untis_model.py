@@ -650,6 +650,10 @@ def test_ausencia_con_horas_solo_acota_el_primer_y_ultimo_dia() -> None:
         Absence("A2", EntityKind.TEACHER, "ANA", "20261007", "20261005")
     with pytest.raises(ValueError, match="primera hora"):
         Absence("A3", EntityKind.CLASS, "1A", "20261005", first_period=5, last_period=2)
+    # De varios días sí vale: "del lunes a 5ª hasta el miércoles a 2ª".
+    larga = Absence("A4", EntityKind.TEACHER, "ANA", "20261005", "20261007", 5, 2)
+    assert larga.covers("20261005", 5) and not larga.covers("20261005", 4)
+    assert larga.covers("20261007", 2) and not larga.covers("20261007", 3)
 
 
 def test_sustitucion_cuenta_segun_su_tipo() -> None:

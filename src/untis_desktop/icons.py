@@ -103,6 +103,7 @@ ICONS: Final[dict[str, tuple[str, str]]] = {
     "html": ("file-code-2", BLUE),
     "gpu": ("file-down", TEAL),
     "table": ("table-2", TEAL),
+    "paste": ("clipboard-paste", TEAL),
     # --- vista y ayuda ---------------------------------------------------------
     "tile": ("layout-grid", GREY),
     "cascade": ("layers", GREY),

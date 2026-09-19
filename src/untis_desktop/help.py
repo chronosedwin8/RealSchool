@@ -303,13 +303,9 @@ def help_entries() -> dict[str, HelpEntry]:
                 ),
                 translate(
                     "help",
-                    "Marco horario: di de qué hora a qué hora hay clase y pulsa Aplicar. "
-                    "Cierra sola las horas de fuera en todos los días.",
-                ),
-                translate(
-                    "help",
-                    "Con Aplicar a: todos los de su rejilla lo haces de una vez para "
-                    "todos los cursos que comparten horario.",
+                    "Marco horario: di de qué hora a qué hora hay clase y pulsa Aplicar; "
+                    "con Aplicar a: todos los de su rejilla lo haces de una vez para todos "
+                    "los cursos que comparten horario.",
                 ),
                 translate(
                     "help",
@@ -516,6 +512,82 @@ def help_entries() -> dict[str, HelpEntry]:
                 translate(
                     "help",
                     "Los encabezados y el pie de las impresiones se editan en Datos del colegio.",
+                ),
+            ),
+        ),
+        "supervision": HelpEntry(
+            translate("help", "Guardias de recreo"),
+            translate(
+                "help",
+                "Quién vigila cada zona del colegio en cada recreo, repartido con "
+                "justicia entre el profesorado.",
+            ),
+            (
+                translate(
+                    "help",
+                    "Crea las zonas que hay que vigilar: patio, pasillos, comedor, entrada.",
+                ),
+                translate(
+                    "help",
+                    "Pulsa Generar turnos: crea un turno vacío por zona, día y recreo.",
+                ),
+                translate(
+                    "help",
+                    "Pon a mano los turnos que ya estén decididos; quedan fijados y el "
+                    "reparto no los toca.",
+                ),
+                translate(
+                    "help",
+                    "Pulsa Repartir guardias: reparte los turnos libres entre quienes "
+                    "están en el centro a esa hora, equilibrando minutos.",
+                ),
+                translate(
+                    "help",
+                    "Revisa el resumen de la derecha: en rojo, quien se pasa de sus "
+                    "minutos de guardia a la semana.",
+                ),
+            ),
+            (
+                translate(
+                    "help",
+                    "Los minutos máximos de cada profesor se ponen en Datos maestros → "
+                    "Profesores. Un 0 lo deja fuera del reparto.",
+                ),
+            ),
+        ),
+        "substitution": HelpEntry(
+            translate("help", "Sustituciones"),
+            translate(
+                "help",
+                "El parte del día cuando falta un profesor, una clase o un aula: quién "
+                "cubre cada hora, qué se suprime y qué cambia de sitio.",
+            ),
+            (
+                translate("help", "Elige la fecha del día que estás organizando."),
+                translate(
+                    "help",
+                    "Da de alta la ausencia: a quién afecta, desde cuándo, hasta cuándo "
+                    "y, si es solo parte del día, entre qué horas.",
+                ),
+                translate(
+                    "help",
+                    "Mira las clases afectadas y pulsa Proponer sustituto: salen los "
+                    "profesores posibles, del mejor al peor, con la razón de su puesto.",
+                ),
+                translate(
+                    "help",
+                    "Si nadie puede cubrirla, suprime la clase o cámbiale el aula.",
+                ),
+                translate(
+                    "help",
+                    "Vigila los contadores: cuántas sustituciones lleva cada profesor.",
+                ),
+            ),
+            (
+                translate(
+                    "help",
+                    "Los días sin clase (festivos y vacaciones) se dan de alta aquí "
+                    "mismo: en ellos no se propone nada.",
                 ),
             ),
         ),

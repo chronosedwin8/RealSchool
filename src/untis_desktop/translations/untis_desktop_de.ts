@@ -2,6 +2,100 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="de" sourcelanguage="es">
 <context>
+    <name>AbsenceDialog</name>
+    <message>
+        <location filename="../windows/substitution.py" line="176"/>
+        <source>Nueva ausencia</source>
+        <extracomment>Formato Untis de las fechas (`AAAAMMDD`). Tipos de entidad que pueden faltar, en el orden del desplegable. Icono y tipo de datos maestros de cada tipo de ausencia. Instancia única; el mixin no guarda estado (todo va en la `UntisSession`).</extracomment>
+        <translation>Neue Absenz</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="178"/>
+        <source>Profesor</source>
+        <translation>Lehrer</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="179"/>
+        <source>Clase</source>
+        <translation>Klasse</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="180"/>
+        <source>Aula</source>
+        <translation>Raum</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="185"/>
+        <source>Falta un:</source>
+        <translation>Es fehlt:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="185"/>
+        <source>Qué falta: un profesor, una clase o un aula</source>
+        <translation>Was fehlt: eine Lehrkraft, eine Klasse oder ein Raum</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="186"/>
+        <source>Quién:</source>
+        <translation>Wer:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="186"/>
+        <source>El profesor, la clase o el aula que falta</source>
+        <translation>Die fehlende Lehrkraft, Klasse oder der fehlende Raum</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="187"/>
+        <source>Desde el día:</source>
+        <translation>Ab dem Tag:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="187"/>
+        <source>Primer día de la ausencia</source>
+        <translation>Erster Tag der Absenz</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="188"/>
+        <source>Hasta el día:</source>
+        <translation>Bis zum Tag:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="188"/>
+        <source>Último día de la ausencia (incluido)</source>
+        <translation>Letzter Tag der Absenz (einschließlich)</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="190"/>
+        <source>Desde la hora:</source>
+        <translation>Ab Stunde:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="191"/>
+        <source>Primera hora del primer día; - = desde el principio de la jornada</source>
+        <translation>Erste Stunde des ersten Tages; - = ab Unterrichtsbeginn</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="194"/>
+        <source>Hasta la hora:</source>
+        <translation>Bis Stunde:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="195"/>
+        <source>Última hora del último día; - = hasta el final de la jornada</source>
+        <translation>Letzte Stunde des letzten Tages; - = bis Unterrichtsende</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="198"/>
+        <source>Motivo:</source>
+        <translation>Grund:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="199"/>
+        <source>Por qué falta: enfermedad, curso, excursión...</source>
+        <translation>Warum jemand fehlt: Krankheit, Fortbildung, Ausflug ...</translation>
+    </message>
+</context>
+<context>
     <name>BreakRow</name>
     <message>
         <location filename="../windows/time_grids.py" line="220"/>
@@ -37,6 +131,39 @@
         <location filename="../windows/time_grids.py" line="224"/>
         <source>Quita este recreo</source>
         <translation>Entfernt diese Pause</translation>
+    </message>
+</context>
+<context>
+    <name>CandidatesDialog</name>
+    <message>
+        <location filename="../windows/substitution.py" line="243"/>
+        <source>Proponer sustituto</source>
+        <translation>Vertretung vorschlagen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="245"/>
+        <source>Profesor</source>
+        <translation>Lehrer</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="245"/>
+        <source>Nombre</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="245"/>
+        <source>Puntos</source>
+        <translation>Punkte</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="245"/>
+        <source>Por qué</source>
+        <translation>Warum</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="249"/>
+        <source>El primero de la lista es el mejor: se prefiere a quien ya está en el centro, luego a quien da la materia o al grupo, y después a quien menos sustituciones lleva. Nunca se propone a quien tiene clase o está ausente.</source>
+        <translation>Der Erste in der Liste ist der Beste: Bevorzugt wird, wer schon im Schulgebäude ist, danach wer das Fach oder die Klasse unterrichtet, und schließlich wer die wenigsten Vertretungen übernommen hat. Wer gerade Unterricht hat oder abwesend ist, wird nie vorgeschlagen.</translation>
     </message>
 </context>
 <context>
@@ -812,12 +939,12 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
 <context>
     <name>HelpDialog</name>
     <message>
-        <location filename="../help.py" line="615"/>
+        <location filename="../help.py" line="702"/>
         <source>Ayuda de RealSchool</source>
         <translation>RealSchool-Hilfe</translation>
     </message>
     <message>
-        <location filename="../help.py" line="616"/>
+        <location filename="../help.py" line="703"/>
         <source>Cerrar</source>
         <translation>Schließen</translation>
     </message>
@@ -1509,119 +1636,229 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
 <context>
     <name>MasterDataGrid</name>
     <message>
-        <location filename="../widgets/master_grid.py" line="604"/>
+        <location filename="../widgets/master_grid.py" line="667"/>
         <source>{0} de {1} filas</source>
         <translation>{0} von {1} Zeilen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="606"/>
+        <location filename="../widgets/master_grid.py" line="669"/>
         <source>{0} filas</source>
         <translation>{0} Zeilen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="612"/>
+        <location filename="../widgets/master_grid.py" line="675"/>
         <source>Aún no hay clases. Pulsa Añadir o escribe un nombre corto en la fila vacía.</source>
         <translation>Noch keine Klassen. Klicke auf Hinzufügen oder gib in der leeren Zeile einen Kurznamen ein.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="615"/>
+        <location filename="../widgets/master_grid.py" line="678"/>
         <source>Aún no hay profesores. Pulsa Añadir o escribe un nombre corto en la fila vacía.</source>
         <translation>Noch keine Lehrer. Klicke auf Hinzufügen oder gib in der leeren Zeile einen Kurznamen ein.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="618"/>
+        <location filename="../widgets/master_grid.py" line="681"/>
         <source>Aún no hay aulas. Pulsa Añadir o escribe un nombre corto en la fila vacía.</source>
         <translation>Noch keine Räume. Klicke auf Hinzufügen oder gib in der leeren Zeile einen Kurznamen ein.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="621"/>
+        <location filename="../widgets/master_grid.py" line="684"/>
         <source>Aún no hay materias. Pulsa Añadir o escribe un nombre corto en la fila vacía.</source>
         <translation>Noch keine Fächer. Klicke auf Hinzufügen oder gib in der leeren Zeile einen Kurznamen ein.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="624"/>
+        <location filename="../widgets/master_grid.py" line="687"/>
         <source>Aún no hay departamentos. Pulsa Añadir o escribe un nombre corto en la fila vacía.</source>
         <translation>Noch keine Abteilungen. Klicke auf Hinzufügen oder gib in der leeren Zeile einen Kurznamen ein.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="627"/>
+        <location filename="../widgets/master_grid.py" line="690"/>
         <source>Aún no hay grupos de alumnos. Pulsa Añadir o escribe un nombre corto en la fila vacía.</source>
         <translation>Noch keine Schülergruppen. Klicke auf Hinzufügen oder gib in der leeren Zeile einen Kurznamen ein.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="636"/>
+        <location filename="../widgets/master_grid.py" line="699"/>
         <source>Abre o crea un proyecto para ver y editar sus datos.</source>
         <translation>Öffne oder erstelle ein Projekt, um seine Daten zu sehen und zu bearbeiten.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="641"/>
+        <location filename="../widgets/master_grid.py" line="704"/>
         <source>Ninguna fila contiene «{0}». Borra el filtro para verlas todas.</source>
         <translation>Keine Zeile enthält „{0}“. Leere den Filter, um alle zu sehen.</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="715"/>
+        <location filename="../widgets/master_grid.py" line="789"/>
         <source>Muestra u oculta la columna: {0}</source>
         <translation>Blendet die Spalte ein oder aus: {0}</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="719"/>
+        <location filename="../widgets/master_grid.py" line="793"/>
         <source>Restablecer columnas</source>
         <translation>Spalten zurücksetzen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="720"/>
+        <location filename="../widgets/master_grid.py" line="794"/>
         <source>Vuelve a mostrar todas las columnas en su orden original</source>
         <translation>Zeigt wieder alle Spalten in ihrer ursprünglichen Reihenfolge an</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="877"/>
+        <location filename="../widgets/master_grid.py" line="979"/>
+        <source>{0} fila(s) copiada(s) al portapapeles.</source>
+        <translation>{0} Zeile(n) in die Zwischenablage kopiert.</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1001"/>
+        <source>El portapapeles no trae ninguna fila.</source>
+        <translation>Die Zwischenablage enthält keine Zeile.</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1027"/>
+        <location filename="../widgets/master_grid.py" line="1055"/>
+        <location filename="../widgets/master_grid.py" line="1119"/>
+        <source>Espera a que termine la optimización</source>
+        <translation>Warte, bis die Optimierung abgeschlossen ist</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1042"/>
+        <source>No hay filas donde pegar desde la celda actual.</source>
+        <translation>Ab der aktuellen Zelle gibt es keine Zeilen zum Einfügen.</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1048"/>
+        <source>Pegar datos</source>
+        <translation>Daten einfügen</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1065"/>
+        <source>{0} fila(s) del portapapeles no cabían: añádelas antes o pega sobre la columna del nombre corto.</source>
+        <translation>{0} Zeile(n) aus der Zwischenablage passten nicht: Füge sie vorher hinzu oder füge sie über der Spalte Kurzname ein.</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1091"/>
+        <location filename="../widgets/master_grid.py" line="1097"/>
+        <location filename="../widgets/master_grid.py" line="1231"/>
+        <source>Importar CSV</source>
+        <translation>CSV importieren</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1098"/>
+        <source>Se va a importar «{0}»:
+
+{1}
+
+¿Continúo?</source>
+        <translation>«{0}» wird importiert:
+
+{1}
+
+Fortfahren?</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1127"/>
+        <location filename="../widgets/master_grid.py" line="1233"/>
+        <source>Exportar CSV</source>
+        <translation>CSV exportieren</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1143"/>
+        <source>No se pudo escribir {0}: {1}</source>
+        <translation>{0} konnte nicht geschrieben werden: {1}</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1146"/>
+        <source>{0} fila(s) exportadas a {1}.</source>
+        <translation>{0} Zeile(n) nach {1} exportiert.</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1175"/>
         <source>Filtrar por cualquier columna...</source>
         <translation>In allen Spalten filtern...</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="879"/>
+        <location filename="../widgets/master_grid.py" line="1177"/>
         <source>Escribe para ver solo las filas que contienen ese texto</source>
         <translation>Tippe, um nur die Zeilen mit diesem Text zu sehen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="881"/>
+        <location filename="../widgets/master_grid.py" line="1179"/>
         <source>Filtro: muestra solo las filas que coinciden</source>
         <translation>Filter: zeigt nur die passenden Zeilen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="884"/>
-        <location filename="../widgets/master_grid.py" line="889"/>
+        <location filename="../widgets/master_grid.py" line="1182"/>
+        <location filename="../widgets/master_grid.py" line="1187"/>
         <source>Añadir</source>
         <translation>Hinzufügen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="885"/>
+        <location filename="../widgets/master_grid.py" line="1183"/>
         <source>Añade una fila nueva: escribe su nombre corto en la fila vacía y pulsa Intro</source>
         <translation>Fügt eine neue Zeile hinzu: Gib den Kurznamen in der leeren Zeile ein und drücke die Eingabetaste</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="890"/>
+        <location filename="../widgets/master_grid.py" line="1188"/>
         <source>Añade una fila nueva escribiendo su nombre corto</source>
         <translation>Fügt eine neue Zeile hinzu, indem du ihren Kurznamen eingibst</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="910"/>
+        <location filename="../widgets/master_grid.py" line="1208"/>
         <source>Abre los deseos de tiempo de esta fila</source>
         <translation>Öffnet die Zeitwünsche dieser Zeile</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="914"/>
-        <location filename="../widgets/master_grid.py" line="917"/>
+        <location filename="../widgets/master_grid.py" line="1212"/>
+        <location filename="../widgets/master_grid.py" line="1237"/>
         <source>Columnas</source>
         <translation>Spalten</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="915"/>
+        <location filename="../widgets/master_grid.py" line="1213"/>
         <source>Elige qué columnas se ven; también con clic derecho en la cabecera</source>
         <translation>Wähle, welche Spalten angezeigt werden; auch per Rechtsklick auf die Kopfzeile</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="918"/>
+        <location filename="../widgets/master_grid.py" line="1215"/>
+        <source>Copia las filas seleccionadas para pegarlas en Excel (Ctrl+C)</source>
+        <translation>Kopiert die ausgewählten Zeilen zum Einfügen in Excel (Strg+C)</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1217"/>
+        <source>Pega filas de Excel: sobre el nombre corto las nuevas se dan de alta; todo en un solo deshacer (Ctrl+V)</source>
+        <translation>Fügt Zeilen aus Excel ein: über dem Kurznamen werden neue angelegt; alles in einem einzigen Rückgängig-Schritt (Strg+V)</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1221"/>
+        <source>Carga de golpe un archivo CSV con todas las filas; antes muestra qué va a pasar</source>
+        <translation>Lädt auf einen Schlag eine CSV-Datei mit allen Zeilen; zeigt vorher, was passieren wird</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1224"/>
+        <source>Guarda esta cuadrícula como CSV para editarla en Excel y volver a importarla</source>
+        <translation>Speichert dieses Raster als CSV, um es in Excel zu bearbeiten und wieder zu importieren</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1227"/>
+        <location filename="../widgets/master_grid.py" line="1228"/>
+        <source>Copiar</source>
+        <translation>Kopieren</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1229"/>
+        <location filename="../widgets/master_grid.py" line="1230"/>
+        <source>Pegar</source>
+        <translation>Einfügen</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1232"/>
+        <source>Importar CSV...</source>
+        <translation>CSV importieren...</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1234"/>
+        <source>Exportar CSV...</source>
+        <translation>CSV exportieren...</translation>
+    </message>
+    <message>
+        <location filename="../widgets/master_grid.py" line="1238"/>
         <source>Muestra u oculta columnas</source>
         <translation>Blendet Spalten ein oder aus</translation>
     </message>
@@ -1630,7 +1867,7 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <translation type="vanished">Filtern...</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="904"/>
+        <location filename="../widgets/master_grid.py" line="1202"/>
         <source>Deseos</source>
         <translation>Zeitwünsche</translation>
     </message>
@@ -1639,28 +1876,28 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <translation type="vanished">Zeitwünsche der gewählten Zeile</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="894"/>
-        <location filename="../widgets/master_grid.py" line="899"/>
+        <location filename="../widgets/master_grid.py" line="1192"/>
+        <location filename="../widgets/master_grid.py" line="1197"/>
         <source>Borrar</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="895"/>
+        <location filename="../widgets/master_grid.py" line="1193"/>
         <source>Borra las filas seleccionadas (Supr); si alguna se usa, explica dónde</source>
         <translation>Löscht die gewählten Zeilen (Entf); wird eine davon verwendet, wird angezeigt, wo</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="900"/>
+        <location filename="../widgets/master_grid.py" line="1198"/>
         <source>Borra las filas seleccionadas; se puede deshacer</source>
         <translation>Löscht die gewählten Zeilen; rückgängig machbar</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="905"/>
+        <location filename="../widgets/master_grid.py" line="1203"/>
         <source>Abre los deseos de tiempo (cuándo sí y cuándo no) de la fila seleccionada</source>
         <translation>Öffnet die Zeitwünsche (wann ja und wann nein) der gewählten Zeile</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="909"/>
+        <location filename="../widgets/master_grid.py" line="1207"/>
         <source>Deseos de tiempo...</source>
         <translation>Zeitwünsche...</translation>
     </message>
@@ -1673,188 +1910,188 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <translation type="vanished">Kurznamen eingeben, um neu anzulegen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="224"/>
+        <location filename="../widgets/master_grid.py" line="270"/>
         <source>identifica la fila en todas las ventanas; no se puede cambiar</source>
-        <extracomment>Tipo de selección sincronizada de cada ventana (las demás no filtran nada). Ventana de datos maestros de cada tipo de selección (inverso del anterior). Clave de la ventana Deseos de tiempo en el registro.</extracomment>
+        <extracomment>Tipo de selección sincronizada de cada ventana (las demás no filtran nada). Ventana de datos maestros de cada tipo de selección (inverso del anterior). Clave de la ventana Deseos de tiempo en el registro. Filtro de archivo de los diálogos de importar y exportar. Codificación con la que se escriben los CSV: UTF-8 con BOM, que es lo que Excel necesita para abrir las tildes bien de un doble clic.</extracomment>
         <translation>kennzeichnet die Zeile in allen Fenstern; nicht änderbar</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="225"/>
+        <location filename="../widgets/master_grid.py" line="271"/>
         <source>el nombre largo que aparece en horarios e informes</source>
         <translation>der Langname, der in Stundenplänen und Berichten erscheint</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="226"/>
+        <location filename="../widgets/master_grid.py" line="272"/>
         <source>apellido del profesor</source>
         <translation>Nachname des Lehrers</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="227"/>
+        <location filename="../widgets/master_grid.py" line="273"/>
         <source>nombre de pila del profesor</source>
         <translation>Vorname des Lehrers</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="228"/>
+        <location filename="../widgets/master_grid.py" line="274"/>
         <source>dirección de correo (para enviar el horario)</source>
         <translation>E-Mail-Adresse (zum Versand des Stundenplans)</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="229"/>
+        <location filename="../widgets/master_grid.py" line="275"/>
         <source>nota libre, no afecta al horario</source>
         <translation>freie Notiz, ohne Einfluss auf den Stundenplan</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="230"/>
+        <location filename="../widgets/master_grid.py" line="276"/>
         <source>qué rejilla de tiempo (días y horas) usa; elígela de la lista</source>
         <translation>verwendetes Zeitraster (Tage und Uhrzeiten); aus der Liste wählen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="231"/>
+        <location filename="../widgets/master_grid.py" line="277"/>
         <source>aula donde da clase normalmente; elígela de la lista</source>
         <translation>Raum, in dem normalerweise unterrichtet wird; aus der Liste wählen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="232"/>
+        <location filename="../widgets/master_grid.py" line="278"/>
         <source>departamento al que pertenece; elígelo de la lista</source>
         <translation>zugehörige Abteilung; aus der Liste wählen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="233"/>
+        <location filename="../widgets/master_grid.py" line="279"/>
         <source>número de alumnos (se compara con la capacidad del aula)</source>
         <translation>Anzahl der Schüler (wird mit der Raumkapazität verglichen)</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="234"/>
+        <location filename="../widgets/master_grid.py" line="280"/>
         <source>curso o nivel, p. ej. 7</source>
         <translation>Jahrgangsstufe, z. B. 7</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="236"/>
+        <location filename="../widgets/master_grid.py" line="282"/>
         <source>cuántas horas de clase puede tener al día; escribe mínimo-máximo, p. ej. 4-7</source>
         <translation>mögliche Unterrichtsstunden pro Tag; als Minimum-Maximum eingeben, z. B. 4-7</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="239"/>
+        <location filename="../widgets/master_grid.py" line="285"/>
         <source>períodos libres para comer en la franja de mediodía; escribe p. ej. 1-2</source>
         <translation>freie Stunden zum Mittagessen in der Mittagszeit; z. B. 1-2 eingeben</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="241"/>
+        <location filename="../widgets/master_grid.py" line="287"/>
         <source>máximo de períodos de materias principales al día</source>
         <translation>maximale Anzahl Hauptfachstunden pro Tag</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="243"/>
+        <location filename="../widgets/master_grid.py" line="289"/>
         <source>máximo de materias principales seguidas sin otra en medio</source>
         <translation>maximale Anzahl Hauptfächer hintereinander ohne anderes Fach dazwischen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="245"/>
+        <location filename="../widgets/master_grid.py" line="291"/>
         <source>días de la semana que puede venir como máximo</source>
         <translation>maximale Anzahl Anwesenheitstage pro Woche</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="247"/>
+        <location filename="../widgets/master_grid.py" line="293"/>
         <source>horas libres entre clases (huecos) al día; escribe mínimo-máximo, p. ej. 0-2</source>
         <translation>Freistunden zwischen dem Unterricht (Hohlstunden) pro Tag; als Minimum-Maximum eingeben, z. B. 0-2</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="249"/>
+        <location filename="../widgets/master_grid.py" line="295"/>
         <source>huecos a la semana; escribe mínimo-máximo, p. ej. 0-6</source>
         <translation>Hohlstunden pro Woche; als Minimum-Maximum eingeben, z. B. 0-6</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="250"/>
+        <location filename="../widgets/master_grid.py" line="296"/>
         <source>períodos seguidos como máximo sin descanso</source>
         <translation>maximale Anzahl Stunden hintereinander ohne Unterbrechung</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="251"/>
+        <location filename="../widgets/master_grid.py" line="297"/>
         <source>situación administrativa (texto libre)</source>
         <translation>dienstrechtlicher Status (freier Text)</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="252"/>
+        <location filename="../widgets/master_grid.py" line="298"/>
         <source>número de personal o de nómina</source>
         <translation>Personalnummer</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="253"/>
+        <location filename="../widgets/master_grid.py" line="299"/>
         <source>género (texto libre)</source>
         <translation>Geschlecht (freier Text)</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="254"/>
+        <location filename="../widgets/master_grid.py" line="300"/>
         <source>plazas del aula</source>
         <translation>Plätze im Raum</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="255"/>
+        <location filename="../widgets/master_grid.py" line="301"/>
         <source>aula que se usa si esta está ocupada</source>
         <translation>Raum, der verwendet wird, wenn dieser belegt ist</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="256"/>
+        <location filename="../widgets/master_grid.py" line="302"/>
         <source>0-4: cuánto importa dar clase en esta aula (4 = mucho)</source>
         <translation>0-4: wie wichtig der Unterricht in diesem Raum ist (4 = sehr)</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="257"/>
+        <location filename="../widgets/master_grid.py" line="303"/>
         <source>marcado: es materia principal (se reparte por las mañanas)</source>
         <translation>markiert: ist Hauptfach (wird auf die Vormittage verteilt)</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="258"/>
+        <location filename="../widgets/master_grid.py" line="304"/>
         <source>marcado: no dar esta materia dos veces el mismo día</source>
         <translation>markiert: dieses Fach nicht zweimal am selben Tag</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="259"/>
+        <location filename="../widgets/master_grid.py" line="305"/>
         <source>marcado: la materia se da siempre en dobles</source>
         <translation>markiert: das Fach wird immer in Doppelstunden unterrichtet</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="260"/>
+        <location filename="../widgets/master_grid.py" line="306"/>
         <source>aula en la que se tiene que dar esta materia</source>
         <translation>Raum, in dem dieses Fach unterrichtet werden muss</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="261"/>
+        <location filename="../widgets/master_grid.py" line="307"/>
         <source>grupo de materias que no deben ir seguidas</source>
         <translation>Fächergruppe, deren Fächer nicht direkt aufeinander folgen sollen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="262"/>
+        <location filename="../widgets/master_grid.py" line="308"/>
         <source>color del texto en los horarios, #RRGGBB</source>
         <translation>Textfarbe in den Stundenplänen, #RRGGBB</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="263"/>
+        <location filename="../widgets/master_grid.py" line="309"/>
         <source>color de fondo en los horarios, #RRGGBB</source>
         <translation>Hintergrundfarbe in den Stundenplänen, #RRGGBB</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="264"/>
+        <location filename="../widgets/master_grid.py" line="310"/>
         <source>materia del grupo de alumnos; elígela de la lista</source>
         <translation>Fach der Schülergruppe; aus der Liste wählen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="265"/>
+        <location filename="../widgets/master_grid.py" line="311"/>
         <source>clases separadas por comas</source>
         <translation>Klassen, durch Kommas getrennt</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="326"/>
+        <location filename="../widgets/master_grid.py" line="372"/>
         <source>escribe aquí el nombre corto para añadir...</source>
         <translation>zum Hinzufügen hier den Kurznamen eingeben...</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="339"/>
+        <location filename="../widgets/master_grid.py" line="385"/>
         <source>Escribe un nombre corto y pulsa Intro para añadir una fila nueva</source>
         <translation>Gib einen Kurznamen ein und drücke die Eingabetaste, um eine neue Zeile hinzuzufügen</translation>
     </message>
     <message>
-        <location filename="../widgets/master_grid.py" line="398"/>
+        <location filename="../widgets/master_grid.py" line="444"/>
         <source>Valor rechazado «{0}»: {1}</source>
         <translation>Wert abgelehnt „{0}“: {1}</translation>
     </message>
@@ -2285,17 +2522,17 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <translation>Nicht verplant</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="665"/>
+        <location filename="../windows/planning.py" line="667"/>
         <source>{0} {1} {2}: {3} sin colocar</source>
         <translation>{0} {1} {2}: {3} nicht verplant</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="688"/>
+        <location filename="../windows/planning.py" line="690"/>
         <source>Sin horario activo</source>
         <translation>Kein aktiver Stundenplan</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="693"/>
+        <location filename="../windows/planning.py" line="695"/>
         <source>Evaluación: {0} ({1} sin colocar, {2} choques)</source>
         <translation>Bewertung: {0} ({1} nicht verplant, {2} Kollisionen)</translation>
     </message>
@@ -2312,78 +2549,78 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <translation type="vanished"> - Kollision</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="810"/>
-        <location filename="../windows/planning.py" line="880"/>
+        <location filename="../windows/planning.py" line="812"/>
+        <location filename="../windows/planning.py" line="884"/>
         <source>Cambio de evaluación: {0:+d}</source>
         <translation>Änderung der Bewertung: {0:+d}</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="812"/>
-        <location filename="../windows/planning.py" line="878"/>
+        <location filename="../windows/planning.py" line="814"/>
+        <location filename="../windows/planning.py" line="882"/>
         <source>Destino posible</source>
         <translation>Mögliches Ziel</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="814"/>
-        <location filename="../windows/planning.py" line="869"/>
-        <location filename="../windows/planning.py" line="914"/>
+        <location filename="../windows/planning.py" line="816"/>
+        <location filename="../windows/planning.py" line="873"/>
+        <location filename="../windows/planning.py" line="918"/>
         <source>No cabe: {0}</source>
         <translation>Nicht möglich: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="822"/>
+        <location filename="../windows/planning.py" line="826"/>
         <source>Clic para intercambiar</source>
         <translation>Klicken zum Tauschen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="847"/>
+        <location filename="../windows/planning.py" line="851"/>
         <source>Lección {0}: {1} destino(s) posible(s)</source>
         <translation>Unterricht {0}: {1} mögliche(s) Ziel(e)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="868"/>
+        <location filename="../windows/planning.py" line="872"/>
         <source>fuera de la rejilla</source>
         <translation>außerhalb des Zeitrasters</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="903"/>
+        <location filename="../windows/planning.py" line="907"/>
         <source>No se está arrastrando nada</source>
         <translation>Es wird nichts gezogen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="910"/>
+        <location filename="../windows/planning.py" line="914"/>
         <source>Esa celda no es un destino de la sesión</source>
         <translation>Diese Zelle ist kein Ziel der Stunde</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="962"/>
-        <location filename="../windows/planning.py" line="981"/>
+        <location filename="../windows/planning.py" line="966"/>
+        <location filename="../windows/planning.py" line="985"/>
         <source>La celda está vacía</source>
         <translation>Die Zelle ist leer</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="974"/>
+        <location filename="../windows/planning.py" line="978"/>
         <source>Elige una celda</source>
         <translation>Wähle eine Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1049"/>
+        <location filename="../windows/planning.py" line="1053"/>
         <source>Elige la celda con la que intercambiar (Esc cancela)</source>
         <translation>Wähle die Zelle zum Tauschen (Esc bricht ab)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1059"/>
+        <location filename="../windows/planning.py" line="1063"/>
         <source>Elige una celda ocupada</source>
         <translation>Wähle eine belegte Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1061"/>
+        <location filename="../windows/planning.py" line="1065"/>
         <source>Es la misma lección</source>
         <translation>Das ist derselbe Unterricht</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1001"/>
-        <location filename="../windows/planning.py" line="1116"/>
+        <location filename="../windows/planning.py" line="1005"/>
+        <location filename="../windows/planning.py" line="1120"/>
         <source>Desfijar</source>
         <translation>Fixierung lösen</translation>
     </message>
@@ -2414,8 +2651,8 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
     </message>
     <message>
         <location filename="../windows/planning.py" line="439"/>
-        <location filename="../windows/planning.py" line="1004"/>
-        <location filename="../windows/planning.py" line="1116"/>
+        <location filename="../windows/planning.py" line="1008"/>
+        <location filename="../windows/planning.py" line="1120"/>
         <source>Fijar</source>
         <translation>Fixieren</translation>
     </message>
@@ -2460,97 +2697,102 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <translation>Ziehe eine Stunde, um sie zu verschieben: grün = möglich, rot = passt nicht. Rechtsklick zum Fixieren, Ausplanen oder Tauschen. Esc bricht ab.</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="675"/>
+        <location filename="../windows/planning.py" line="677"/>
         <source>Lección {0}: {1} período(s) sin colocar. Arrástrala a la cuadrícula.</source>
         <translation>Unterricht {0}: {1} Stunde(n) nicht verplant. Ziehe ihn in das Raster.</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="698"/>
+        <location filename="../windows/planning.py" line="700"/>
         <source>Número de evaluación del horario activo: cuanto más bajo, mejor</source>
         <translation>Bewertungszahl des aktiven Stundenplans: Je niedriger, desto besser</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="783"/>
+        <location filename="../windows/planning.py" line="785"/>
         <source>Recreo</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="788"/>
+        <location filename="../windows/planning.py" line="790"/>
         <source>Hueco libre</source>
         <translation>Freier Platz</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="793"/>
+        <location filename="../windows/planning.py" line="795"/>
         <source>Hora cerrada (-3): aquí no puede haber clase</source>
         <translation>Stunde gesperrt (-3): hier kann kein Unterricht stattfinden</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1009"/>
+        <location filename="../windows/planning.py" line="818"/>
+        <source>Ojo: {0}</source>
+        <translation>Achtung: {0}</translation>
+    </message>
+    <message>
+        <location filename="../windows/planning.py" line="1013"/>
         <source>Elige antes una celda de la cuadrícula</source>
         <translation>Wähle zuerst eine Zelle im Raster</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1073"/>
+        <location filename="../windows/planning.py" line="1077"/>
         <source>Sin horario</source>
         <translation>Kein Stundenplan</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1102"/>
+        <location filename="../windows/planning.py" line="1106"/>
         <source>Abrir esta hora</source>
         <translation>Diese Stunde freigeben</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1102"/>
+        <location filename="../windows/planning.py" line="1106"/>
         <source>Cerrar esta hora</source>
         <translation>Diese Stunde sperren</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1103"/>
+        <location filename="../windows/planning.py" line="1107"/>
         <source>Vuelve a permitir clase aquí (quita el deseo -3)</source>
         <translation>Erlaubt hier wieder Unterricht (entfernt den Zeitwunsch -3)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1105"/>
+        <location filename="../windows/planning.py" line="1109"/>
         <source>Pone un deseo -3: ni la optimización ni tú podréis poner clase aquí</source>
         <translation>Setzt den Zeitwunsch -3: weder die Optimierung noch Sie können hier Unterricht setzen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1117"/>
+        <location filename="../windows/planning.py" line="1121"/>
         <source>Deja que la optimización la mueva</source>
         <translation>Die Optimierung darf sie verschieben</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1119"/>
+        <location filename="../windows/planning.py" line="1123"/>
         <source>La optimización no la moverá de aquí</source>
         <translation>Die Optimierung verschiebt sie nicht von hier</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1124"/>
+        <location filename="../windows/planning.py" line="1128"/>
         <source>Desprogramar (F7)</source>
         <translation>Ausplanen (F7)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1125"/>
+        <location filename="../windows/planning.py" line="1129"/>
         <source>Quita la clase de aquí y la pasa a la lista Sin colocar</source>
         <translation>Nimmt die Stunde von hier und verschiebt sie in die Liste Nicht verplant</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1130"/>
+        <location filename="../windows/planning.py" line="1134"/>
         <source>Intercambiar con...</source>
         <translation>Tauschen mit...</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1131"/>
+        <location filename="../windows/planning.py" line="1135"/>
         <source>Después haz clic en otra celda verde para cambiarlas de sitio</source>
         <translation>Klicke danach auf eine andere grüne Zelle, um beide zu tauschen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1137"/>
+        <location filename="../windows/planning.py" line="1141"/>
         <source>Abrir lección {0}</source>
         <translation>Unterricht {0} öffnen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1138"/>
+        <location filename="../windows/planning.py" line="1142"/>
         <source>Muestra la lección en la ventana Lecciones</source>
         <translation>Zeigt den Unterricht im Fenster Unterricht</translation>
     </message>
@@ -3049,6 +3291,268 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
     </message>
 </context>
 <context>
+    <name>SubstitutionWindow</name>
+    <message>
+        <location filename="../windows/substitution.py" line="387"/>
+        <source>Sin proyecto: abre o crea uno.</source>
+        <translation>Kein Projekt: Öffne oder erstelle eines.</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="388"/>
+        <source>Sin proyecto.</source>
+        <translation>Kein Projekt.</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="404"/>
+        <source>{0} - sin clase: {1}</source>
+        <translation>{0} - kein Unterricht: {1}</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="406"/>
+        <source>{0} - {1} clase(s) por resolver</source>
+        <translation>{0} - {1} offene Stunde(n)</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="418"/>
+        <source>Nadie falta este día.</source>
+        <translation>An diesem Tag fehlt niemand.</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="435"/>
+        <source>Ningún cambio este día.</source>
+        <translation>Keine Änderung an diesem Tag.</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="452"/>
+        <location filename="../windows/substitution.py" line="624"/>
+        <location filename="../windows/substitution.py" line="642"/>
+        <source>Profesor</source>
+        <translation>Lehrer</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="453"/>
+        <source>Clase</source>
+        <translation>Klasse</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="454"/>
+        <location filename="../windows/substitution.py" line="625"/>
+        <source>Aula</source>
+        <translation>Raum</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="477"/>
+        <location filename="../windows/substitution.py" line="490"/>
+        <source>No hay proyecto abierto</source>
+        <translation>Kein Projekt geöffnet</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="500"/>
+        <source>Elige una ausencia de la lista</source>
+        <translation>Wähle eine Absenz aus der Liste</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="521"/>
+        <location filename="../windows/substitution.py" line="534"/>
+        <location filename="../windows/substitution.py" line="546"/>
+        <location filename="../windows/substitution.py" line="558"/>
+        <location filename="../windows/substitution.py" line="569"/>
+        <location filename="../windows/substitution.py" line="582"/>
+        <source>Elige una clase del parte del día</source>
+        <translation>Wähle eine Klasse aus dem Tagesbericht</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="524"/>
+        <source>Nadie está libre esa hora</source>
+        <translation>In dieser Stunde ist niemand frei</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="572"/>
+        <source>El proyecto no tiene aulas</source>
+        <translation>Das Projekt hat keine Räume</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="593"/>
+        <source>Día:</source>
+        <translation>Tag:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="594"/>
+        <source>Día del que se hace el parte de sustituciones</source>
+        <translation>Tag, für den der Vertretungsbericht erstellt wird</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="595"/>
+        <source>Día anterior</source>
+        <translation>Vorheriger Tag</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="596"/>
+        <source>Ver el parte del día anterior</source>
+        <translation>Zeigt den Bericht des Vortags</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="597"/>
+        <source>Día siguiente</source>
+        <translation>Nächster Tag</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="598"/>
+        <source>Ver el parte del día siguiente</source>
+        <translation>Zeigt den Bericht des Folgetags</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="599"/>
+        <source>Ausencias del día</source>
+        <translation>Absenzen des Tages</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="602"/>
+        <source>Quién</source>
+        <translation>Wer</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="603"/>
+        <source>Tipo</source>
+        <translation>Art</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="604"/>
+        <source>Desde</source>
+        <translation>Von</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="605"/>
+        <source>Hasta</source>
+        <translation>Bis</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="606"/>
+        <source>Motivo</source>
+        <translation>Grund</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="609"/>
+        <source>Añadir</source>
+        <translation>Hinzufügen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="611"/>
+        <source>Da de alta la falta de un profesor, una clase o un aula</source>
+        <translation>Legt die Absenz einer Lehrkraft, einer Klasse oder eines Raums an</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="613"/>
+        <source>Quitar</source>
+        <translation>Entfernen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="615"/>
+        <source>Borra la ausencia elegida y las decisiones que venían de ella</source>
+        <translation>Löscht die ausgewählte Absenz und die daraus entstandenen Entscheidungen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="617"/>
+        <source>Clases afectadas</source>
+        <translation>Betroffene Klassen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="620"/>
+        <source>Hora</source>
+        <translation>Stunde</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="621"/>
+        <source>Lección</source>
+        <translation>Unterricht</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="622"/>
+        <source>Materia</source>
+        <translation>Fach</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="623"/>
+        <source>Clases</source>
+        <translation>Klassen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="626"/>
+        <source>Decisión</source>
+        <translation>Entscheidung</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="627"/>
+        <source>Sustituto</source>
+        <translation>Vertretung</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="630"/>
+        <source>Proponer sustituto</source>
+        <translation>Vertretung vorschlagen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="632"/>
+        <source>Muestra quién puede cubrirla, del mejor al peor, con el motivo del orden</source>
+        <translation>Zeigt, wer sie übernehmen kann, vom besten zum schlechtesten, mit dem Grund für die Reihenfolge</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="634"/>
+        <source>Suprimir</source>
+        <translation>Entfall</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="635"/>
+        <source>La clase no se da ese día</source>
+        <translation>Der Unterricht entfällt an diesem Tag</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="636"/>
+        <source>Cambiar aula</source>
+        <translation>Raum wechseln</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="637"/>
+        <source>Da otra aula a esta clase solo ese día</source>
+        <translation>Gibt dieser Klasse an diesem Tag einen anderen Raum</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="638"/>
+        <source>Quitar decisión</source>
+        <translation>Entscheidung entfernen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="639"/>
+        <source>Deja la clase otra vez sin resolver</source>
+        <translation>Setzt die Klasse zurück auf ungelöst</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="640"/>
+        <source>Contadores</source>
+        <translation>Zähler</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="642"/>
+        <source>Puntos</source>
+        <translation>Punkte</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="642"/>
+        <source>Asumidas</source>
+        <translation>Übernommen</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="642"/>
+        <source>Reserva</source>
+        <translation>Reserve</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="646"/>
+        <source>Elige el día, da de alta quién falta y resuelve cada clase: proponer un sustituto, suprimirla o cambiarle el aula. Los contadores dicen cuántas sustituciones lleva cada profesor para repartirlas con justicia.</source>
+        <translation>Wähle den Tag, lege an, wer fehlt, und löse jede Klasse: schlage eine Vertretung vor, lass sie entfallen oder ändere ihren Raum. Die Zähler zeigen, wie viele Vertretungen jede Lehrkraft schon übernommen hat, damit sie gerecht verteilt werden.</translation>
+    </message>
+</context>
+<context>
     <name>SummaryPage</name>
     <message>
         <location filename="../widgets/wizard.py" line="482"/>
@@ -3059,6 +3563,219 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <location filename="../widgets/wizard.py" line="483"/>
         <source>Revisa el resumen y pulsa Finalizar para crear el colegio.</source>
         <translation>Prüfe die Zusammenfassung und klicke auf Fertigstellen, um die Schule anzulegen.</translation>
+    </message>
+</context>
+<context>
+    <name>SupervisionWindow</name>
+    <message>
+        <location filename="../windows/supervision.py" line="225"/>
+        <source>Sin turno: pulsa Generar turnos</source>
+        <extracomment>Texto de &quot;sin profesor&quot; en los desplegables de la parrilla. Color de un turno ya cubierto. Columnas del resumen por profesor. La Fachada aún no hereda el mixin de guardias: mientras tanto, se usa suelto.</extracomment>
+        <translation>Keine Aufsicht: Klicke auf Aufsichten erzeugen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="239"/>
+        <source>Profesor de guardia en {0}, {1} ({2} min). Vacío = sin cubrir.</source>
+        <translation>Aufsichtslehrkraft in {0}, {1} ({2} Min.). Leer = unbesetzt.</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="257"/>
+        <source>sin límite</source>
+        <translation>kein Limit</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="263"/>
+        <source>Se pasa de su máximo de guardias</source>
+        <translation>Überschreitet das Aufsichtsmaximum</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="288"/>
+        <source>Crea las zonas que hay que vigilar y pulsa Generar turnos: saldrá una casilla por zona y recreo de cada día.</source>
+        <translation>Erstelle die Bereiche, die beaufsichtigt werden müssen, und klicke auf Aufsichten erzeugen: Es entsteht eine Zelle pro Bereich und Pause jedes Tages.</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="292"/>
+        <source>Elige el profesor de cada turno o pulsa Repartir guardias. Solo puede vigilar quien da clase justo antes o justo después del recreo. Sin cubrir: {0}.</source>
+        <translation>Wähle für jede Aufsicht eine Lehrkraft oder klicke auf Aufsichten verteilen. Beaufsichtigen kann nur, wer unmittelbar vor oder nach der Pause Unterricht hat. Unbesetzt: {0}.</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="301"/>
+        <location filename="../windows/supervision.py" line="352"/>
+        <location filename="../windows/supervision.py" line="363"/>
+        <source>No hay proyecto abierto</source>
+        <translation>Kein Projekt geöffnet</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="303"/>
+        <source>Nueva zona de vigilancia</source>
+        <translation>Neuer Aufsichtsbereich</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="303"/>
+        <source>Nombre corto de la zona:</source>
+        <translation>Kurzname des Bereichs:</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="324"/>
+        <location filename="../windows/supervision.py" line="341"/>
+        <source>Elige antes una zona</source>
+        <translation>Wähle zuerst einen Bereich</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="326"/>
+        <source>Renombrar zona</source>
+        <translation>Bereich umbenennen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="326"/>
+        <source>Nombre de la zona:</source>
+        <translation>Name des Bereichs:</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="375"/>
+        <location filename="../windows/supervision.py" line="382"/>
+        <source>Elige antes un turno</source>
+        <translation>Wähle zuerst eine Aufsicht</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="429"/>
+        <source>Nueva zona</source>
+        <translation>Neuer Bereich</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="430"/>
+        <source>Crea una zona que vigilar en los recreos (patio, pasillo, comedor...)</source>
+        <translation>Erstellt einen Bereich, der in den Pausen beaufsichtigt wird (Schulhof, Flur, Mensa ...)</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="434"/>
+        <source>Renombrar</source>
+        <translation>Umbenennen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="435"/>
+        <source>Cambia el nombre largo de la zona seleccionada</source>
+        <translation>Ändert den Langnamen des ausgewählten Bereichs</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="439"/>
+        <source>Borrar zona</source>
+        <translation>Bereich löschen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="440"/>
+        <source>Borra la zona seleccionada y todos sus turnos de guardia</source>
+        <translation>Löscht den ausgewählten Bereich und alle seine Aufsichten</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="444"/>
+        <source>Generar turnos</source>
+        <translation>Aufsichten erzeugen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="445"/>
+        <source>Crea un turno vacío por zona, día y recreo de esta rejilla</source>
+        <translation>Erstellt eine leere Aufsicht pro Bereich, Tag und Pause dieses Zeitrasters</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="449"/>
+        <source>Repartir guardias</source>
+        <translation>Aufsichten verteilen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="451"/>
+        <source>Asigna los turnos sin profesor equilibrando minutos, entre quienes dan clase justo antes o después del recreo</source>
+        <translation>Verteilt die Aufsichten ohne Lehrkraft und gleicht dabei die Minuten unter denen aus, die unmittelbar vor oder nach der Pause Unterricht haben</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="457"/>
+        <source>Soltar turno</source>
+        <translation>Aufsicht lösen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="458"/>
+        <source>Quita la chincheta: el reparto automático podrá cambiar este turno</source>
+        <translation>Entfernt die Fixierung: Die automatische Verteilung kann diese Aufsicht dann ändern</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="462"/>
+        <source>Quitar profesor</source>
+        <translation>Lehrkraft entfernen</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="463"/>
+        <source>Deja el turno seleccionado sin nadie de guardia</source>
+        <translation>Lässt die ausgewählte Aufsicht unbesetzt</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="465"/>
+        <source>Rejilla:</source>
+        <translation>Zeitraster:</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="467"/>
+        <source>Rejilla de tiempo cuyos recreos se reparten en esta parrilla</source>
+        <translation>Zeitraster, dessen Pausen in dieser Tabelle verteilt werden</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="470"/>
+        <source>Una fila por zona y una columna por recreo de cada día lectivo</source>
+        <translation>Eine Zeile pro Bereich und eine Spalte pro Pause jedes Schultags</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="472"/>
+        <source>Minutos de guardia por profesor</source>
+        <translation>Aufsichtsminuten pro Lehrkraft</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="474"/>
+        <source>Profesor</source>
+        <translation>Lehrer</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="474"/>
+        <source>Minutos</source>
+        <translation>Minuten</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="474"/>
+        <source>Máximo</source>
+        <translation>Maximal</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="474"/>
+        <source>Turnos</source>
+        <translation>Aufsichten</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="477"/>
+        <source>Minutos de guardia a la semana frente al máximo de cada profesor</source>
+        <translation>Aufsichtsminuten pro Woche im Vergleich zum Maximum jeder Lehrkraft</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="481"/>
+        <source>turno cubierto</source>
+        <translation>Aufsicht besetzt</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="482"/>
+        <source>sin cubrir</source>
+        <translation>unbesetzt</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="483"/>
+        <source>sin turno</source>
+        <translation>keine Aufsicht</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="484"/>
+        <source>puesto a mano (no se mueve)</source>
+        <translation>manuell festgelegt (wird nicht verschoben)</translation>
+    </message>
+    <message>
+        <location filename="../windows/supervision.py" line="486"/>
+        <source>Leyenda:</source>
+        <translation>Legende:</translation>
     </message>
 </context>
 <context>
@@ -3680,6 +4397,24 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
     </message>
 </context>
 <context>
+    <name>_RoomDialog</name>
+    <message>
+        <location filename="../windows/substitution.py" line="672"/>
+        <source>Cambiar de aula</source>
+        <translation>Raum wechseln</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="673"/>
+        <source>Aula nueva:</source>
+        <translation>Neuer Raum:</translation>
+    </message>
+    <message>
+        <location filename="../windows/substitution.py" line="674"/>
+        <source>Aula en la que se dará la clase ese día</source>
+        <translation>Raum, in dem der Unterricht an diesem Tag stattfindet</translation>
+    </message>
+</context>
+<context>
     <name>checklist</name>
     <message>
         <location filename="../widgets/checklist.py" line="75"/>
@@ -4017,267 +4752,357 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
         <translation>Verwende die milden negativen Werte (-1, -2), wenn etwas stört, aber hinnehmbar ist.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="306"/>
+        <location filename="../help.py" line="304"/>
+        <source>Marco horario: di de qué hora a qué hora hay clase y pulsa Aplicar; con Aplicar a: todos los de su rejilla lo haces de una vez para todos los cursos que comparten horario.</source>
+        <translation>Zeitrahmen: Gib an, von welcher bis zu welcher Stunde Unterricht ist, und klicke auf Anwenden; mit Anwenden auf: alle im Zeitraster machst du das auf einmal für alle Klassen, die sich das Zeitraster teilen.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="310"/>
+        <source>Clic en el número de la hora: esa hora queda igual toda la semana. Clic en el nombre del día: el día entero.</source>
+        <translation>Klick auf die Stundennummer: Diese Stunde bleibt die ganze Woche gleich. Klick auf den Namen des Tages: der ganze Tag.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="317"/>
         <source>Demasiados -3 pueden hacer imposible colocar todas las clases: resérvalos para lo que de verdad no se puede.</source>
         <translation>Zu viele -3 können es unmöglich machen, den gesamten Unterricht zu verplanen: Verwende sie nur für das, was wirklich nicht geht.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="314"/>
+        <location filename="../help.py" line="325"/>
         <source>Lecciones</source>
         <translation>Unterricht</translation>
     </message>
     <message>
-        <location filename="../help.py" line="315"/>
+        <location filename="../help.py" line="326"/>
         <source>Qué se enseña: cada lección une materia, profesor y clase(s) con un número de horas por semana.</source>
         <translation>Was unterrichtet wird: Jeder Unterricht verbindet Fach, Lehrer und Klasse(n) mit einer Anzahl Wochenstunden.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="321"/>
+        <location filename="../help.py" line="332"/>
         <source>Elige una clase o un profesor para ver solo sus lecciones.</source>
         <translation>Wähle eine Klasse oder einen Lehrer, um nur deren Unterricht zu sehen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="322"/>
+        <location filename="../help.py" line="333"/>
         <source>Añade una lección con la materia, el profesor, la clase y las horas semanales.</source>
         <translation>Lege einen Unterricht mit Fach, Lehrer, Klasse und Wochenstunden an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="327"/>
+        <location filename="../help.py" line="338"/>
         <source>Para clases que se dan a la vez (desdobles, optativas), añade más líneas a la misma lección: es un acople.</source>
         <translation>Für Unterricht, der gleichzeitig stattfindet (Teilungen, Wahlfächer), füge demselben Unterricht weitere Zeilen hinzu: Das ist eine Kopplung.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="332"/>
+        <location filename="../help.py" line="343"/>
         <source>Indica horas dobles o «no el mismo día» cuando haga falta.</source>
         <translation>Gib bei Bedarf Doppelstunden oder „nicht am selben Tag“ an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="338"/>
+        <location filename="../help.py" line="349"/>
         <source>El resumen de carga avisa si una clase o un profesor tiene más horas que huecos en su rejilla.</source>
         <translation>Die Stundenübersicht warnt, wenn eine Klasse oder ein Lehrer mehr Stunden hat, als im Zeitraster Platz ist.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="346"/>
+        <location filename="../help.py" line="357"/>
         <source>Ponderación</source>
         <translation>Gewichtung</translation>
     </message>
     <message>
-        <location filename="../help.py" line="347"/>
+        <location filename="../help.py" line="358"/>
         <source>Qué importa más al generar: evitar huecos, repartir la semana, respetar los deseos...</source>
         <translation>Was beim Erzeugen wichtiger ist: Hohlstunden vermeiden, die Woche gleichmäßig verteilen, Zeitwünsche einhalten...</translation>
     </message>
     <message>
-        <location filename="../help.py" line="353"/>
+        <location filename="../help.py" line="364"/>
         <source>Recorre las pestañas y mueve cada deslizador de 0 (no importa) a 5 (máxima importancia).</source>
         <translation>Gehe die Registerkarten durch und stelle jeden Regler zwischen 0 (unwichtig) und 5 (höchste Wichtigkeit) ein.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="358"/>
+        <location filename="../help.py" line="369"/>
         <source>Deja en 5 solo el criterio más importante: si todo es máximo, nada lo es.</source>
         <translation>Setze nur das wichtigste Kriterium auf 5: Wenn alles maximal ist, ist nichts maximal.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="362"/>
+        <location filename="../help.py" line="373"/>
         <source>Vuelve a generar y compara el número de evaluación y el Diagnóstico.</source>
         <translation>Erzeuge erneut und vergleiche Bewertungszahl und Diagnose.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="368"/>
+        <location filename="../help.py" line="379"/>
         <source>Los valores por defecto funcionan bien para empezar: cámbialos solo si el resultado no te convence.</source>
         <translation>Die Standardwerte eignen sich gut für den Anfang: Ändere sie nur, wenn dich das Ergebnis nicht überzeugt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="376"/>
+        <location filename="../help.py" line="387"/>
         <source>Optimización</source>
         <translation>Optimierung</translation>
     </message>
     <message>
-        <location filename="../help.py" line="377"/>
+        <location filename="../help.py" line="388"/>
         <source>Calcula un horario completo que respeta la rejilla, las lecciones y los deseos, y lo mejora según la ponderación.</source>
         <translation>Berechnet einen vollständigen Stundenplan, der Zeitraster, Unterricht und Zeitwünsche berücksichtigt, und verbessert ihn gemäß der Gewichtung.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="383"/>
+        <location filename="../help.py" line="394"/>
         <source>Elige la estrategia: una rápida para probar o una más larga para el horario definitivo.</source>
         <translation>Wähle die Strategie: eine schnelle zum Ausprobieren oder eine längere für den endgültigen Stundenplan.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="388"/>
+        <location filename="../help.py" line="399"/>
         <source>Pulsa Iniciar y sigue el progreso en pantalla.</source>
         <translation>Klicke auf Starten und verfolge den Fortschritt am Bildschirm.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="389"/>
+        <location filename="../help.py" line="400"/>
         <source>Puedes detener el cálculo cuando quieras: se queda el mejor horario encontrado hasta ese momento.</source>
         <translation>Du kannst die Berechnung jederzeit anhalten: Der bis dahin beste Stundenplan bleibt erhalten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="394"/>
+        <location filename="../help.py" line="405"/>
         <source>El resultado se guarda como un horario nuevo; los anteriores no se pierden.</source>
         <translation>Das Ergebnis wird als neuer Stundenplan gespeichert; die bisherigen bleiben erhalten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="400"/>
+        <location filename="../help.py" line="411"/>
         <source>Mientras se optimiza, las demás ventanas quedan bloqueadas para no mezclar cambios.</source>
         <translation>Während der Optimierung sind die anderen Fenster gesperrt, damit sich keine Änderungen vermischen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="405"/>
+        <location filename="../help.py" line="416"/>
         <source>Si quedan clases sin colocar, mira el Diagnóstico: suele faltar hueco para algún profesor o clase.</source>
         <translation>Bleiben Stunden unverplant, sieh in die Diagnose: Meist fehlt einem Lehrer oder einer Klasse freie Zeit.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="413"/>
+        <location filename="../help.py" line="424"/>
         <source>Evaluación</source>
         <translation>Bewertung</translation>
     </message>
     <message>
-        <location filename="../help.py" line="414"/>
+        <location filename="../help.py" line="425"/>
         <source>La nota del horario: cuanto más bajo es el número de evaluación, mejor. Muestra de dónde vienen los puntos.</source>
         <translation>Die Note des Stundenplans: Je niedriger die Bewertungszahl, desto besser. Zeigt, woher die Punkte kommen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="420"/>
+        <location filename="../help.py" line="431"/>
         <source>Mira primero los períodos sin colocar y los choques: deben ser cero.</source>
         <translation>Prüfe zuerst die nicht verplanten Stunden und die Kollisionen: Beide sollten null sein.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="424"/>
+        <location filename="../help.py" line="435"/>
         <source>Después revisa el desglose por criterio: los de arriba son los que más penalizan.</source>
         <translation>Sieh dir danach die Aufschlüsselung nach Kriterium an: Die obersten wirken sich am stärksten aus.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="429"/>
+        <location filename="../help.py" line="440"/>
         <source>Compara los horarios generados y activa el que prefieras.</source>
         <translation>Vergleiche die erzeugten Stundenpläne und aktiviere den, der dir am besten gefällt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="432"/>
+        <location filename="../help.py" line="443"/>
         <source>El número de evaluación también se ve en la barra de estado; haz clic en él para abrir esta ventana.</source>
         <translation>Die Bewertungszahl steht auch in der Statusleiste; ein Klick darauf öffnet dieses Fenster.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="440"/>
+        <location filename="../help.py" line="451"/>
         <source>Diagnóstico</source>
         <translation>Diagnose</translation>
     </message>
     <message>
-        <location filename="../help.py" line="441"/>
+        <location filename="../help.py" line="452"/>
         <source>Lista de problemas: errores en los datos de entrada y defectos del horario activo, agrupados por tipo.</source>
         <translation>Liste der Probleme: Fehler in den Eingabedaten und Mängel des aktiven Stundenplans, nach Art gruppiert.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="447"/>
+        <location filename="../help.py" line="458"/>
         <source>Empieza por los errores (en rojo): impiden colocar clases o producen choques.</source>
         <translation>Beginne mit den Fehlern (rot): Sie verhindern das Verplanen oder verursachen Kollisionen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="451"/>
+        <location filename="../help.py" line="462"/>
         <source>Despliega un grupo para ver cada caso concreto.</source>
         <translation>Klappe eine Gruppe auf, um jeden einzelnen Fall zu sehen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="452"/>
+        <location filename="../help.py" line="463"/>
         <source>Selecciona un caso para ir a la lección, la clase o el profesor afectado.</source>
         <translation>Wähle einen Fall, um zum betroffenen Unterricht, zur Klasse oder zum Lehrer zu springen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="457"/>
+        <location filename="../help.py" line="468"/>
         <source>Las advertencias (en ámbar) son mejoras posibles, no fallos.</source>
         <translation>Warnungen (gelb) sind mögliche Verbesserungen, keine Fehler.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="460"/>
+        <location filename="../help.py" line="471"/>
         <source>Diálogo de planificación</source>
         <translation>Planungsdialog</translation>
     </message>
     <message>
-        <location filename="../help.py" line="461"/>
+        <location filename="../help.py" line="472"/>
         <source>Retoque manual del horario: mover, intercambiar, fijar o quitar clases viendo al momento si el cambio es posible.</source>
         <translation>Manuelle Nachbearbeitung des Stundenplans: Stunden verschieben, tauschen, fixieren oder ausplanen und dabei sofort sehen, ob die Änderung möglich ist.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="467"/>
+        <location filename="../help.py" line="478"/>
         <source>Elige la clase, el profesor o el aula que quieres ver.</source>
         <translation>Wähle die Klasse, den Lehrer oder den Raum, den du sehen möchtest.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="468"/>
+        <location filename="../help.py" line="479"/>
         <source>Arrastra una clase: las celdas verdes son destinos posibles y las rojas, imposibles.</source>
         <translation>Ziehe eine Stunde: Grüne Zellen sind mögliche Ziele, rote unmögliche.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="473"/>
+        <location filename="../help.py" line="484"/>
         <source>Fija las clases que no deben moverse en la próxima optimización.</source>
         <translation>Fixiere die Stunden, die bei der nächsten Optimierung nicht verschoben werden sollen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="476"/>
+        <location filename="../help.py" line="487"/>
         <source>Las clases sin colocar aparecen aparte: arrástralas a un hueco libre.</source>
         <translation>Nicht verplante Stunden werden gesondert angezeigt: Ziehe sie auf einen freien Platz.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="482"/>
+        <location filename="../help.py" line="493"/>
         <source>Cada movimiento indica cuánto sube o baja el número de evaluación.</source>
         <translation>Bei jeder Verschiebung wird angezeigt, um wie viel die Bewertungszahl steigt oder sinkt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="485"/>
+        <location filename="../help.py" line="496"/>
         <source>Si te equivocas, Ctrl+Z deshace el último cambio.</source>
         <translation>Wenn du dich vertust, macht Strg+Z die letzte Änderung rückgängig.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="489"/>
+        <location filename="../help.py" line="500"/>
         <source>Horarios</source>
         <translation>Stundenpläne</translation>
     </message>
     <message>
-        <location filename="../help.py" line="490"/>
+        <location filename="../help.py" line="501"/>
         <source>Ver, imprimir y exportar el horario de cada clase, profesor o aula.</source>
         <translation>Stundenplan jeder Klasse, jedes Lehrers oder Raums ansehen, drucken und exportieren.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="494"/>
+        <location filename="../help.py" line="505"/>
         <source>Elige el tipo (clase, profesor o aula) y la entidad.</source>
         <translation>Wähle die Art (Klasse, Lehrer oder Raum) und das Element.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="495"/>
+        <location filename="../help.py" line="506"/>
         <source>Revisa el horario en pantalla.</source>
         <translation>Prüfe den Stundenplan am Bildschirm.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="496"/>
+        <location filename="../help.py" line="507"/>
         <source>Imprímelo o expórtalo a PDF o HTML, uno a uno o todos a la vez.</source>
         <translation>Drucke ihn oder exportiere ihn als PDF oder HTML, einzeln oder alle auf einmal.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="501"/>
+        <location filename="../help.py" line="512"/>
         <source>Los encabezados y el pie de las impresiones se editan en Datos del colegio.</source>
         <translation>Kopf- und Fußzeilen der Ausdrucke bearbeitest du in den Schuldaten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="516"/>
+        <location filename="../help.py" line="519"/>
+        <source>Guardias de recreo</source>
+        <translation>Pausenaufsicht</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="520"/>
+        <source>Quién vigila cada zona del colegio en cada recreo, repartido con justicia entre el profesorado.</source>
+        <translation>Wer welchen Bereich der Schule in welcher Pause beaufsichtigt, gerecht unter den Lehrkräften verteilt.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="526"/>
+        <source>Crea las zonas que hay que vigilar: patio, pasillos, comedor, entrada.</source>
+        <translation>Erstelle die Bereiche, die beaufsichtigt werden müssen: Schulhof, Flure, Mensa, Eingang.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="530"/>
+        <source>Pulsa Generar turnos: crea un turno vacío por zona, día y recreo.</source>
+        <translation>Klicke auf Aufsichten erzeugen: Das legt eine leere Aufsicht pro Bereich, Tag und Pause an.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="534"/>
+        <source>Pon a mano los turnos que ya estén decididos; quedan fijados y el reparto no los toca.</source>
+        <translation>Lege die bereits entschiedenen Aufsichten manuell fest; sie bleiben fixiert, und die Verteilung rührt sie nicht an.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="539"/>
+        <source>Pulsa Repartir guardias: reparte los turnos libres entre quienes están en el centro a esa hora, equilibrando minutos.</source>
+        <translation>Klicke auf Aufsichten verteilen: Das verteilt die freien Aufsichten unter denen, die zu dieser Zeit im Schulgebäude sind, und gleicht dabei die Minuten aus.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="544"/>
+        <source>Revisa el resumen de la derecha: en rojo, quien se pasa de sus minutos de guardia a la semana.</source>
+        <translation>Sieh dir die Übersicht rechts an: Rot markiert ist, wer seine wöchentlichen Aufsichtsminuten überschreitet.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="551"/>
+        <source>Los minutos máximos de cada profesor se ponen en Datos maestros → Profesores. Un 0 lo deja fuera del reparto.</source>
+        <translation>Die maximalen Minuten jeder Lehrkraft legst du unter Stammdaten → Lehrer fest. Eine 0 schließt sie von der Verteilung aus.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="559"/>
+        <source>Sustituciones</source>
+        <translation>Vertretungen</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="560"/>
+        <source>El parte del día cuando falta un profesor, una clase o un aula: quién cubre cada hora, qué se suprime y qué cambia de sitio.</source>
+        <translation>Der Tagesbericht, wenn eine Lehrkraft, eine Klasse oder ein Raum fehlt: wer welche Stunde übernimmt, was ausfällt und was den Raum wechselt.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="566"/>
+        <source>Elige la fecha del día que estás organizando.</source>
+        <translation>Wähle das Datum des Tages, den du organisierst.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="567"/>
+        <source>Da de alta la ausencia: a quién afecta, desde cuándo, hasta cuándo y, si es solo parte del día, entre qué horas.</source>
+        <translation>Lege die Absenz an: wen sie betrifft, ab wann, bis wann und, falls sie nur einen Teil des Tages betrifft, zwischen welchen Stunden.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="572"/>
+        <source>Mira las clases afectadas y pulsa Proponer sustituto: salen los profesores posibles, del mejor al peor, con la razón de su puesto.</source>
+        <translation>Sieh dir die betroffenen Klassen an und klicke auf Vertretung vorschlagen: Es erscheinen die möglichen Lehrkräfte, vom besten zum schlechtesten, mit dem Grund für ihre Reihenfolge.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="577"/>
+        <source>Si nadie puede cubrirla, suprime la clase o cámbiale el aula.</source>
+        <translation>Wenn niemand sie übernehmen kann, lass die Stunde entfallen oder ändere ihren Raum.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="581"/>
+        <source>Vigila los contadores: cuántas sustituciones lleva cada profesor.</source>
+        <translation>Behalte die Zähler im Blick: wie viele Vertretungen jede Lehrkraft schon übernommen hat.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="587"/>
+        <source>Los días sin clase (festivos y vacaciones) se dan de alta aquí mismo: en ellos no se propone nada.</source>
+        <translation>Unterrichtsfreie Tage (Feiertage und Ferien) werden hier angelegt: An ihnen wird nichts vorgeschlagen.</translation>
+    </message>
+    <message>
+        <location filename="../help.py" line="603"/>
         <source>Pulsa Añadir y escribe el nombre corto (debe ser único).</source>
         <translation>Klicke auf Hinzufügen und gib den Kurznamen ein (er muss eindeutig sein).</translation>
     </message>
     <message>
-        <location filename="../help.py" line="517"/>
+        <location filename="../help.py" line="604"/>
         <source>Completa las columnas que necesites directamente en la tabla, como en una hoja de cálculo.</source>
         <translation>Fülle die benötigten Spalten direkt in der Tabelle aus, wie in einer Tabellenkalkulation.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="522"/>
+        <location filename="../help.py" line="609"/>
         <source>Selecciona una fila para ver sus lecciones y su horario en las demás ventanas.</source>
         <translation>Wähle eine Zeile, um ihren Unterricht und ihren Stundenplan in den anderen Fenstern zu sehen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="526"/>
+        <location filename="../help.py" line="613"/>
         <source>Para borrar, selecciona la fila y pulsa Borrar: si algo la usa, se te avisa antes.</source>
         <translation>Zum Löschen wähle die Zeile und klicke auf Löschen: Wird sie noch verwendet, erhältst du vorher einen Hinweis.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="534"/>
+        <location filename="../help.py" line="621"/>
         <source>Una celda en rojo tiene un valor no válido; pasa el ratón por ella para ver el motivo.</source>
         <translation>Eine rote Zelle enthält einen ungültigen Wert; zeige mit der Maus darauf, um den Grund zu sehen.</translation>
     </message>

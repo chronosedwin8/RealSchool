@@ -329,6 +329,8 @@ class SupervisionMixin:
         p = session.project
         grid = _grid(p, grid_id)
         if grid is None:
+            if grid_id:
+                return EditResult.failure(f"La rejilla {grid_id!r} no existe")
             return EditResult.failure("El proyecto no tiene rejillas de tiempo")
         recreos = _breaks(grid)
         if not recreos:

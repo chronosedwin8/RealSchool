@@ -15,8 +15,6 @@ lleva...). También se puede suprimir la clase o cambiarle el aula.
 
 from __future__ import annotations
 
-from typing import cast
-
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -330,13 +328,8 @@ class SubstitutionWindow(QWidget):
 
     @property
     def facade(self) -> SubstitutionMixin:
-        """La Fachada vista como módulo de sustituciones.
-
-        La conversión desaparece en cuanto `UntisService` herede el mixin: se
-        mantiene para que la ventana funcione también con una Fachada que solo
-        lo componga en las pruebas.
-        """
-        return cast(SubstitutionMixin, self.bridge.service)
+        """La Fachada, que ya trae el módulo de sustituciones."""
+        return self.bridge.service
 
     @property
     def date(self) -> str:

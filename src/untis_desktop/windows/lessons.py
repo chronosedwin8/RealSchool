@@ -11,27 +11,36 @@ Filtro por clase / profesor / materia / todas, que sigue la selección
 sincronizada. Barra de suma abajo, con icono de estado: períodos frente a
 capacidad de la rejilla (en rojo si la supera). Las sub-filas de un acople
 llevan el icono de enlace; cada cabecera explica su columna al pasar el ratón.
+
+**Carga masiva** (900 lecciones no se teclean una a una): Importar CSV,
+Exportar CSV, Ctrl+C y Ctrl+V usan el formato plano de
+`application.untis.bulk_lessons` -una fila por línea de acople, con el número
+de lección como pegamento-, con la misma validación que la edición en celda y
+todo en un solo paso de deshacer.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QSpinBox,
     QTableView,
     QVBoxLayout,
@@ -39,13 +48,29 @@ from PySide6.QtWidgets import (
 )
 
 from scheduling_platform.application import EditResult, MasterKind, UntisLessonRow
+from scheduling_platform.application.untis.bulk import ImportReport, table_from_rows
+from scheduling_platform.application.untis.bulk_lessons import (
+    LESSON_FIELDS,
+    LessonSource,
+    export_lessons,
+    import_lessons,
+    lesson_rows,
+    preview_lessons,
+)
 
 from ..icons import icon
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
 from ..theme import ERROR_COLOR, fmt_int
-from ..widgets.master_grid import ChoiceDelegate, entity_ids, is_checked
-from ..widgets.uikit import Banner, EmptyHint, icon_pixmap, set_texts, tool_button
+from ..widgets.master_grid import (
+    CSV_ENCODING,
+    CSV_FILTER,
+    ChoiceDelegate,
+    entity_ids,
+    is_checked,
+    split_block,
+)
+from ..widgets.uikit import Banner, EmptyHint, icon_pixmap, make_action, set_texts, tool_button
 
 type AnyIndex = QModelIndex | QPersistentModelIndex
 
@@ -405,6 +430,10 @@ class LessonsWindow(QWidget):
         self.couple_button = tool_button("couple", self.couple)
         self.uncouple_button = tool_button("uncouple", self.uncouple)
         self.remove_button = tool_button("delete", self.remove)
+        self.copy_button = tool_button("copy", self.copy_selection)
+        self.paste_button = tool_button("table", self.paste_clipboard)
+        self.import_button = tool_button("import", self.ask_import)
+        self.export_button = tool_button("export", self.ask_export)
 
         self.model = LessonsModel(bridge)
         self.view = QTableView()
@@ -422,6 +451,13 @@ class LessonsWindow(QWidget):
         self.view.horizontalHeader().setSectionsMovable(True)
         self.view.selectionModel().currentRowChanged.connect(self._on_current_row)
         self.view.doubleClicked.connect(self._on_double_click)
+        self.copy_action = make_action(self, "copy", self.copy_selection)
+        self.copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+        self.paste_action = make_action(self, "table", self.paste_clipboard)
+        self.paste_action.setShortcut(QKeySequence.StandardKey.Paste)
+        for accion in (self.copy_action, self.paste_action):
+            accion.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            self.view.addAction(accion)
         self.hint = EmptyHint(self.view)
 
         self.sum_icon = QLabel()
@@ -443,6 +479,10 @@ class LessonsWindow(QWidget):
             self.couple_button,
             self.uncouple_button,
             self.remove_button,
+            self.copy_button,
+            self.paste_button,
+            self.import_button,
+            self.export_button,
         ):
             barra.addWidget(boton)
         barra.addSpacing(16)
@@ -592,6 +632,10 @@ class LessonsWindow(QWidget):
         self.new_button.setEnabled(abierto)
         for boton in (self.couple_button, self.uncouple_button, self.remove_button):
             boton.setEnabled(abierto and hay)
+        for widget in (self.paste_button, self.paste_action, self.import_button):
+            widget.setEnabled(abierto)
+        for widget in (self.copy_button, self.copy_action, self.export_button):
+            widget.setEnabled(abierto and bool(self.model.lessons))
 
     def _set_sum_state(self, kind: str) -> None:
         self.sum_icon.setPixmap(icon_pixmap(kind, "button"))
@@ -757,6 +801,130 @@ class LessonsWindow(QWidget):
         if text:
             self.bridge.status.emit(text)
 
+    # --- carga masiva: copiar, pegar, importar y exportar ----------------------- #
+
+    def copy_selection(self) -> str:
+        """Copia la lección actual (o todas las que se ven) en el formato de importación."""
+        if not self.bridge.has_session:
+            return ""
+        actual = self.current_lesson()
+        numeros = [actual[0]] if actual is not None else [le.number for le in self.model.lessons]
+        filas = lesson_rows(self.bridge.session, numeros)
+        texto = "\n".join("\t".join(f) for f in filas)
+        if texto:
+            QGuiApplication.clipboard().setText(texto)
+            self._report(
+                self.tr("{0} línea(s) copiada(s) al portapapeles.").format(len(filas)), True, 1
+            )
+        return texto
+
+    def paste_clipboard(self) -> bool:
+        return self.paste_text(QGuiApplication.clipboard().text())
+
+    def paste_text(self, text: str) -> bool:
+        """Pega líneas en el formato de importación: crea y actualiza lecciones."""
+        bloque = split_block(text)
+        if not bloque or not self.bridge.has_session:
+            self.show_message(self.tr("El portapapeles no trae ninguna línea de lección."))
+            return False
+        recortado = [fila[: len(LESSON_FIELDS)] for fila in bloque]
+        ancho = max(len(f) for f in recortado)
+        return self._run_import(table_from_rows(LESSON_FIELDS[:ancho], recortado))
+
+    def _run_import(self, source: LessonSource) -> bool:
+        """Importa y avisa de lo que entró y lo que no; en un solo paso de deshacer."""
+        informe: list[ImportReport] = []
+
+        def aplicar() -> EditResult:
+            resultado = import_lessons(self.bridge.session, source)
+            informe.append(resultado)
+            return EditResult(resultado.ok, resultado.summary().splitlines()[0])
+
+        self.bridge.edit(aplicar)
+        if not informe:
+            self.show_message(self.tr("Espera a que termine la optimización"))
+            return False
+        self.refresh()
+        self._report(informe[0].summary(), informe[0].ok, informe[0].rows_ok)
+        return informe[0].ok
+
+    def _report(self, text: str, ok: bool, entered: int) -> None:
+        """Franja de aviso: correcto, aviso (entró parte) o error (no entró nada)."""
+        self.message.show_message(text, "ok" if ok else ("warning" if entered else "error"))
+        self.bridge.status.emit(text.splitlines()[0])
+
+    def ask_import(self) -> None:
+        """Pide el CSV, enseña qué va a pasar y, si se confirma, lo importa."""
+        if not self.bridge.has_session:
+            return
+        ruta, _ = QFileDialog.getOpenFileName(
+            self, self.tr("Importar lecciones CSV"), "", CSV_FILTER
+        )
+        if not ruta:
+            return
+        previo = preview_lessons(self.bridge.session, Path(ruta))
+        falta = previo.missing_summary()
+        aviso = (
+            self.tr("{0}\nDa de alta eso primero y vuelve a importar.\n\n").format(falta)
+            if falta
+            else ""
+        )
+        respuesta = QMessageBox.question(
+            self,
+            self.tr("Importar lecciones CSV"),
+            self.tr("Se va a importar «{0}»:\n\n{1}{2}\n\n¿Continúo?").format(
+                Path(ruta).name, aviso, previo.summary()
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if respuesta == QMessageBox.StandardButton.Yes:
+            self.import_csv(ruta)
+
+    def import_csv(self, path: str | Path) -> ImportReport | None:
+        """Importa las lecciones del CSV en un solo paso de deshacer."""
+        if not self.bridge.has_session:
+            return None
+        informe: list[ImportReport] = []
+
+        def aplicar() -> EditResult:
+            resultado = import_lessons(self.bridge.session, Path(path))
+            informe.append(resultado)
+            return EditResult(resultado.ok, resultado.summary().splitlines()[0])
+
+        self.bridge.edit(aplicar)
+        if not informe:
+            self.show_message(self.tr("Espera a que termine la optimización"))
+            return None
+        self.refresh()
+        self._report(informe[0].summary(), informe[0].ok, informe[0].rows_ok)
+        return informe[0]
+
+    def ask_export(self) -> None:
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Exportar lecciones CSV"), "lecciones.csv", CSV_FILTER
+        )
+        if ruta:
+            self.export_csv(ruta)
+
+    def export_csv(self, path: str | Path) -> Path | None:
+        """Escribe todas las lecciones como CSV, listas para editarlas en Excel."""
+        if not self.bridge.has_session:
+            return None
+        destino = Path(path)
+        if not destino.suffix:
+            destino = destino.with_suffix(".csv")
+        texto = export_lessons(self.bridge.session, language=self.bridge.language)
+        try:
+            destino.write_text(texto, encoding=CSV_ENCODING, newline="")
+        except OSError as exc:
+            self.show_message(self.tr("No se pudo escribir {0}: {1}").format(destino.name, exc))
+            return None
+        cuantas = len(self.bridge.service.lessons(self.bridge.session))
+        self._report(
+            self.tr("{0} lección(es) exportadas a {1}.").format(cuantas, destino.name), True, 1
+        )
+        return destino
+
     # --- idioma ------------------------------------------------------------------- #
 
     def _retranslate(self) -> None:
@@ -795,6 +963,28 @@ class LessonsWindow(QWidget):
             self.tr("Borrar"),
             self.tr("Borra la lección seleccionada y sus períodos colocados (se puede deshacer)"),
         )
+        copiar = self.tr(
+            "Copia la lección seleccionada (o todas las que se ven) para pegarla en Excel (Ctrl+C)"
+        )
+        pegar = self.tr(
+            "Pega líneas de lección desde Excel: una fila por línea, el número acopla; "
+            "en un solo deshacer (Ctrl+V)"
+        )
+        importar = self.tr(
+            "Carga de golpe un CSV de lecciones, una fila por línea; antes dice qué va a pasar"
+        )
+        exportar = self.tr(
+            "Guarda todas las lecciones como CSV para editarlas en Excel y volver a importarlas"
+        )
+        for objetivo, texto, ayuda in (
+            (self.copy_button, self.tr("Copiar"), copiar),
+            (self.copy_action, self.tr("Copiar"), copiar),
+            (self.paste_button, self.tr("Pegar"), pegar),
+            (self.paste_action, self.tr("Pegar"), pegar),
+            (self.import_button, self.tr("Importar CSV"), importar),
+            (self.export_button, self.tr("Exportar CSV"), exportar),
+        ):
+            set_texts(objetivo, texto, ayuda)
         self._update_hint()
         self.model.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, len(COLUMNS) - 1)
         self._update_sum_bar()

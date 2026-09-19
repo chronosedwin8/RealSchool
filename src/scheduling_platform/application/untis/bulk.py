@@ -53,18 +53,87 @@ from .columns import (
 )
 from .session import UntisSession
 
-#: Cómo se llama cada cuadrícula en los mensajes (singular, plural).
-KIND_LABELS: dict[MasterKind, tuple[str, str]] = {
-    MasterKind.CLASSES: ("clase", "clases"),
-    MasterKind.TEACHERS: ("profesor", "profesores"),
-    MasterKind.ROOMS: ("aula", "aulas"),
-    MasterKind.SUBJECTS: ("materia", "materias"),
-    MasterKind.DEPARTMENTS: ("departamento", "departamentos"),
-    MasterKind.STUDENT_GROUPS: ("grupo de alumnos", "grupos de alumnos"),
+#: Cómo se llama cada cuadrícula en los mensajes (singular, plural). La clave es
+#: el valor del `MasterKind`; "lessons" es la cuadrícula de Lecciones, que no es
+#: un dato maestro pero comparte informe (ver `bulk_lessons`).
+KIND_LABELS: dict[str, tuple[str, str]] = {
+    MasterKind.CLASSES.value: ("clase", "clases"),
+    MasterKind.TEACHERS.value: ("profesor", "profesores"),
+    MasterKind.ROOMS.value: ("aula", "aulas"),
+    MasterKind.SUBJECTS.value: ("materia", "materias"),
+    MasterKind.DEPARTMENTS.value: ("departamento", "departamentos"),
+    MasterKind.STUDENT_GROUPS.value: ("grupo de alumnos", "grupos de alumnos"),
+    "lessons": ("lección", "lecciones"),
 }
+
+
+def kind_labels(kind: str) -> tuple[str, str]:
+    """Nombre en singular y en plural de una cuadrícula, para los mensajes."""
+    return KIND_LABELS.get(str(kind), ("fila", "filas"))
+
 
 #: Cuántos motivos se detallan en el resumen antes de resumir el resto.
 ISSUE_PREVIEW = 8
+
+#: Cuántos nombres se listan de cada cosa que falta antes de poner "...".
+MISSING_PREVIEW = 5
+
+
+@dataclass(frozen=True, slots=True)
+class MissingHint:
+    """Cómo hablarle al usuario de lo que apunta una referencia y no existe."""
+
+    singular: str
+    """Con su artículo: `"la rejilla"`, `"el departamento"`."""
+    create: str
+    """Verbo con el pronombre que toca: `"créala"`, `"créalo"`."""
+    plural: str
+    where: str
+    """Dónde se da de alta, tal y como se llega desde la cinta."""
+
+
+#: Qué hay que hacer antes, por colección del proyecto a la que apunta la
+#: referencia. Un "no existe" a secas deja al usuario sin saber qué tocar.
+MISSING_HINTS: dict[str, MissingHint] = {
+    "time_grids": MissingHint(
+        "la rejilla", "créala", "rejillas de tiempo", "Datos maestros -> Rejillas de tiempo"
+    ),
+    "departments": MissingHint(
+        "el departamento", "créalo", "departamentos", "Datos maestros -> Departamentos"
+    ),
+    "rooms": MissingHint("el aula", "créala", "aulas", "Datos maestros -> Aulas"),
+    "subjects": MissingHint("la materia", "créala", "materias", "Datos maestros -> Materias"),
+    "teachers": MissingHint("el profesor", "créalo", "profesores", "Datos maestros -> Profesores"),
+    "classes": MissingHint("la clase", "créala", "clases", "Datos maestros -> Clases"),
+    "student_groups": MissingHint(
+        "el grupo de alumnos",
+        "créalo",
+        "grupos de alumnos",
+        "Datos maestros -> Grupos de alumnos",
+    ),
+}
+
+
+def missing_message(reference: str, value: object) -> str:
+    """Por qué se rechaza una referencia y qué hacer antes para arreglarlo."""
+    pista = MISSING_HINTS.get(reference)
+    if pista is None:
+        return f"{value!r} no existe"
+    return f"{pista.singular} {value!r} no existe: {pista.create} antes en {pista.where}"
+
+
+def note_missing(missing: dict[str, list[str]], reference: str, value: object) -> None:
+    """Apunta lo que falta, sin repetir, para el resumen agrupado del informe."""
+    nombres = missing.setdefault(reference, [])
+    texto = str(value)
+    if texto not in nombres:
+        nombres.append(texto)
+
+
+def missing_pairs(missing: dict[str, list[str]]) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Lo que falta como pares `(colección, ids)`, para meterlo en el informe."""
+    return tuple((coleccion, tuple(ids)) for coleccion, ids in missing.items() if ids)
+
 
 #: `dataclasses.replace` sin tipar: las cuadrículas escriben campos por nombre
 #: (igual que `UntisService._with_field`) y mypy no puede tipar `**{campo: v}`.
@@ -116,12 +185,20 @@ class ImportReport:
     `import_master`, para que la UI enseñe lo mismo antes y después.
     """
 
-    kind: MasterKind
+    kind: str
+    """Valor del `MasterKind` de la cuadrícula, o "lessons"."""
     created: tuple[str, ...] = ()
     updated: tuple[str, ...] = ()
     unchanged: tuple[str, ...] = ()
     issues: tuple[RowIssue, ...] = ()
     unknown_columns: tuple[str, ...] = ()
+    missing: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    """Lo que hay que dar de alta antes, agrupado: `(colección, nombres cortos)`.
+
+    Importar las 82 clases de un colegio en un proyecto vacío falla 82 veces por
+    lo mismo; esto lo resume en una línea ("faltan 6 rejillas...") para que la
+    ventana diga qué hacer en vez de soltar 164 motivos sueltos.
+    """
     applied: bool = False
     """`True` solo si la importación llegó a cambiar el proyecto."""
 
@@ -140,9 +217,19 @@ class ImportReport:
         """Filas de datos que se quedaron fuera."""
         return len({i.row for i in self.issues if i.row})
 
+    def missing_summary(self, limit: int = MISSING_PREVIEW) -> str:
+        """Una línea con todo lo que hay que dar de alta antes ("" si no falta nada)."""
+        partes: list[str] = []
+        for coleccion, nombres in self.missing:
+            pista = MISSING_HINTS.get(coleccion)
+            como = pista.plural if pista is not None else coleccion
+            muestra = ", ".join(nombres[:limit]) + ("..." if len(nombres) > limit else "")
+            partes.append(f"{len(nombres)} {como}: {muestra}")
+        return f"Faltan {'; '.join(partes)}." if partes else ""
+
     def summary(self, limit: int = ISSUE_PREVIEW) -> str:
         """Texto para el aviso de la UI: cuántas entraron, cuáles no y por qué."""
-        _, plural = KIND_LABELS[self.kind]
+        _, plural = kind_labels(self.kind)
         texto = (
             f"{len(self.created)} fila(s) nueva(s), {len(self.updated)} actualizada(s) y "
             f"{len(self.unchanged)} sin cambios en {plural}."
@@ -152,6 +239,9 @@ class ImportReport:
         fallidas = self.rows_failed
         if fallidas:
             texto += f" {fallidas} fila(s) no entraron."
+        falta = self.missing_summary()
+        if falta:
+            texto += "\n" + falta
         motivos = [i.render() for i in self.issues[:limit]]
         if len(self.issues) > limit:
             motivos.append(f"...y {len(self.issues) - limit} motivo(s) más")
@@ -257,6 +347,7 @@ def _row_values(
     referencias: dict[str, set[str]],
     clave: str,
     issues: list[RowIssue],
+    faltan: dict[str, list[str]],
 ) -> dict[str, object] | None:
     """Valores tipados de una fila, o `None` si algo no pasó la validación."""
     valores: dict[str, object] = {}
@@ -271,13 +362,24 @@ def _row_values(
             issues.append(RowIssue(fila.number, encabezado, clave, str(exc), spec.field))
             correcta = False
             continue
-        if spec.reference is not None and valor not in (None, ""):
-            if str(valor) not in referencias[spec.reference]:
-                issues.append(
-                    RowIssue(fila.number, encabezado, clave, f"{valor!r} no existe", spec.field)
+        desconocida = (
+            spec.reference is not None
+            and valor not in (None, "")
+            and str(valor) not in referencias[spec.reference]
+        )
+        if desconocida and spec.reference is not None:
+            note_missing(faltan, spec.reference, valor)
+            issues.append(
+                RowIssue(
+                    fila.number,
+                    encabezado,
+                    clave,
+                    missing_message(spec.reference, valor),
+                    spec.field,
                 )
-                correcta = False
-                continue
+            )
+            correcta = False
+            continue
         valores[spec.field] = valor
     return valores if correcta else None
 
@@ -335,6 +437,7 @@ def _build_plan(
         if s.reference is not None
     }
     posicion = {e.id: i for i, e in enumerate(actuales)}
+    faltan: dict[str, list[str]] = {}
     altas: list[_Entity] = []
     cambios: dict[int, _Entity] = {}
     creadas: list[str] = []
@@ -356,7 +459,7 @@ def _build_plan(
         if existente is not None and not update_existing:
             issues.append(RowIssue(fila.number, columna_id, clave, f"{clave!r} ya existe"))
             continue
-        valores = _row_values(fila, campos, referencias, clave, issues)
+        valores = _row_values(fila, campos, referencias, clave, issues, faltan)
         if valores is None:
             continue
         try:
@@ -388,6 +491,7 @@ def _build_plan(
         unchanged=tuple(iguales),
         issues=tuple(issues),
         unknown_columns=desconocidas,
+        missing=missing_pairs(faltan),
     )
     return _Plan(tuple(resultantes), informe, bool(altas or cambios))
 
@@ -429,7 +533,7 @@ def import_master(
     if not plan.changed or (strict and plan.report.issues):
         return plan.report
     proyecto = _replace(session.project, **{COLLECTION_OF[kind]: plan.entities})
-    singular, plural = KIND_LABELS[kind]
+    singular, plural = kind_labels(kind)
     cuantas = len(plan.report.created) + len(plan.report.updated)
     session.apply(proyecto, f"Importar {cuantas} {plural if cuantas != 1 else singular}")
     return dataclasses.replace(plan.report, applied=True)
@@ -494,7 +598,9 @@ def set_master_cells(
                 for e in cast(tuple[_Entity, ...], getattr(session.project, spec.reference, ()))
             }
             if str(valor) not in validos:
-                issues.append(RowIssue(0, spec.label, clave, f"{valor!r} no existe", campo))
+                issues.append(
+                    RowIssue(0, spec.label, clave, missing_message(spec.reference, valor), campo)
+                )
                 continue
         try:
             cambiadas[clave] = cast(_Entity, _replace(entidad, **{campo: valor}))

@@ -102,6 +102,7 @@ class SupervisionWindow(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         cabecera = self.table.horizontalHeader()
         cabecera.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table.currentCellChanged.connect(lambda *_celda: self._update_state())
 
         self.load_box = QGroupBox()
         self.load_table = QTableWidget(0, LOAD_COLUMNS)
@@ -184,6 +185,9 @@ class SupervisionWindow(QWidget):
 
     def _load_table(self) -> None:
         self._loading = True
+        # La celda elegida se conserva: tras editar, la parrilla se vuelve a
+        # montar entera y la orden siguiente sigue hablando del mismo turno.
+        seleccion = (self.table.currentRow(), self.table.currentColumn())
         try:
             self.cell_combos.clear()
             # `setRowCount(0)` destruye también los desplegables de las celdas.
@@ -205,6 +209,9 @@ class SupervisionWindow(QWidget):
                 for columna, hueco in enumerate(vista.slots):
                     celda = vista.cell(zona.id, hueco.day, hueco.period)
                     self._fill_cell(fila, columna, celda, vista)
+            fila, columna = seleccion
+            if 0 <= fila < self.table.rowCount() and 0 <= columna < self.table.columnCount():
+                self.table.setCurrentCell(fila, columna)
         finally:
             self._loading = False
 

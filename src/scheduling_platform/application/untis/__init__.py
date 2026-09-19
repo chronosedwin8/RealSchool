@@ -4,9 +4,27 @@ La UI solo importa `scheduling_platform.application` (verificado en
 `tests/test_boundaries.py`); este subpaquete es lo que allí se reexporta.
 """
 
+from .bulk import BulkMixin, CellsResult, ImportReport, RowIssue
 from .columns import ColumnSpec, MasterKind, ValueType, columns, format_value, parse_value
 from .service import DEFAULT_GRID_ID, PROJECT_SUFFIX, UntisService, build_grid
 from .session import UntisSession
+from .substitution import (
+    AbsenceRow,
+    CandidateRow,
+    CounterRow,
+    DayReport,
+    DayRow,
+    HolidayRow,
+    SubstitutionMixin,
+)
+from .supervision import (
+    SupervisionAreaRow,
+    SupervisionCell,
+    SupervisionGrid,
+    SupervisionLoad,
+    SupervisionMixin,
+    SupervisionSlot,
+)
 from .texts import CRITERION_TEXTS, TAB_LABELS
 from .views import (
     CriterionLine,
@@ -39,13 +57,22 @@ __all__ = [
     "DEFAULT_GRID_ID",
     "PROJECT_SUFFIX",
     "TAB_LABELS",
+    "AbsenceRow",
+    "BulkMixin",
+    "CandidateRow",
+    "CellsResult",
     "ColumnSpec",
+    "CounterRow",
     "CriterionLine",
+    "DayReport",
+    "DayRow",
     "DiagnosisItem",
     "DiagnosisView",
     "EditResult",
     "EvaluationView",
     "GridView",
+    "HolidayRow",
+    "ImportReport",
     "LessonLineRow",
     "LessonRow",
     "LoadSummary",
@@ -58,7 +85,15 @@ __all__ = [
     "OptimizeRequest",
     "PeriodRow",
     "RequestGrid",
+    "RowIssue",
     "SliderView",
+    "SubstitutionMixin",
+    "SupervisionAreaRow",
+    "SupervisionCell",
+    "SupervisionGrid",
+    "SupervisionLoad",
+    "SupervisionMixin",
+    "SupervisionSlot",
     "TimeFrame",
     "TimetableCell",
     "TimetableGrid",

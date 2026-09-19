@@ -23,6 +23,7 @@ from .strategies import (
     optimize,
     repair_change_penalty,
 )
+from .supervision import SupervisionOutcome, assign_supervisions
 
 __all__ = [
     "DEFAULT_TIME",
@@ -31,6 +32,8 @@ __all__ = [
     "Progress",
     "State",
     "Strategy",
+    "SupervisionOutcome",
+    "assign_supervisions",
     "build_model",
     "optimize",
     "repair_change_penalty",

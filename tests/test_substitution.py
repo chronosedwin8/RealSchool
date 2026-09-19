@@ -20,11 +20,10 @@ import dataclasses
 from collections.abc import Iterator
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QTableWidget
 from pytestqt.qtbot import QtBot
 
 from scheduling_platform.application import UntisService, UntisSession
-from scheduling_platform.application.untis.substitution import SubstitutionMixin
 from scheduling_platform.untis_model import (
     Absence,
     Assignment,
@@ -38,6 +37,8 @@ from scheduling_platform.untis_model import (
     Subject,
     Substitution,
     SubstitutionKind,
+    Supervision,
+    SupervisionArea,
     Teacher,
     Term,
     TimeGrid,
@@ -63,8 +64,13 @@ MIERCOLES = "20261007"
 DOMINGO = "20261011"
 
 
-class _Servicio(SubstitutionMixin, UntisService):
-    """Fachada con el módulo de sustituciones (`UntisService` lo heredará)."""
+class _Servicio(UntisService):
+    """Fachada con el módulo de sustituciones.
+
+    La Fachada va primero a propósito: así la clase vale tanto si `UntisService`
+    todavía no hereda el mixin como si ya lo hereda (con el orden al revés, el
+    segundo caso sería un error de linealización).
+    """
 
 
 SVC = _Servicio()
@@ -239,10 +245,21 @@ def test_una_ausencia_de_un_dia_solo_cubre_ese_dia() -> None:
 
 
 def test_una_ausencia_de_varios_dias_acota_horas_solo_en_los_extremos() -> None:
-    a = _ausencia_ana(end=MIERCOLES, first_period=3, last_period=2)
+    a = _ausencia_ana(end=MIERCOLES, first_period=3, last_period=4)
+    assert a.last_day == MIERCOLES
     assert not a.covers(LUNES, 2) and a.covers(LUNES, 3)
     assert a.covers(MARTES, 1) and a.covers(MARTES, 6)
+    assert a.covers(MIERCOLES, 4) and not a.covers(MIERCOLES, 5)
+
+
+def test_de_la_ultima_hora_del_lunes_a_la_segunda_del_miercoles() -> None:
+    """En varios días las horas acotan días distintos: 5ª -> 2ª es correcto."""
+    a = _ausencia_ana(end=MIERCOLES, first_period=5, last_period=2)
+    assert not a.covers(LUNES, 4) and a.covers(LUNES, 5) and a.covers(LUNES, 6)
+    assert a.covers(MARTES, 1) and a.covers(MARTES, 6)
     assert a.covers(MIERCOLES, 2) and not a.covers(MIERCOLES, 3)
+    with pytest.raises(ValueError, match="posterior a la última"):
+        _ausencia_ana(first_period=5, last_period=2)
 
 
 def test_las_ausencias_del_dia_son_las_vigentes() -> None:
@@ -284,7 +301,7 @@ def test_la_ausencia_de_una_clase_y_de_un_aula_tambien_afectan() -> None:
     tocadas = {a.lesson.lesson_number: a for a in affected(p, _tt(p), LUNES)}
     assert set(tocadas) == {2, 3, 4, 6}
     assert tocadas[3].classes == ("5B",) and not tocadas[3].teachers
-    assert "No asiste la clase 5B (excursión)" == tocadas[3].reason
+    assert tocadas[3].reason == "No asiste la clase 5B (excursión)"
     assert tocadas[2].rooms == ("R2",)
     assert tocadas[2].reason == "No está disponible el aula R2"
     # La lección 6 usa R2 pero a la 4ª hora: solo le afecta la falta de la clase.
@@ -361,8 +378,9 @@ def test_el_contador_decide_entre_dos_iguales() -> None:
 def test_la_reserva_de_sustitucion_decide_en_el_ultimo_lugar() -> None:
     p = _con(_base(), absences=(_ausencia_ana(),))
     assert _propuestos(p)[-2:] == ["GIL", "HUGO"]
+    # 1-8 solo penalizan: con reserva 8 GIL pasa por detrás de HUGO (reserva 5).
     profes = tuple(
-        dataclasses.replace(t, substitution_lock=9) if t.id == "GIL" else t for t in p.teachers
+        dataclasses.replace(t, substitution_lock=8) if t.id == "GIL" else t for t in p.teachers
     )
     assert _propuestos(_con(p, teachers=profes))[-2:] == ["HUGO", "GIL"]
 
@@ -380,6 +398,46 @@ def test_nunca_se_propone_a_quien_esta_ocupado_ausente_o_ya_da_la_clase() -> Non
     assert "DORA" not in propuestos, "DORA está ausente esa hora"
     assert "ANA" not in propuestos, "ANA es la profesora de la clase"
     assert propuestos == ["BEA", "FRAN", "ELI", "GIL", "HUGO"]
+
+
+def test_una_guardia_de_recreo_ocupa_esa_hora_pero_cuenta_como_estar_en_el_centro() -> None:
+    p = _con(
+        _base(),
+        absences=(_ausencia_ana(),),
+        supervision_areas=(SupervisionArea("PATIO"),),
+        supervisions=(
+            Supervision("PATIO", 1, 1, "DORA"),
+            Supervision("PATIO", 1, 2, "GIL"),
+        ),
+    )
+    propuestos = _propuestos(p)
+    assert "DORA" not in propuestos, "DORA vigila el patio justo a esa hora"
+    assert propuestos == ["BEA", "FRAN", "GIL", "ELI", "HUGO"]
+    detalle = {c.teacher: c for c in candidates(p, _tt(p), LUNES, 1, 1)}
+    assert detalle["GIL"].at_school, "la guardia le obliga a venir ese día"
+    assert not detalle["ELI"].at_school
+
+
+def test_la_guardia_de_otro_dia_no_ocupa_ni_trae_al_profesor() -> None:
+    p = _con(
+        _base(),
+        absences=(_ausencia_ana(),),
+        supervision_areas=(SupervisionArea("PATIO"),),
+        supervisions=(Supervision("PATIO", 2, 1, "GIL"), Supervision("PATIO", 1, 1, "")),
+    )
+    detalle = {c.teacher: c for c in candidates(p, _tt(p), LUNES, 1, 1)}
+    assert "GIL" in detalle and not detalle["GIL"].at_school
+    assert _propuestos(p) == ["BEA", "FRAN", "DORA", "ELI", "GIL", "HUGO"]
+
+
+def test_la_reserva_9_deja_al_profesor_fuera_de_la_lista() -> None:
+    p = _con(_base(), absences=(_ausencia_ana(),))
+    profes = tuple(
+        dataclasses.replace(t, substitution_lock=9) if t.id in ("BEA", "HUGO") else t
+        for t in p.teachers
+    )
+    p = _con(p, teachers=profes)
+    assert _propuestos(p) == ["FRAN", "DORA", "ELI", "GIL"]
 
 
 def test_quien_ya_cubre_otra_clase_a_esa_hora_deja_de_proponerse() -> None:
@@ -404,7 +462,10 @@ def test_la_explicacion_del_candidato_esta_en_espanol() -> None:
     detalle = {c.teacher: c.reason for c in candidates(p, _tt(p), LUNES, 1, 1)}
     assert detalle["FRAN"] == "Ya está en el centro, da la materia, 0 sustituciones"
     assert detalle["BEA"] == "Ya está en el centro, da clase al grupo, 0 sustituciones"
-    assert detalle["HUGO"] == "Tendría que venir, no da la materia ni al grupo, 0 sustituciones, reserva 5"
+    assert (
+        detalle["HUGO"]
+        == "Tendría que venir, no da la materia ni al grupo, 0 sustituciones, reserva 5"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -459,7 +520,7 @@ def test_fachada_valida_los_festivos(nombre: str, inicio: str, fin: str, error: 
     s = _sesion()
     resultado = SVC.add_holiday(s, nombre, inicio, fin)
     assert not resultado.ok and error in resultado.message
-    assert s.project.holidays == ()
+    assert not s.project.holidays
 
 
 def test_fachada_alta_de_ausencias_con_ids_automaticos() -> None:
@@ -467,7 +528,9 @@ def test_fachada_alta_de_ausencias_con_ids_automaticos() -> None:
     assert SVC.add_absence(s, "teacher", "ANA", LUNES, reason="enfermedad").message == (
         "Ausencia A-1 dada de alta"
     )
-    assert SVC.add_absence(s, "class", "5B", LUNES, MIERCOLES).message == "Ausencia A-2 dada de alta"
+    assert (
+        SVC.add_absence(s, "class", "5B", LUNES, MIERCOLES).message == "Ausencia A-2 dada de alta"
+    )
     filas = SVC.absences(s, LUNES)
     assert [(f.id, f.entity_kind, f.entity_id) for f in filas] == [
         ("A-2", "class", "5B"),
@@ -500,16 +563,16 @@ def test_fachada_valida_las_ausencias(
     s = _sesion()
     resultado = SVC.add_absence(s, kind, entidad, inicio, fin, primera, ultima)
     assert not resultado.ok and error in resultado.message.lower()
-    assert s.project.absences == ()
+    assert not s.project.absences
 
 
 def test_fachada_baja_de_ausencia_lleva_sus_decisiones() -> None:
     s = _sesion()
     assert SVC.add_absence(s, "teacher", "ANA", LUNES).ok
     assert SVC.assign_substitute(s, LUNES, 1, 1, "BEA").ok
-    assert len(s.project.substitutions) == 1
+    assert [x.id for x in s.project.substitutions] == ["S-1"]
     assert SVC.remove_absence(s, "A-1").ok
-    assert s.project.absences == () and s.project.substitutions == ()
+    assert not s.project.absences and not s.project.substitutions
     assert not SVC.remove_absence(s, "A-1").ok
 
 
@@ -596,18 +659,51 @@ def test_fachada_corregir_una_decision_conserva_su_id() -> None:
         (1, 1, "ZZZ", "no existe"),
         (5, 1, "BEA", "no se da"),
         (1, 99, "BEA", "no se da"),
-        (1, 1, "CARL", "no está libre"),
-        (1, 1, "ANA", "no está libre"),
+        (1, 1, "CARL", "no se puede proponer"),
+        (1, 1, "ANA", "no se puede proponer"),
     ],
 )
-def test_fachada_valida_la_asignacion(
-    hora: int, leccion: int, profesor: str, error: str
-) -> None:
+def test_fachada_valida_la_asignacion(hora: int, leccion: int, profesor: str, error: str) -> None:
     s = _sesion()
     assert SVC.add_absence(s, "teacher", "ANA", LUNES).ok
     resultado = SVC.assign_substitute(s, LUNES, hora, leccion, profesor)
     assert not resultado.ok and error in resultado.message
-    assert s.project.substitutions == ()
+    assert not s.project.substitutions
+
+
+def test_fachada_una_guardia_de_recreo_saca_al_profesor_de_los_candidatos() -> None:
+    s = _sesion(
+        _con(
+            _base(),
+            supervision_areas=(SupervisionArea("PATIO"),),
+            supervisions=(Supervision("PATIO", 1, 1, "BEA"),),
+        )
+    )
+    assert SVC.add_absence(s, "teacher", "ANA", LUNES).ok
+    assert SVC.substitute_candidates(s, LUNES, 1, 1)[0].teacher == "FRAN"
+    rechazo = SVC.assign_substitute(s, LUNES, 1, 1, "BEA")
+    assert not rechazo.ok and "no se puede proponer" in rechazo.message
+    assert SVC.assign_substitute(s, LUNES, 1, 1, "BEA", force=True).ok
+
+
+def test_fachada_la_reserva_9_solo_se_salta_a_la_fuerza() -> None:
+    profes = tuple(
+        dataclasses.replace(t, substitution_lock=9) if t.id == "BEA" else t
+        for t in _base().teachers
+    )
+    s = _sesion(_con(_base(), teachers=profes))
+    assert SVC.add_absence(s, "teacher", "ANA", LUNES).ok
+    assert "BEA" not in [f.teacher for f in SVC.substitute_candidates(s, LUNES, 1, 1)]
+    assert not SVC.assign_substitute(s, LUNES, 1, 1, "BEA").ok
+    assert SVC.assign_substitute(s, LUNES, 1, 1, "BEA", force=True).ok
+
+
+def test_fachada_admite_la_ausencia_de_varios_dias_con_horas_cruzadas() -> None:
+    s = _sesion()
+    assert SVC.add_absence(s, "teacher", "ANA", LUNES, MIERCOLES, 5, 2).ok
+    ausencia = s.project.absences[0]
+    assert ausencia.covers(LUNES, 5) and not ausencia.covers(LUNES, 4)
+    assert ausencia.covers(MIERCOLES, 2) and not ausencia.covers(MIERCOLES, 3)
 
 
 def test_fachada_asignar_a_la_fuerza_y_tipos_de_decision() -> None:
@@ -667,7 +763,7 @@ def test_fachada_quitar_una_decision() -> None:
     assert not SVC.clear_decision(s, LUNES, 1, 1).ok
     assert SVC.assign_substitute(s, LUNES, 1, 1, "BEA").ok
     assert SVC.clear_decision(s, LUNES, 1, 1).ok
-    assert s.project.substitutions == ()
+    assert not s.project.substitutions
     assert SVC.day_report(s, LUNES).rows[0].pending
 
 
@@ -696,9 +792,9 @@ def test_deshacer_todas_las_ediciones_del_modulo() -> None:
     assert SVC.add_absence(s, "teacher", "ANA", LUNES).ok
     assert SVC.assign_substitute(s, LUNES, 1, 1, "BEA").ok
     assert s.undo_label == "Sustituir ANA por BEA"
-    assert SVC.undo(s) and s.project.substitutions == ()
-    assert SVC.undo(s) and s.project.absences == ()
-    assert SVC.undo(s) and s.project.holidays == ()
+    assert SVC.undo(s) and not s.project.substitutions
+    assert SVC.undo(s) and not s.project.absences
+    assert SVC.undo(s) and not s.project.holidays
     assert not s.can_undo
     assert SVC.redo(s) and [h.name for h in s.project.holidays] == ["Fiesta"]
 
@@ -728,6 +824,13 @@ def ventana(
     return w
 
 
+def _texto(tabla: QTableWidget, fila: int, columna: int) -> str:
+    """Texto de una celda (el `item` de Qt puede ser `None`)."""
+    celda = tabla.item(fila, columna)
+    assert celda is not None, (fila, columna)
+    return str(celda.text())
+
+
 def test_ventana_registrada_en_la_cinta() -> None:
     load_windows()
     s = spec("substitution")
@@ -752,10 +855,10 @@ def test_ventana_da_de_alta_una_ausencia_y_muestra_el_parte(
     assert ventana.add_absence("teacher", "ANA", LUNES, reason="enfermedad").ok
     qapp.processEvents()
     assert ventana.absence_table.rowCount() == 1
-    assert ventana.absence_table.item(0, 0).text() == "ANA"
-    assert ventana.absence_table.item(0, 2).text() == "05/10/2026"
+    assert _texto(ventana.absence_table, 0, 0) == "ANA"
+    assert _texto(ventana.absence_table, 0, 2) == "05/10/2026"
     assert ventana.day_table.rowCount() == 1
-    assert ventana.day_table.item(0, 1).text() == "1"
+    assert _texto(ventana.day_table, 0, 1) == "1"
     assert "por resolver" in ventana.weekday_label.text()
 
 
@@ -768,12 +871,12 @@ def test_ventana_propone_candidatos_y_asigna(
     assert [f.teacher for f in filas] == ["BEA", "FRAN", "DORA", "ELI", "GIL", "HUGO"]
     dialogo = ventana_mod.CandidatesDialog(filas, ventana)
     assert dialogo.teacher == "BEA"
-    assert dialogo.table.item(0, 3).text().startswith("Ya está en el centro")
+    assert _texto(dialogo.table, 0, 3).startswith("Ya está en el centro")
     assert ventana.assign("BEA").ok
     qapp.processEvents()
-    assert ventana.day_table.item(0, 7).text() == "BEA"
-    assert ventana.counter_table.item(0, 0).text() == "BEA"
-    assert ventana.counter_table.item(0, 1).text() == "1"
+    assert _texto(ventana.day_table, 0, 7) == "BEA"
+    assert _texto(ventana.counter_table, 0, 0) == "BEA"
+    assert _texto(ventana.counter_table, 0, 1) == "1"
 
 
 def test_ventana_suprime_cambia_de_aula_y_quita_la_decision(
@@ -783,24 +886,22 @@ def test_ventana_suprime_cambia_de_aula_y_quita_la_decision(
     ventana.day_table.selectRow(0)
     assert ventana.cancel_lesson().ok
     qapp.processEvents()
-    assert ventana.day_table.item(0, 6).text() == "Clase suprimida"
+    assert _texto(ventana.day_table, 0, 6) == "Clase suprimida"
     ventana.day_table.selectRow(0)
     assert ventana.change_room("R4").ok
     qapp.processEvents()
-    assert ventana.day_table.item(0, 5).text() == "R4"
+    assert _texto(ventana.day_table, 0, 5) == "R4"
     ventana.day_table.selectRow(0)
     assert ventana.clear_decision().ok
     qapp.processEvents()
-    assert ventana.day_table.item(0, 6).text() == ""
+    assert _texto(ventana.day_table, 0, 6) == ""
     assert not ventana.change_room("R9").ok
 
 
 def test_ventana_festivo_y_cambio_de_dia(
     ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
 ) -> None:
-    assert ventana.bridge.edit(
-        lambda: SVC.add_holiday(ventana.bridge.session, "Fiesta", LUNES)
-    ).ok
+    assert ventana.bridge.edit(lambda: SVC.add_holiday(ventana.bridge.session, "Fiesta", LUNES)).ok
     ventana.refresh()
     qapp.processEvents()
     assert "sin clase: Fiesta" in ventana.weekday_label.text()
@@ -824,7 +925,14 @@ def test_ventana_dialogo_de_ausencia_trae_los_datos(
     dialogo.kind_combo.setCurrentIndex(0)
     dialogo.first_period.setValue(3)
     kind, entidad, inicio, fin, primera, ultima, _motivo = dialogo.values()
-    assert (kind, entidad, inicio, fin, primera, ultima) == ("teacher", "ANA", LUNES, LUNES, 3, None)
+    assert (kind, entidad, inicio, fin, primera, ultima) == (
+        "teacher",
+        "ANA",
+        LUNES,
+        LUNES,
+        3,
+        None,
+    )
 
 
 def test_ventana_en_aleman_conserva_los_datos(

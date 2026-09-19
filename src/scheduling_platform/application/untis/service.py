@@ -55,6 +55,8 @@ from scheduling_platform.untis_model.evaluation import Evaluator
 from scheduling_platform.untis_model.sessions import dominant_teaching_duration
 
 from ..cancel import CancelToken
+from .bulk import BulkMixin
+from .bulk_lessons import BulkLessonsMixin
 from .columns import (
     COLLECTION_OF,
     ENTITY_OF,
@@ -65,6 +67,8 @@ from .columns import (
     parse_value,
 )
 from .session import UntisSession
+from .substitution import SubstitutionMixin
+from .supervision import SupervisionMixin
 from .texts import CRITERION_TEXTS, TAB_LABELS
 from .views import (
     CriterionLine,
@@ -219,8 +223,13 @@ def _period(numero: int, inicio: int, fin: int, tipo: PeriodKind) -> PeriodDef:
     return PeriodDef(numero, inicio, fin, kind=tipo, half_day=media)
 
 
-class UntisService:
-    """Casos de uso del producto, en vocabulario Untis."""
+class UntisService(BulkMixin, BulkLessonsMixin, SupervisionMixin, SubstitutionMixin):
+    """Casos de uso del producto, en vocabulario Untis.
+
+    Los módulos grandes viven en ficheros propios y entran como mixins: carga
+    masiva de datos y de lecciones (`bulk`), guardias de recreo (`supervision`)
+    y sustituciones del día (`substitution`).
+    """
 
     def __init__(self) -> None:
         self._delta_cache: tuple[UntisProject, Timetable, Evaluator, int] | None = None

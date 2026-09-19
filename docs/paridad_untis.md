@@ -53,3 +53,14 @@ desde cero con el export real 2026-2027 (ADR-039, `tests/test_real_2026_2027.py`
   visor real).
 - Que **Untis 2022** importe el XML y los GPU exportados.
 - La tarea 29 en papel (impresora real).
+
+## Más allá del horario (ADR-041)
+
+| # | Tarea | Dónde | Prueba automática | Manual |
+| --- | --- | --- | --- | --- |
+| 31 | Cargar profesores, clases, aulas y materias desde un CSV o pegando desde Excel | Datos maestros → Importar CSV / Ctrl+V | `test_importacion` | ☐ |
+| 32 | Definir las zonas de vigilancia y generar los turnos de cada recreo | Módulos → Guardias de recreo | `test_supervision` | ☐ |
+| 33 | Repartir las guardias equilibrando minutos y respetando el tope de cada profesor | Guardias → Repartir guardias | `test_supervision` | ☐ |
+| 34 | Dar de alta festivos y ausencias de profesores, clases o aulas | Módulos → Sustituciones | `test_substitution` | ☐ |
+| 35 | Ver el parte del día y proponer sustituto con su explicación | Sustituciones → Proponer sustituto | `test_substitution` | ☐ |
+| 36 | Suprimir una clase, cambiarle el aula y llevar los contadores por profesor | Sustituciones | `test_substitution` | ☐ |

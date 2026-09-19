@@ -132,7 +132,7 @@ def warning_icon() -> QIcon:
     return icon("warning")
 
 
-def _split_block(text: str) -> list[list[str]]:
+def split_block(text: str) -> list[list[str]]:
     """Texto del portapapeles -> filas de celdas (tabulador entre columnas)."""
     normalizado = text.replace("\r\n", "\n").replace("\r", "\n")
     return [linea.split("\t") for linea in normalizado.split("\n") if linea.strip()]
@@ -937,7 +937,11 @@ class MasterDataGrid(QWidget):
         """Índices de columna visibles, en el orden en que se ven (no el del modelo)."""
         cabecera = self.view.horizontalHeader()
         columnas = [cabecera.logicalIndex(v) for v in range(cabecera.count())]
-        return [c for c in columnas if 0 <= c < len(self.model.columns) and not cabecera.isSectionHidden(c)]
+        return [
+            c
+            for c in columnas
+            if 0 <= c < len(self.model.columns) and not cabecera.isSectionHidden(c)
+        ]
 
     def selected_source_rows(self) -> list[int]:
         """Filas del modelo seleccionadas, en el orden en que se ven (sin la vacía)."""
@@ -992,7 +996,7 @@ class MasterDataGrid(QWidget):
         """
         if self.model.table is None or not self.bridge.has_session:
             return False
-        bloque = _split_block(text)
+        bloque = split_block(text)
         if not bloque:
             self.show_message(self.tr("El portapapeles no trae ninguna fila."))
             return False
@@ -1016,7 +1020,7 @@ class MasterDataGrid(QWidget):
         def aplicar() -> EditResult:
             resultado = import_master(self.bridge.session, self.kind, tabla)
             informe.append(resultado)
-            return EditResult(resultado.ok, resultado.summary())
+            return EditResult(resultado.ok, resultado.summary().splitlines()[0])
 
         self.bridge.edit(aplicar)
         if not informe:
@@ -1044,7 +1048,7 @@ class MasterDataGrid(QWidget):
                 self.bridge.session, self.kind, ediciones, label=self.tr("Pegar datos")
             )
             resultado.append(salida)
-            return EditResult(salida.ok, salida.summary())
+            return EditResult(salida.ok, salida.summary().splitlines()[0])
 
         self.bridge.edit(aplicar)
         if not resultado:
@@ -1088,11 +1092,17 @@ class MasterDataGrid(QWidget):
         if not ruta:
             return
         previo = preview_import(self.bridge.session, self.kind, Path(ruta))
+        falta = previo.missing_summary()
+        aviso = (
+            self.tr("{0}\nDa de alta eso primero y vuelve a importar.\n\n").format(falta)
+            if falta
+            else ""
+        )
         respuesta = QMessageBox.question(
             self,
             self.tr("Importar CSV"),
-            self.tr("Se va a importar «{0}»:\n\n{1}\n\n¿Continúo?").format(
-                Path(ruta).name, previo.summary()
+            self.tr("Se va a importar «{0}»:\n\n{1}{2}\n\n¿Continúo?").format(
+                Path(ruta).name, aviso, previo.summary()
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
         )
@@ -1108,7 +1118,7 @@ class MasterDataGrid(QWidget):
         def aplicar() -> EditResult:
             resultado = import_master(self.bridge.session, self.kind, Path(path))
             informe.append(resultado)
-            return EditResult(resultado.ok, resultado.summary())
+            return EditResult(resultado.ok, resultado.summary().splitlines()[0])
 
         self.bridge.edit(aplicar)
         if not informe:
@@ -1152,6 +1162,12 @@ class MasterDataGrid(QWidget):
         menu.addAction(self.add_action)
         if self.selection_kind is not None:
             menu.addAction(self.requests_action)
+        menu.addSeparator()
+        menu.addAction(self.copy_action)
+        menu.addAction(self.paste_action)
+        menu.addSeparator()
+        menu.addAction(self.import_action)
+        menu.addAction(self.export_action)
         menu.addSeparator()
         menu.addAction(self.remove_action)
         return menu
@@ -1202,6 +1218,28 @@ class MasterDataGrid(QWidget):
             self.tr("Columnas"),
             self.tr("Elige qué columnas se ven; también con clic derecho en la cabecera"),
         )
+        copiar = self.tr("Copia las filas seleccionadas para pegarlas en Excel (Ctrl+C)")
+        pegar = self.tr(
+            "Pega filas de Excel: sobre el nombre corto las nuevas se dan de alta; "
+            "todo en un solo deshacer (Ctrl+V)"
+        )
+        importar = self.tr(
+            "Carga de golpe un archivo CSV con todas las filas; antes muestra qué va a pasar"
+        )
+        exportar = self.tr(
+            "Guarda esta cuadrícula como CSV para editarla en Excel y volver a importarla"
+        )
+        for objetivo, texto, ayuda in (
+            (self.copy_button, self.tr("Copiar"), copiar),
+            (self.copy_action, self.tr("Copiar"), copiar),
+            (self.paste_button, self.tr("Pegar"), pegar),
+            (self.paste_action, self.tr("Pegar"), pegar),
+            (self.import_button, self.tr("Importar CSV"), importar),
+            (self.import_action, self.tr("Importar CSV..."), importar),
+            (self.export_button, self.tr("Exportar CSV"), exportar),
+            (self.export_action, self.tr("Exportar CSV..."), exportar),
+        ):
+            set_texts(objetivo, texto, ayuda)
         self.columns_menu.menuAction().setText(self.tr("Columnas"))
         self.columns_menu.menuAction().setToolTip(self.tr("Muestra u oculta columnas"))
         self._update_count()

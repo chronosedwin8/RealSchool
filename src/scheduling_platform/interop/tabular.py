@@ -100,6 +100,8 @@ def decode(data: bytes) -> tuple[str, str]:
     if data.startswith(BOM):
         return data.decode("utf-8-sig"), "utf-8-sig"
     for nombre in ENCODINGS:
+        if nombre == "utf-8-sig":
+            continue  # sin BOM no aporta nada: "utf-8" dice mejor lo que se leyó
         try:
             return data.decode(nombre), nombre
         except UnicodeDecodeError:

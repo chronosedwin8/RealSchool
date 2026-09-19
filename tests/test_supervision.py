@@ -5,11 +5,13 @@ determinista: una rejilla `G` de dos días con un solo recreo (el período 3, de
 20 min, entre las horas 2 y 4), cuatro profesores y un horario que los coloca a
 propósito antes, después o lejos del recreo.
 
-- ANA da clase las horas 2 y 4 del día 1: está a los dos lados del recreo.
-- BEA solo la hora 2 del día 1: está solo antes.
-- CAR la hora 4 del día 1 y la hora 2 del día 2: un lado cada día.
-- DAN daría clase pegada al recreo, pero tiene `supervision_max = 0`.
+- ANA da clase las horas 2 y 4 de los dos días: está a los dos lados.
+- BEA y CAR están a un solo lado del recreo cada día.
+- DAN daría clase pegado al recreo, pero tiene `supervision_max = 0`.
 - EVA solo da clase la hora 1: nunca está junto al recreo.
+
+`SCARCE` es ese mismo horario con el día 2 casi vacío: allí solo CAR puede
+vigilar, así que una de las dos zonas se queda sin cubrir.
 
 Mientras la Fachada no herede el mixin se prueba con `_Servicio`, que es
 exactamente `class _Servicio(SupervisionMixin, UntisService)`.
@@ -18,10 +20,10 @@ exactamente `class _Servicio(SupervisionMixin, UntisService)`.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 
 import pytest
-from PySide6.QtWidgets import QApplication, QComboBox
+from PySide6.QtWidgets import QApplication, QComboBox, QTableWidget
 from pytestqt.qtbot import QtBot
 
 from scheduling_platform.application import EditResult, UntisService, UntisSession
@@ -56,7 +58,7 @@ BREAK_MINUTES = 20
 BREAK_PERIOD = 3
 
 
-class _Servicio(SupervisionMixin, UntisService):
+class _Servicio(UntisService):
     """La Fachada con el mixin de guardias, hasta que `service.py` lo herede."""
 
 
@@ -76,11 +78,18 @@ def _lesson(number: int, teacher: str) -> Lesson:
 
 #: Profesor -> celdas `(día, hora)` en las que da clase en el horario de prueba.
 CLASSES: dict[str, tuple[tuple[int, int], ...]] = {
-    "ANA": ((1, 2), (1, 4)),
-    "BEA": ((1, 2),),
+    "ANA": ((1, 2), (1, 4), (2, 2), (2, 4)),
+    "BEA": ((1, 2), (2, 4)),
     "CAR": ((1, 4), (2, 2)),
     "DAN": ((1, 2), (1, 4)),
     "EVA": ((1, 1), (2, 1)),
+}
+
+#: Variante con el día 2 casi vacío: solo CAR está junto al recreo ese día.
+SCARCE: dict[str, tuple[tuple[int, int], ...]] = {
+    **CLASSES,
+    "ANA": ((1, 2), (1, 4)),
+    "BEA": ((1, 2),),
 }
 
 
@@ -88,17 +97,19 @@ def _project(
     *,
     areas: tuple[str, ...] = ("PATIO", "PASILLO"),
     days: tuple[int, ...] = (1, 2),
-    maximums: dict[str, int | None] | None = None,
+    maximums: Mapping[str, int | None] | None = None,
+    teaching: dict[str, tuple[tuple[int, int], ...]] | None = None,
 ) -> UntisProject:
     """Proyecto con rejilla, profesores, horario y zonas (sin turnos)."""
     topes = maximums or {"DAN": 0}
+    clases = teaching or CLASSES
     grid = build_grid("G", days=days, periods=4, start="08:00", duration=45, breaks={2: 20})
-    profesores = tuple(Teacher(id=t, supervision_max=topes.get(t)) for t in sorted(CLASSES))
-    lecciones = tuple(_lesson(i + 1, t) for i, t in enumerate(sorted(CLASSES)))
+    profesores = tuple(Teacher(id=t, supervision_max=topes.get(t)) for t in sorted(clases))
+    lecciones = tuple(_lesson(i + 1, t) for i, t in enumerate(sorted(clases)))
     asignaciones = tuple(
         Assignment(lesson_number=i + 1, line=0, day=d, period=p)
-        for i, t in enumerate(sorted(CLASSES))
-        for d, p in CLASSES[t]
+        for i, t in enumerate(sorted(clases))
+        for d, p in clases[t]
         if d in days
     )
     return UntisProject(
@@ -190,16 +201,20 @@ def _minutes_of(outcome: SupervisionOutcome, teacher: str) -> int:
 def test_reparto_cubre_y_no_repite_profesor_en_el_mismo_recreo() -> None:
     p = _all_shifts(_project())
     r = assign_supervisions(p)
-    assert r.total == 4
-    # Día 1: ANA, BEA y CAR son candidatos; día 2 solo CAR, así que una zona
-    # del día 2 se queda sin cubrir (nadie puede estar en dos sitios a la vez).
-    assert r.assigned == 3 and r.uncovered == 1
+    assert r.total == 4 and r.assigned == 4 and r.uncovered == 0
     por_celda: dict[tuple[int, int], set[str]] = {}
     for s in r.supervisions:
         if s.assigned:
             assert s.teacher not in por_celda.setdefault(s.slot, set())
             por_celda[s.slot].add(s.teacher)
     assert r.elapsed >= 0.0
+
+
+def test_una_zona_sin_candidatos_se_queda_sin_cubrir() -> None:
+    """El día 2 de `SCARCE` solo tiene a CAR: nadie puede estar en dos sitios."""
+    r = assign_supervisions(_all_shifts(_project(teaching=SCARCE)))
+    assert r.assigned == 3 and r.uncovered == 1
+    assert sorted(s.teacher for s in r.supervisions if s.day == 2) == ["", "CAR"]
 
 
 def test_solo_vigila_quien_da_clase_antes_o_despues() -> None:
@@ -231,7 +246,7 @@ def test_reparto_respeta_el_maximo_de_minutos() -> None:
     p = _all_shifts(_project(maximums={"DAN": 0, "ANA": BREAK_MINUTES}))
     r = assign_supervisions(p)
     assert _minutes_of(r, "ANA") <= BREAK_MINUTES
-    assert r.assigned == 3
+    assert r.assigned == 4
 
 
 def test_reparto_sin_nadie_con_cupo_deja_los_turnos_sin_cubrir() -> None:
@@ -241,13 +256,12 @@ def test_reparto_sin_nadie_con_cupo_deja_los_turnos_sin_cubrir() -> None:
 
 
 def test_reparto_equilibra_los_minutos() -> None:
-    """Cuatro zonas un solo día: ANA y BEA se reparten dos turnos cada una."""
-    p = _project(areas=("A", "B", "C", "D"), days=(1,))
-    r = assign_supervisions(_all_shifts(p, days=(1,)))
+    """Cuatro turnos entre tres candidatos: 20, 20 y 40 minutos, nunca 80."""
+    r = assign_supervisions(_all_shifts(_project()))
     assert r.assigned == 4 and r.uncovered == 0
     assert set(r.minutes_by_teacher) == {"ANA", "BEA", "CAR"}
-    assert r.spread <= BREAK_MINUTES
-    assert sum(r.minutes_by_teacher.values()) == 4 * BREAK_MINUTES
+    assert sorted(r.minutes_by_teacher.values()) == [20, 20, 40]
+    assert r.spread == BREAK_MINUTES
 
 
 def test_los_turnos_fijos_no_se_mueven() -> None:
@@ -263,6 +277,7 @@ def test_los_turnos_fijos_no_se_mueven() -> None:
         for s in p.supervisions
     )
     r = assign_supervisions(dataclasses.replace(p, supervisions=turnos))
+    assert r.assigned == 4
     fijos = {s.key: s.teacher for s in r.supervisions if s.fixed}
     assert fijos == {("PATIO", 1, BREAK_PERIOD): "BEA", ("PASILLO", 1, BREAK_PERIOD): "EVA"}
     assert _minutes_of(r, "EVA") == BREAK_MINUTES
@@ -362,7 +377,7 @@ def test_fachada_vista_de_la_parrilla(svc: _Servicio) -> None:
     vista = svc.supervision_grid(s, "G")
     assert vista.grid_id == "G"
     assert [(h.day, h.period) for h in vista.slots] == [(1, BREAK_PERIOD), (2, BREAK_PERIOD)]
-    assert vista.slots[0].start == "08:45" and vista.slots[0].minutes == BREAK_MINUTES
+    assert vista.slots[0].start == "09:30" and vista.slots[0].minutes == BREAK_MINUTES
     assert len(vista.cells) == 4 and vista.uncovered == 4
     assert "DAN" not in vista.teachers, "supervision_max = 0 no sale en el desplegable"
     celda = vista.cell("PATIO", 1, BREAK_PERIOD)
@@ -437,9 +452,12 @@ def test_fachada_reparto_automatico(svc: _Servicio) -> None:
     assert not fallo.ok and "horario" in fallo.message
 
     resultado = svc.distribute_supervisions(s, seed=3)
-    assert resultado.ok and "sin cubrir" in resultado.message
-    assert sum(1 for t in s.project.supervisions if t.assigned) == 3
+    assert resultado.ok and "4 de 4" in resultado.message
+    assert sum(1 for t in s.project.supervisions if t.assigned) == 4
     assert svc.undo(s) and not any(t.assigned for t in s.project.supervisions)
+
+    escaso = _session(_all_shifts(_project(teaching=SCARCE)))
+    assert "sin cubrir" in svc.distribute_supervisions(escaso).message
 
 
 def test_fachada_reparto_respeta_lo_puesto_a_mano(svc: _Servicio) -> None:
@@ -457,8 +475,8 @@ def test_fachada_resumen_por_profesor(svc: _Servicio) -> None:
     cargas = svc.supervision_load(s)
     assert [c.minutes for c in cargas] == sorted((c.minutes for c in cargas), reverse=True)
     por_id = {c.teacher: c for c in cargas}
-    assert sum(c.shifts for c in cargas) == 3
-    assert sum(c.minutes for c in cargas) == 3 * BREAK_MINUTES
+    assert sum(c.shifts for c in cargas) == 4
+    assert sum(c.minutes for c in cargas) == 4 * BREAK_MINUTES
     assert por_id["ANA"].maximum == 60 and not por_id["ANA"].over_max
     assert por_id["DAN"].minutes == 0 and por_id["DAN"].maximum == 0
 
@@ -492,6 +510,20 @@ def ventana(qtbot: QtBot, bridge: FacadeBridge, qapp: QApplication) -> Supervisi
     return w
 
 
+def _column(table: QTableWidget, column: int) -> str:
+    """Texto de una cabecera de columna (la parrilla siempre las pone)."""
+    cabecera = table.horizontalHeaderItem(column)
+    assert cabecera is not None
+    return cabecera.text()
+
+
+def _row(table: QTableWidget, row: int) -> str:
+    """Texto de una cabecera de fila (el nombre de la zona)."""
+    cabecera = table.verticalHeaderItem(row)
+    assert cabecera is not None
+    return cabecera.text()
+
+
 def _combo(window: SupervisionWindow, area: str, day: int) -> QComboBox:
     combo = window.cell_combos[(area, day, BREAK_PERIOD)]
     assert isinstance(combo, QComboBox)
@@ -516,11 +548,11 @@ def test_ventana_sin_proyecto_no_se_rompe(qtbot: QtBot, bridge: FacadeBridge) ->
 def test_ventana_pinta_la_parrilla(ventana: SupervisionWindow) -> None:
     assert ventana.grid_id == "G"
     assert ventana.table.rowCount() == 2 and ventana.table.columnCount() == 2
-    assert ventana.table.verticalHeaderItem(0).text() == "PATIO"
-    assert "Lunes" in ventana.table.horizontalHeaderItem(0).text()
+    assert _row(ventana.table, 0) == "PATIO"
+    assert "Lunes" in _column(ventana.table, 0)
     assert len(ventana.cell_combos) == 4
     assert _combo(ventana, "PATIO", 1).currentData() == ""
-    assert "sin cubrir" in ventana.banner.text()
+    assert "Sin cubrir: 4" in ventana.banner.text()
 
 
 def test_ventana_asigna_con_el_desplegable(ventana: SupervisionWindow, qapp: QApplication) -> None:
@@ -543,8 +575,9 @@ def test_ventana_reparte_y_deshace(ventana: SupervisionWindow) -> None:
     resultado = ventana.distribute()
     assert resultado.ok
     asignados = [t for t in ventana.bridge.session.project.supervisions if t.assigned]
-    assert len(asignados) == 3
-    assert ventana.load_table.rowCount() == len({t.teacher for t in asignados})
+    assert len(asignados) == 4
+    # Los tres que vigilan, más DAN, que tiene un máximo declarado (0 minutos).
+    assert ventana.load_table.rowCount() == len({t.teacher for t in asignados}) + 1
     assert ventana.bridge.undo()
 
 
@@ -559,7 +592,7 @@ def test_ventana_zonas_turnos_y_seleccion(
     assert not w.create_area("COMEDOR").ok
     assert w.build_shifts().ok
     assert w.table.rowCount() == 1 and w.table.columnCount() == 2
-    assert w.table.verticalHeaderItem(0).text() == "Comedor"
+    assert _row(w.table, 0) == "Comedor"
 
     assert not w.clear_selected().ok, "sin celda seleccionada no hay nada que quitar"
     assert not w.remove_area().ok
@@ -594,22 +627,20 @@ def test_ventana_iconos_ayudas_y_leyenda(ventana: SupervisionWindow) -> None:
 def test_ventana_cambia_de_idioma(ventana: SupervisionWindow, qapp: QApplication) -> None:
     ventana.bridge.set_language("de")
     qapp.processEvents()
-    assert "Montag" in ventana.table.horizontalHeaderItem(0).text()
+    assert "Montag" in _column(ventana.table, 0)
     ventana.bridge.set_language("es")
     qapp.processEvents()
-    assert "Lunes" in ventana.table.horizontalHeaderItem(0).text()
+    assert "Lunes" in _column(ventana.table, 0)
 
 
-def test_ventana_usa_la_fachada_suelta_si_el_servicio_no_lleva_el_mixin(
-    qtbot: QtBot, qapp: QApplication
-) -> None:
-    """Hasta que `UntisService` herede el mixin, la ventana funciona igual."""
+def test_la_fachada_trae_el_modulo_de_guardias(qtbot: QtBot, qapp: QApplication) -> None:
+    """`UntisService` hereda el mixin: la ventana usa la Fachada de siempre."""
     b = FacadeBridge(UntisService())
     b.attach(_session(_all_shifts(_project())))
     w = SupervisionWindow(b)
     qtbot.addWidget(w)
     qapp.processEvents()
-    assert not isinstance(b.service, SupervisionMixin)
+    assert isinstance(b.service, SupervisionMixin)
     assert len(w.cell_combos) == 4
     resultado: EditResult = w.distribute()
     assert resultado.ok

@@ -6,6 +6,11 @@ Diagnóstico y Diálogo de planificación— sobre un motor propio que Untis no
 tiene: CP-SAT exacto para reparar con cambio mínimo, pulir y demostrar
 infactibilidad.
 
+Y lo que viene después del horario: **guardias de recreo** repartidas con
+justicia y **sustituciones** del día a día cuando falta alguien. Todo desde su
+propia interfaz, sin depender de Untis para nada: los datos se teclean, se
+pegan desde una hoja de cálculo o se cargan de un CSV.
+
 - **Fuente de verdad:** [REFACTOR_UNTIS_MAESTRO.md](REFACTOR_UNTIS_MAESTRO.md)
   (supersede a `Prompt3.md` y `PLAN_DE_TRABAJO.md` en lo que contradiga; ver
   [ADR-034](docs/adr/ADR-034-reorientacion-a-untis.md)).
@@ -26,6 +31,15 @@ motor congelado (engine-1.0): core · dsl · cir · sal · pipeline · engine ·
 Las fronteras se verifican por AST en `tests/test_boundaries.py`: `untis_model`
 no importa nada; `interop` y `heuristic` solo el modelo; fuera del motor, solo
 `bridge` lo importa; la UI solo la Fachada.
+
+## Más allá del horario
+
+| Qué | Dónde | Cómo funciona |
+| --- | --- | --- |
+| Guardias de recreo | Módulos → Guardias | Zonas que vigilar y un turno por zona, día y recreo; el reparto solo propone a quien está en el centro justo antes o después, respeta el tope de minutos semanales de cada profesor y equilibra la carga ([ADR-041](docs/adr/ADR-041-guardias-sustituciones-y-carga-masiva.md)) |
+| Sustituciones | Módulos → Sustituciones | Festivos y ausencias de profesor, clase o aula con fechas y horas; el parte del día lista las clases afectadas y propone sustitutos ordenados y explicados; suprimir, cambiar aula y contadores por profesor |
+| Carga masiva | Datos maestros y Lecciones → Importar CSV, Ctrl+V | CSV o TSV con encabezados en español, alemán o técnicos; las filas buenas entran y las malas se explican; todo en un solo deshacer |
+| Marco horario | Deseos de tiempo | De qué hora a qué hora hay clase, aplicable a un curso, a los de su rejilla o a todos; cierra con −3 las horas de fuera ([ADR-040](docs/adr/ADR-040-marco-horario-y-bloqueos.md)) |
 
 ## Lo que ya funciona (datos reales, curso 2025-2026)
 
