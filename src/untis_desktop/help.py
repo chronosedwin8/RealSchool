@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from html import escape
 
 from PySide6.QtCore import QCoreApplication, QSize, Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -505,10 +506,20 @@ def help_entries() -> dict[str, HelpEntry]:
                 translate("help", "Elige el tipo (clase, profesor o aula) y la entidad."),
                 translate("help", "Revisa el horario en pantalla."),
                 translate(
+                    "help",
+                    "Arrastra una clase a otra hora para moverla: en verde las horas donde "
+                    "cabe, en rojo las que no, con el motivo.",
+                ),
+                translate(
                     "help", "Imprímelo o expórtalo a PDF o HTML, uno a uno o todos a la vez."
                 ),
             ),
             (
+                translate(
+                    "help",
+                    "Al pasar por encima de una hora verde se ve cuánto mejora o empeora la "
+                    "evaluación; Esc cancela y Ctrl+Z deshace.",
+                ),
                 translate(
                     "help",
                     "Los encabezados y el pie de las impresiones se editan en Datos del colegio.",
@@ -657,10 +668,27 @@ def help_html(key: str) -> str:
 
 _HELP_QSS = """
 QListWidget#help_topics { border: 0; background: #f8fafc; font-size: 10pt; }
-QListWidget#help_topics::item { padding: 6px 6px; }
+QListWidget#help_topics::item { padding: 3px 6px; }
 QListWidget#help_topics::item:selected { background: #dbeafe; color: #0f172a; }
+QListWidget#help_topics QScrollBar:vertical { background: #f8fafc; width: 12px; margin: 0; }
+QListWidget#help_topics QScrollBar::handle:vertical {
+    background: #cbd5e1; border-radius: 5px; min-height: 28px; margin: 2px;
+}
+QListWidget#help_topics QScrollBar::handle:vertical:hover { background: #94a3b8; }
+QListWidget#help_topics QScrollBar::add-line:vertical,
+QListWidget#help_topics QScrollBar::sub-line:vertical { height: 0; }
 QTextBrowser#help_text { border: 0; background: #ffffff; padding: 12px; font-size: 10pt; }
 """
+
+
+def _alto_util() -> int:
+    """Alto inicial del diálogo: casi toda la pantalla, para que quepan los temas.
+
+    Con la lista cortada y sin barra de desplazamiento visible parecía que la
+    ayuda se acababa en el último tema que se veía.
+    """
+    alto = QGuiApplication.primaryScreen().availableGeometry().height()
+    return max(560, min(980, int(alto * 0.88)))
 
 
 class HelpDialog(QDialog):
@@ -672,14 +700,15 @@ class HelpDialog(QDialog):
         self.setObjectName("help_dialog")
         self.setWindowIcon(icon("help"))
         self.setStyleSheet(_HELP_QSS)
-        self.resize(900, 640)
+        self.resize(960, _alto_util())
         self._topics = [(k, i) for k, i in topics if help_entry(k) is not None]
         self.current_key = ""
         self.list = QListWidget()
         self.list.setObjectName("help_topics")
-        self.list.setIconSize(QSize(18, 18))
+        self.list.setIconSize(QSize(16, 16))
         self.list.setFixedWidth(250)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.text = QTextBrowser()
         self.text.setObjectName("help_text")
         self.text.setOpenExternalLinks(False)

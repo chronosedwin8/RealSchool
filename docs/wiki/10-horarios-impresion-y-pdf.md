@@ -1,7 +1,8 @@
 # Horarios, impresión y PDF
 
 La ventana Horarios es la que se enseña a la gente: el horario de cada clase, de cada profesor
-o de cada aula, con el aspecto que quieras, listo para imprimir o para repartir en PDF.
+o de cada aula, con el aspecto que quieras, listo para imprimir o para repartir en PDF. Y las
+clases se mueven aquí mismo, arrastrándolas con el ratón.
 
 ![Horarios](img/timetables.png)
 
@@ -32,6 +33,30 @@ Cada panel tiene su propio tipo y su propia entidad.
 La casilla `Sincronizar` hace que los paneles sigan lo que eliges en las demás ventanas: si
 seleccionas un profesor en Datos maestros, el panel de profesores se pone en ese profesor.
 Desmárcala cuando quieras fijar una comparación y que no se te mueva.
+
+## Mover una clase arrastrando
+
+Igual que en Untis, no hace falta salir de aquí para cambiar una hora de sitio: arrastra la
+clase de una celda a otra dentro del mismo panel.
+
+1. Pulsa sobre la clase que quieres mover y arrastra sin soltar.
+2. El horario se pinta entero: en **verde** las horas donde esa clase cabe y en **rojo** las
+   que no. Deja el ratón quieto sobre una celda roja y la ayuda emergente dice por qué no
+   cabe: "el profesor está ocupado", "deseo imposible (-3)" o "lección fijada".
+3. Al pasar por encima de una hora verde aparece abajo cuánto **mejora o empeora la
+   evaluación** si la sueltas ahí: un número negativo es una mejora.
+4. Suelta en la hora que quieras. La clase se mueve y todos los paneles se actualizan.
+5. Si te arrepientes a mitad, pulsa **Esc**; y si ya la soltaste, **Ctrl+Z** lo deshace.
+
+Nunca se generan choques: una hora en la que el profesor, el grupo o el aula estén ocupados
+sale en rojo y no acepta la clase. Las horas cerradas con un deseo -3 tampoco.
+
+Solo se arrastra en el panel donde empiezas, y solo si estás viendo el horario activo. Si
+tienes abierto un horario generado antiguo, cámbialo antes en la lista de horarios.
+
+Para desprogramar una clase, fijarla o intercambiar dos, usa el
+[Diálogo de planificación](09-planificacion-manual.md): allí está el menú contextual con
+todas esas opciones y la lista de clases sin colocar.
 
 ## Los formatos
 

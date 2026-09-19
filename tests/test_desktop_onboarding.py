@@ -12,7 +12,7 @@ from functools import partial
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings, QTime
+from PySide6.QtCore import QSettings, Qt, QTime
 from PySide6.QtWidgets import QApplication, QWizard
 
 from scheduling_platform.application import DEFAULT_GRID_ID, MasterKind, OptimizeRequest
@@ -366,6 +366,33 @@ def test_f1_ayuda_de_la_ventana_activa(qapp: QApplication, settings: QSettings) 
     w._actions["guide"].trigger()
     assert w.help_dialog.current_key == GUIDE_KEY
     w.help_dialog.close()
+
+
+def test_la_ayuda_lista_todas_las_ventanas_y_se_ve_que_hay_mas(
+    qapp: QApplication, settings: QSettings
+) -> None:
+    """La lista de temas no cabe entera: tiene que verse que se puede seguir bajando.
+
+    Sin barra de desplazamiento visible parecía que la ayuda acababa en el
+    último tema que se veía.
+    """
+    w = _window(qapp, settings)
+    w._actions["help"].trigger()
+    dialogo = w.help_dialog
+    assert dialogo is not None
+    claves = [
+        dialogo.list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(dialogo.list.count())
+    ]
+    assert claves[0] == GUIDE_KEY
+    assert {s.key for s in load_windows()} <= set(claves)
+    assert dialogo.list.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOn, (
+        "sin barra visible la lista parece cortada"
+    )
+    # Y cada tema de la lista enseña algo cuando se elige.
+    for clave in claves:
+        dialogo.show_topic(clave)
+        assert len(dialogo.text.toPlainText()) > 120, clave
+    dialogo.close()
 
 
 # --------------------------------------------------------------------------- #

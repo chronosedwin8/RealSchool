@@ -10,6 +10,14 @@ cambia el panel de clases). Desde aquí se imprime o se exporta a PDF y HTML
 Las celdas usan texto negro o blanco según el color de la materia, marcan los
 choques con borde rojo y las lecciones fijadas con una chincheta; una leyenda
 lo explica y la ayuda emergente de cada celda trae la lección completa.
+
+Como en Untis, las clases se mueven arrastrándolas de una celda a otra dentro
+del panel donde se empieza: mientras se arrastra, las celdas posibles salen en
+verde y las imposibles en rojo con el motivo en la ayuda emergente, y al pasar
+por encima se ve el cambio del número de evaluación. Al soltar se mueve con la
+Fachada (que impide los choques) y se refrescan todos los paneles; Ctrl+Z lo
+deshace y Esc cancela el arrastre. La máquina de arrastre es la misma del
+Diálogo de planificación (`widgets/timetable_drag.py`).
 """
 
 from __future__ import annotations
@@ -22,7 +30,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QShowEvent
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -33,30 +40,36 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QSpinBox,
-    QTableWidget,
     QTableWidgetItem,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from scheduling_platform.application import MasterKind, TimetableGrid
+from scheduling_platform.application import (
+    EditResult,
+    MasterKind,
+    TimetableGrid,
+    UntisMoveTarget,
+)
 
 from ..export.html import FORMATS, TimetableFormat, cell_lines, timetable_html
 from ..export.pdf import html_to_pdf, print_html
 from ..icons import icon, icon_size
 from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
-from ..theme import BREAK_COLOR, day_name
+from ..theme import BREAK_COLOR, day_name, text_color_for
 from ..widgets.timetable_cells import (
     BLOCKED_ROLE,
     CONFLICT_ROLE,
     FIXED_ROLE,
+    MARK_ROLE,
     TimetableCellDelegate,
     cell_tooltip,
     legend_items,
     readable_colors,
 )
+from ..widgets.timetable_drag import Cell, DragState, MoveDragController, MoveDragTable
 from ..widgets.uikit import Legend, set_texts
 
 #: Icono de cada tipo de horario.
@@ -85,12 +98,14 @@ def safe_filename(text: str) -> str:
 
 
 class TimetablePane(QFrame):
-    """Un horario dentro de la ventana: selector de entidad y cuadrícula de solo lectura."""
+    """Un horario dentro de la ventana: selector de entidad y cuadrícula que se mueve."""
 
     def __init__(self, window: TimetablesWindow, default_kind: str) -> None:
         super().__init__()
         self.owner = window
         self.grid: TimetableGrid | None = None
+        self.shown_timetable: str | None = None
+        """Horario con el que se dibujó el panel: si no es el activo, no se arrastra."""
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.kind_combo = QComboBox()
         for clave, _master in KINDS:
@@ -102,12 +117,23 @@ class TimetablePane(QFrame):
         fuente = QFont()
         fuente.setBold(True)
         self.title_label.setFont(fuente)
-        self.table = QTableWidget()
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table = MoveDragTable()
         self.table.setWordWrap(True)
         self.table.setItemDelegate(TimetableCellDelegate(self.table))
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.dragger = MoveDragController(
+            self.table,
+            window.bridge,
+            self.cell_of,
+            self.position_of,
+            repaint=self.repaint_cells,
+            lesson_at=self.lesson_at,
+            message=window.show_drag_message,
+            after_move=self._after_move,
+            shown_timetable=lambda: self.shown_timetable,
+        )
+        self.table.dragger = self.dragger
         barra = QHBoxLayout()
         barra.addWidget(self.kind_combo)
         barra.addWidget(self.entity_combo, 1)
@@ -138,6 +164,12 @@ class TimetablePane(QFrame):
             self.kind_combo.setItemText(i, nombres[str(self.kind_combo.itemData(i))])
         self.kind_combo.setToolTip(self.tr("Tipo de horario: de clase, profesor, aula o materia"))
         self.entity_combo.setToolTip(self.tr("La clase, profesor, aula o materia que se muestra"))
+        self.table.setToolTip(
+            self.tr(
+                "Arrastra una clase a otra hora para moverla: verde = puede ir ahí, "
+                "rojo = no cabe. Esc cancela."
+            )
+        )
 
     def load_entities(self) -> None:
         """Rellena el combo de entidades conservando la elegida."""
@@ -177,14 +209,17 @@ class TimetablePane(QFrame):
     def reload(self) -> None:
         """Relee el horario de la entidad elegida y lo pinta."""
         bridge = self.owner.bridge
+        self.dragger.reset()
         if not bridge.has_session or not self.entity_id:
             self.grid = None
+            self.shown_timetable = None
         else:
+            self.shown_timetable = bridge.session.active_timetable or None
             self.grid = bridge.service.timetable_grid(bridge.session, self.kind, self.entity_id)
         self.redraw()
 
     def redraw(self) -> None:
-        """Pinta la cuadrícula con el formato actual de la ventana."""
+        """Rehace la cuadrícula con el formato actual de la ventana."""
         fmt = self.owner.format()
         tabla = self.table
         tabla.clear()
@@ -203,45 +238,130 @@ class TimetablePane(QFrame):
         tabla.setRowCount(len(grid.periods))
         tabla.setHorizontalHeaderLabels([day_name(d, idioma) for d in grid.days])
         tabla.setVerticalHeaderLabels([f"{p.number}\n{p.start}-{p.end}" for p in grid.periods])
-        for fila, periodo in enumerate(grid.periods):
-            for col, dia in enumerate(grid.days):
+        for fila in range(len(grid.periods)):
+            for col in range(len(grid.days)):
                 item = QTableWidgetItem()
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if periodo.is_break:
-                    item.setBackground(QBrush(QColor(BREAK_COLOR)))
-                    item.setToolTip(self.tr("Recreo"))
-                else:
-                    celdas = grid.at(dia, periodo.number)
-                    item.setText("\n".join(cell_lines(celdas, fmt)))
-                    fondo, texto = readable_colors(celdas, colors=fmt.colors)
-                    item.setBackground(QBrush(fondo))
-                    item.setForeground(QBrush(texto))
-                    item.setData(CONFLICT_ROLE, any(c.conflict for c in celdas))
-                    item.setData(FIXED_ROLE, any(c.fixed for c in celdas))
-                    cerrada = grid.is_blocked(dia, periodo.number)
-                    item.setData(BLOCKED_ROLE, cerrada)
-                    if any(c.fixed for c in celdas):
-                        negrita = QFont(fuente)
-                        negrita.setBold(True)
-                        item.setFont(negrita)
-                    ayuda = cell_tooltip(celdas)
-                    if cerrada:
-                        cerrado = self.tr("Hora cerrada (-3): aquí no puede haber clase")
-                        ayuda = "\n".join(x for x in (ayuda, cerrado) if x)
-                    item.setToolTip(ayuda)
                 tabla.setItem(fila, col, item)
+        self.repaint_cells(None)
+
+    def repaint_cells(self, cell: Cell | None) -> None:
+        """Repinta una celda, o todas si no se dice cuál (durante el arrastre)."""
+        if cell is None:
+            for fila in range(self.table.rowCount()):
+                for col in range(self.table.columnCount()):
+                    self._paint(fila, col)
+            return
+        pos = self.position_of(*cell)
+        if pos is not None:
+            self._paint(*pos)
+
+    def _paint(self, row: int, col: int) -> None:
+        """Pinta una celda con el formato actual y el estado del arrastre."""
+        grid = self.grid
+        item = self.table.item(row, col)
+        if grid is None or item is None:
+            return
+        periodo = grid.periods[row]
+        dia = grid.days[col]
+        if periodo.is_break:
+            item.setBackground(QBrush(QColor(BREAK_COLOR)))
+            item.setToolTip(self.tr("Recreo"))
+            return
+        fmt = self.owner.format()
+        celdas = grid.at(dia, periodo.number)
+        item.setText("\n".join(cell_lines(celdas, fmt)))
+        fondo, _texto = readable_colors(celdas, colors=fmt.colors)
+        item.setData(CONFLICT_ROLE, any(c.conflict for c in celdas))
+        item.setData(FIXED_ROLE, any(c.fixed for c in celdas))
+        cerrada = grid.is_blocked(dia, periodo.number)
+        item.setData(BLOCKED_ROLE, cerrada)
+        letra = QFont(self.table.font())
+        letra.setBold(any(c.fixed for c in celdas))
+        item.setFont(letra)
+        ayuda = [cell_tooltip(celdas)] if celdas else []
+        if cerrada:
+            ayuda.append(self.tr("Hora cerrada (-3): aquí no puede haber clase"))
+        fondo, marca = self.dragger.decorate(item, (dia, periodo.number), fondo, ayuda)
+        item.setData(MARK_ROLE, marca)
+        item.setBackground(QBrush(fondo))
+        item.setForeground(QBrush(text_color_for(fondo)))
+        item.setToolTip("\n".join(x for x in ayuda if x))
+
+    # --- geometría ------------------------------------------------------------ #
+
+    def cell_of(self, row: int, column: int) -> Cell | None:
+        """`(día, período)` de una celda de la tabla (`None` en recreos o fuera)."""
+        grid = self.grid
+        if grid is None or not (0 <= row < len(grid.periods) and 0 <= column < len(grid.days)):
+            return None
+        periodo = grid.periods[row]
+        return None if periodo.is_break else (grid.days[column], periodo.number)
+
+    def position_of(self, day: int, period: int) -> tuple[int, int] | None:
+        """`(fila, columna)` de la celda `(día, período)`."""
+        grid = self.grid
+        if grid is None or day not in grid.days:
+            return None
+        fila = next((i for i, p in enumerate(grid.periods) if p.number == period), None)
+        return None if fila is None else (fila, grid.days.index(day))
+
+    def item_at(self, day: int, period: int) -> QTableWidgetItem | None:
+        pos = self.position_of(day, period)
+        return self.table.item(*pos) if pos is not None else None
+
+    def lesson_at(self, day: int, period: int) -> int | None:
+        """Lección de la celda `(día, período)` (la primera si hay varias)."""
+        celdas = self.grid.at(day, period) if self.grid is not None else ()
+        return celdas[0].lesson if celdas else None
+
+    def select_cell(self, day: int, period: int) -> None:
+        pos = self.position_of(day, period)
+        if pos is not None:
+            self.table.setCurrentCell(*pos)
 
     def cell_text(self, day: int, period: int) -> str:
         """Texto que muestra la celda `(día, período)`."""
-        grid = self.grid
-        if grid is None or day not in grid.days:
-            return ""
-        col = grid.days.index(day)
-        fila = next((i for i, p in enumerate(grid.periods) if p.number == period), None)
-        if fila is None:
-            return ""
-        item = self.table.item(fila, col)
+        item = self.item_at(day, period)
         return item.text() if item is not None else ""
+
+    def cell_color(self, day: int, period: int) -> QColor:
+        """Color de fondo con el que se ve la celda ahora mismo."""
+        item = self.item_at(day, period)
+        return item.background().color() if item is not None else QColor()
+
+    # --- arrastrar y soltar ----------------------------------------------------- #
+    #
+    # Métodos públicos que llaman los manejadores de ratón de `MoveDragTable` y
+    # que ejercitan las pruebas sin ratón real.
+
+    @property
+    def drag(self) -> DragState | None:
+        """Arrastre en curso en este panel (`None` si no se arrastra nada)."""
+        return self.dragger.state
+
+    def begin_drag(self, lesson: int, cell: Cell | None) -> tuple[UntisMoveTarget, ...]:
+        """Empieza a arrastrar una sesión: destinos posibles e imposibles, pintados."""
+        return self.dragger.begin(lesson, cell)
+
+    def targets(self) -> dict[Cell, UntisMoveTarget]:
+        """Destinos del arrastre en curso (vacío si no se arrastra)."""
+        return self.dragger.targets()
+
+    def hover(self, day: int, period: int) -> int | None:
+        """Pasa por encima de una celda: cambio del número de evaluación."""
+        return self.dragger.hover(day, period)
+
+    def drop_on(self, day: int, period: int) -> EditResult:
+        """Suelta la sesión arrastrada en una celda."""
+        return self.dragger.drop_on(day, period)
+
+    def end_drag(self) -> None:
+        """Cancela el arrastre y deja el horario como estaba (Esc)."""
+        self.dragger.end()
+
+    def _after_move(self, cell: Cell) -> None:
+        self.owner.after_move(self, cell)
 
 
 class TimetablesWindow(QWidget):
@@ -286,6 +406,8 @@ class TimetablesWindow(QWidget):
             casilla.setIcon(icon(nombre))
             casilla.setIconSize(icon_size("small"))
         self.legend = Legend()
+        self.delta_label = QLabel()
+        self.delta_label.setMinimumWidth(220)
 
         self.print_button = QToolButton()
         self.print_button.setIcon(icon("print"))
@@ -336,10 +458,14 @@ class TimetablesWindow(QWidget):
         self._pane_grid = QGridLayout(self._pane_area)
         self._pane_grid.setContentsMargins(0, 0, 0, 0)
 
+        pie = QHBoxLayout()
+        pie.addWidget(self.legend, 1)
+        pie.addWidget(self.delta_label)
+
         principal = QVBoxLayout(self)
         principal.addLayout(barra)
         principal.addWidget(self._pane_area, 1)
-        principal.addWidget(self.legend)
+        principal.addLayout(pie)
 
         self._apply_format_to_controls(FORMATS["class"])
         self.format_combo.currentIndexChanged.connect(self._on_format_selected)
@@ -401,7 +527,10 @@ class TimetablesWindow(QWidget):
         self.layout_combo.setToolTip(self.tr("Cuántos horarios se ven a la vez: 1, 2 o 4"))
         self.format_combo.setToolTip(self.tr("Formato predefinido: qué datos lleva cada celda"))
         self.font_size.setToolTip(self.tr("Tamaño de la letra en las celdas"))
-        self.legend.set_items(legend_items(targets=False), self.tr("Leyenda:"))
+        self.legend.set_items(legend_items(targets=True), self.tr("Leyenda:"))
+        self.delta_label.setToolTip(
+            self.tr("Cuánto mejora o empeora la evaluación si sueltas la clase ahí")
+        )
         set_texts(
             self.print_button,
             self.tr("Imprimir / Exportar"),
@@ -521,6 +650,17 @@ class TimetablesWindow(QWidget):
     def active_pane(self) -> TimetablePane:
         return self.panes[self._active]
 
+    # --- arrastrar y soltar ------------------------------------------------------ #
+
+    def show_drag_message(self, text: str) -> None:
+        """Enseña el cambio de evaluación (o por qué no cabe) mientras se arrastra."""
+        self.delta_label.setText(text)
+
+    def after_move(self, pane: TimetablePane, cell: tuple[int, int]) -> None:
+        """Tras mover una clase: refresca todos los paneles y marca la celda nueva."""
+        self.refresh()
+        pane.select_cell(*cell)
+
     def pane_changed(self, pane: TimetablePane) -> None:
         """Un panel cambió de entidad: pasa a ser el activo y, si hay sincronía, avisa."""
         self._active = self.panes.index(pane)
@@ -550,8 +690,11 @@ class TimetablesWindow(QWidget):
 
     def _on_project_opened(self) -> None:
         self._entity_cache = {}
+        self.delta_label.clear()
         for pane in self.panes:
+            pane.dragger.reset()
             pane.grid = None
+            pane.shown_timetable = None
             pane.entity_combo.blockSignals(True)
             pane.entity_combo.clear()
             pane.entity_combo.blockSignals(False)

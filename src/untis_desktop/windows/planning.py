@@ -29,21 +29,12 @@ que son los que ejercitan las pruebas sin ratón real.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
-from PySide6.QtCore import (
-    QMimeData,
-    QPoint,
-    Qt,
-    QTimer,
-)
+from PySide6.QtCore import Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
     QContextMenuEvent,
-    QDrag,
     QDragEnterEvent,
-    QDragLeaveEvent,
     QDragMoveEvent,
     QDropEvent,
     QKeyEvent,
@@ -52,7 +43,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
@@ -61,7 +51,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QSplitter,
-    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -83,7 +72,6 @@ from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
 from ..theme import (
     BREAK_COLOR,
-    TARGET_NO_COLOR,
     TARGET_OK_COLOR,
     day_name,
     fmt_int,
@@ -111,13 +99,21 @@ from ..widgets.timetable_cells import (
 from ..widgets.timetable_cells import (
     MARK_ROLE as MARK_ROLE,
 )
+
+# Se reexportan ("as"): el arrastre vive ahora en `widgets/timetable_drag.py`.
+from ..widgets.timetable_drag import (
+    HOVER_DELAY_MS as HOVER_DELAY_MS,
+)
+from ..widgets.timetable_drag import (
+    MIME_SESSION as MIME_SESSION,
+)
+from ..widgets.timetable_drag import (
+    Cell,
+    DragState,
+    MoveDragController,
+    MoveDragTable,
+)
 from ..widgets.uikit import Banner, Legend, icon_label, make_action, set_texts, tool_button
-
-#: Tipo MIME del arrastre de una sesión (solo dentro de la aplicación).
-MIME_SESSION = "application/x-realschool-session"
-
-#: Espera antes de calcular el cambio de evaluación al pasar el ratón (ms).
-HOVER_DELAY_MS = 120
 
 #: Tipos de entidad que se pueden poner en foco.
 FOCUS_KINDS: tuple[tuple[str, MasterKind], ...] = (
@@ -126,44 +122,19 @@ FOCUS_KINDS: tuple[tuple[str, MasterKind], ...] = (
     ("room", MasterKind.ROOMS),
 )
 
-Cell = tuple[int, int]
-"""`(día, período)`."""
 
-
-@dataclass(slots=True)
-class DragState:
-    """Arrastre en curso: la sesión, sus destinos y la caché de cambios."""
-
-    lesson: int
-    source: Cell | None
-    targets: dict[Cell, UntisMoveTarget]
-    deltas: dict[Cell, int | None] = field(default_factory=dict)
-
-
-class PlanningGrid(QTableWidget):
+class PlanningGrid(MoveDragTable):
     """Cuadrícula del Diálogo de planificación: traduce ratón y teclado a órdenes."""
 
     def __init__(self, owner: PlanningWindow) -> None:
         super().__init__()
         self.owner = owner
-        self._press: QPoint | None = None
-        self._press_cell: Cell | None = None
-        self._hover_cell: Cell | None = None
-        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.setAcceptDrops(True)
-        self.viewport().setAcceptDrops(True)
-        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
-        self.setDropIndicatorShown(False)
         self.setItemDelegate(TimetableCellDelegate(self))
         self.setWordWrap(True)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.verticalHeader().setDefaultSectionSize(46)
-
-    def cell_at(self, pos: QPoint) -> Cell | None:
-        index = self.indexAt(pos)
-        return self.owner.cell_of(index.row(), index.column()) if index.isValid() else None
 
     # --- ratón -------------------------------------------------------------- #
 
@@ -177,73 +148,19 @@ class PlanningGrid(QTableWidget):
             self.owner.swap_with(*celda)
             return
         super().mousePressEvent(event)
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._press = event.position().toPoint()
-            self._press_cell = celda
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if (
-            self._press is not None
-            and self._press_cell is not None
-            and event.buttons() & Qt.MouseButton.LeftButton
-            and (event.position().toPoint() - self._press).manhattanLength()
-            >= QApplication.startDragDistance()
-        ):
-            celda = self._press_cell
-            self._press = None
-            self._press_cell = None
-            principal = self.owner.primary(*celda)
-            if principal is not None:
-                self.owner.begin_drag(principal.lesson, celda)
-                self.owner.run_drag(self)
-            return
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        self._press = None
-        self._press_cell = None
-        super().mouseReleaseEvent(event)
+    def start_drag(self, cell: Cell) -> bool:
+        principal = self.owner.primary(*cell)
+        if principal is None:
+            return False
+        self.owner.begin_drag(principal.lesson, cell)
+        self.owner.run_drag(self)
+        return True
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         celda = self.cell_at(event.position().toPoint())
         if celda is not None:
             self.owner.open_lesson(*celda)
-
-    # --- arrastrar y soltar --------------------------------------------------- #
-
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        if event.mimeData().hasFormat(MIME_SESSION) and self.owner.drag is not None:
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
-        if self.owner.drag is None:
-            event.ignore()
-            return
-        celda = self.cell_at(event.position().toPoint())
-        if celda != self._hover_cell:
-            self._hover_cell = celda
-            self.owner.hover_later(celda)
-        event.acceptProposedAction()
-
-    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
-        self._hover_cell = None
-        self.owner.hover_later(None)
-        super().dragLeaveEvent(event)
-
-    def dropEvent(self, event: QDropEvent) -> None:
-        self._hover_cell = None
-        celda = self.cell_at(event.position().toPoint())
-        if celda is None or self.owner.drag is None:
-            event.ignore()
-            self.owner.end_drag()
-            return
-        resultado = self.owner.drop_on(*celda)
-        if resultado.ok:
-            event.acceptProposedAction()
-        else:
-            event.ignore()
 
     # --- teclado y menú -------------------------------------------------------- #
 
@@ -321,7 +238,6 @@ class PlanningWindow(QWidget):
         self.bridge = bridge
         self.focus: tuple[str, str] | None = None
         self.grid: TimetableGrid | None = None
-        self.drag: DragState | None = None
         self.swap_source: tuple[int, Cell] | None = None
         self._swap_candidates: set[Cell] = set()
         self._days: tuple[int, ...] = ()
@@ -329,12 +245,6 @@ class PlanningWindow(QWidget):
         self._lessons: dict[int, UntisLessonRow] = {}
         self._rendered: tuple[object, str | None, tuple[str, str] | None] | None = None
         self._stale = True
-        self._hover: Cell | None = None
-        self._pending_hover: Cell | None = None
-        self._hover_timer = QTimer(self)
-        self._hover_timer.setSingleShot(True)
-        self._hover_timer.setInterval(HOVER_DELAY_MS)
-        self._hover_timer.timeout.connect(self._hover_pending)
 
         # --- barra de foco -------------------------------------------------- #
         self.kind_label = QLabel()
@@ -389,6 +299,17 @@ class PlanningWindow(QWidget):
         capa_izq.addWidget(self.unplaced_list, 1)
         capa_izq.addWidget(self.unplaced_empty)
         self.table = PlanningGrid(self)
+        self.dragger = MoveDragController(
+            self.table,
+            bridge,
+            self.cell_of,
+            self._position,
+            repaint=self._repaint,
+            lesson_at=self._lesson_at,
+            message=self.delta_label.setText,
+            after_move=self._after_move,
+        )
+        self.table.dragger = self.dragger
         self.table.currentCellChanged.connect(lambda *_: self._update_cell_buttons())
         division = QSplitter(Qt.Orientation.Horizontal)
         division.addWidget(izquierda)
@@ -587,7 +508,7 @@ class PlanningWindow(QWidget):
     def _on_project_opened(self) -> None:
         self.focus = None
         self._rendered = None
-        self.drag = None
+        self.dragger.reset()
         self.swap_source = None
         self._load_entities()
 
@@ -798,26 +719,8 @@ class PlanningWindow(QWidget):
         item.setData(DELTA_ROLE, None)
         marca = ""
         celda = (dia, periodo.number)
-        drag = self.drag
-        if drag is not None:
-            if celda == drag.source:
-                marca = "source"
-            objetivo = drag.targets.get(celda)
-            if objetivo is not None:
-                fondo = QColor(TARGET_OK_COLOR if objetivo.feasible else TARGET_NO_COLOR)
-                if objetivo.feasible:
-                    delta = drag.deltas.get(celda)
-                    if delta is not None:
-                        item.setData(DELTA_ROLE, delta)
-                        ayuda.append(self.tr("Cambio de evaluación: {0:+d}").format(delta))
-                    else:
-                        ayuda.append(self.tr("Destino posible"))
-                else:
-                    ayuda.append(self.tr("No cabe: {0}").format(objetivo.reason))
-                if objetivo.warning:
-                    ayuda.append(self.tr("Ojo: {0}").format(objetivo.warning))
-            if celda == self._hover and marca != "source":
-                marca = "hover"
+        if self.drag is not None:
+            fondo, marca = self.dragger.decorate(item, celda, fondo, ayuda)
         elif self.swap_source is not None:
             if celda == self.swap_source[1]:
                 marca = "source"
@@ -837,115 +740,59 @@ class PlanningWindow(QWidget):
             self._paint(*pos)
 
     # --- arrastrar y soltar -------------------------------------------------------------- #
+    #
+    # La máquina de arrastre es `MoveDragController` (widgets/timetable_drag.py),
+    # compartida con la ventana Horarios. Aquí quedan los métodos públicos que
+    # llaman los manejadores de ratón y ejercitan las pruebas.
+
+    @property
+    def drag(self) -> DragState | None:
+        """Arrastre en curso (`None` si no se está arrastrando nada)."""
+        return self.dragger.state
+
+    def _repaint(self, cell: Cell | None) -> None:
+        """Repinta una celda, o toda la cuadrícula si no se dice cuál."""
+        if cell is None:
+            self._paint_all()
+        else:
+            self._paint_cell(cell)
+
+    def _lesson_at(self, day: int, period: int) -> int | None:
+        celda = self.primary(day, period)
+        return celda.lesson if celda is not None else None
+
+    def _after_move(self, cell: Cell) -> None:
+        self.refresh()
+        self.select_cell(*cell)
 
     def begin_drag(self, lesson: int, cell: Cell | None) -> tuple[UntisMoveTarget, ...]:
         """Empieza a arrastrar una sesión: pide (una vez) los destinos y los pinta."""
         self.cancel_modes()
-        if not self.bridge.has_session:
-            return ()
-        objetivos = self.bridge.service.move_targets(self.bridge.session, lesson, cell)
-        self.drag = DragState(lesson, cell, {(t.day, t.period): t for t in objetivos})
-        self._paint_all()
-        posibles = sum(1 for t in objetivos if t.feasible)
-        self.delta_label.setText(
-            self.tr("Lección {0}: {1} destino(s) posible(s)").format(lesson, posibles)
-        )
-        return objetivos
+        return self.dragger.begin(lesson, cell)
 
     def targets(self) -> dict[Cell, UntisMoveTarget]:
         """Destinos del arrastre en curso (vacío si no se arrastra)."""
-        return dict(self.drag.targets) if self.drag is not None else {}
+        return self.dragger.targets()
 
     def hover(self, day: int, period: int) -> int | None:
-        """El ratón pasa sobre una celda durante el arrastre: cambio de evaluación.
-
-        Solo se calcula para destinos posibles y una vez por celda y arrastre.
-        """
-        drag = self.drag
-        if drag is None:
-            return None
-        anterior = self._hover
-        self._hover = (day, period)
-        self._paint_cell(anterior)
-        objetivo = drag.targets.get((day, period))
-        if objetivo is None or not objetivo.feasible:
-            motivo = objetivo.reason if objetivo is not None else self.tr("fuera de la rejilla")
-            self.delta_label.setText(self.tr("No cabe: {0}").format(motivo))
-            self._paint_cell(self._hover)
-            return None
-        if (day, period) not in drag.deltas:
-            drag.deltas[(day, period)] = self.bridge.service.move_delta(
-                self.bridge.session, drag.lesson, drag.source, (day, period)
-            )
-        delta = drag.deltas[(day, period)]
-        if delta is None:
-            self.delta_label.setText(self.tr("Destino posible"))
-        else:
-            self.delta_label.setText(self.tr("Cambio de evaluación: {0:+d}").format(delta))
-        self._paint_cell(self._hover)
-        return delta
+        """El ratón pasa sobre una celda durante el arrastre: cambio de evaluación."""
+        return self.dragger.hover(day, period)
 
     def hover_later(self, cell: Cell | None) -> None:
         """Programa `hover` tras una espera corta (el ratón puede seguir de largo)."""
-        self._pending_hover = cell
-        if cell is None:
-            self._hover_timer.stop()
-            anterior = self._hover
-            self._hover = None
-            self._paint_cell(anterior)
-        else:
-            self._hover_timer.start()
-
-    def _hover_pending(self) -> None:
-        if self._pending_hover is not None:
-            self.hover(*self._pending_hover)
+        self.dragger.hover_later(cell)
 
     def drop_on(self, day: int, period: int) -> EditResult:
         """Suelta la sesión arrastrada en una celda."""
-        drag = self.drag
-        if drag is None:
-            return EditResult.failure(self.tr("No se está arrastrando nada"))
-        self.end_drag()
-        destino = (day, period)
-        if destino == drag.source:
-            return EditResult.success()
-        objetivo = drag.targets.get(destino)
-        if objetivo is None:
-            mensaje = self.tr("Esa celda no es un destino de la sesión")
-            self.bridge.status.emit(mensaje)
-            return EditResult.failure(mensaje)
-        if not objetivo.feasible:
-            mensaje = self.tr("No cabe: {0}").format(objetivo.reason)
-            self.bridge.status.emit(mensaje)
-            return EditResult.failure(mensaje)
-        s = self.bridge.session
-        resultado = self.bridge.edit(
-            lambda: self.bridge.service.move_session(s, drag.lesson, drag.source, destino)
-        )
-        if resultado.ok:
-            self.refresh()
-            self.select_cell(day, period)
-        return resultado
+        return self.dragger.drop_on(day, period)
 
     def end_drag(self) -> None:
         """Termina el arrastre y quita los colores de destino."""
-        self._hover_timer.stop()
-        self._hover = None
-        self._pending_hover = None
-        if self.drag is not None:
-            self.drag = None
-            self._paint_all()
+        self.dragger.end()
 
     def run_drag(self, source: QWidget) -> None:
         """Arrastre real con `QDrag` (bucle de eventos propio de Qt)."""
-        if self.drag is None:
-            return
-        mime = QMimeData()
-        mime.setData(MIME_SESSION, str(self.drag.lesson).encode("ascii"))
-        arrastre = QDrag(source)
-        arrastre.setMimeData(mime)
-        arrastre.exec(Qt.DropAction.MoveAction)
-        self.end_drag()
+        self.dragger.run(source)
 
     def cancel_modes(self) -> None:
         """Cancela el arrastre o el intercambio en curso (Esc)."""

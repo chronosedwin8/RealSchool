@@ -939,12 +939,12 @@ Fehler in den Eingabedaten: Behebe ihn im angegebenen Fenster.</translation>
 <context>
     <name>HelpDialog</name>
     <message>
-        <location filename="../help.py" line="702"/>
+        <location filename="../help.py" line="721"/>
         <source>Ayuda de RealSchool</source>
         <translation>RealSchool-Hilfe</translation>
     </message>
     <message>
-        <location filename="../help.py" line="703"/>
+        <location filename="../help.py" line="722"/>
         <source>Cerrar</source>
         <translation>Schließen</translation>
     </message>
@@ -2623,18 +2623,18 @@ Fortfahren?</translation>
 <context>
     <name>PlanningWindow</name>
     <message>
-        <location filename="../windows/planning.py" line="421"/>
+        <location filename="../windows/planning.py" line="342"/>
         <source>Clase</source>
-        <extracomment>Tipo MIME del arrastre de una sesión (solo dentro de la aplicación). Espera antes de calcular el cambio de evaluación al pasar el ratón (ms). Tipos de entidad que se pueden poner en foco.</extracomment>
+        <extracomment>Tipos de entidad que se pueden poner en foco.</extracomment>
         <translation>Klasse</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="422"/>
+        <location filename="../windows/planning.py" line="343"/>
         <source>Profesor</source>
         <translation>Lehrer</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="423"/>
+        <location filename="../windows/planning.py" line="344"/>
         <source>Aula</source>
         <translation>Raum</translation>
     </message>
@@ -2643,22 +2643,22 @@ Fortfahren?</translation>
         <translation type="vanished">Fokus:</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="432"/>
+        <location filename="../windows/planning.py" line="353"/>
         <source>Sin colocar</source>
         <translation>Nicht verplant</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="667"/>
+        <location filename="../windows/planning.py" line="588"/>
         <source>{0} {1} {2}: {3} sin colocar</source>
         <translation>{0} {1} {2}: {3} nicht verplant</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="690"/>
+        <location filename="../windows/planning.py" line="611"/>
         <source>Sin horario activo</source>
         <translation>Kein aktiver Stundenplan</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="695"/>
+        <location filename="../windows/planning.py" line="616"/>
         <source>Evaluación: {0} ({1} sin colocar, {2} choques)</source>
         <translation>Bewertung: {0} ({1} nicht verplant, {2} Kollisionen)</translation>
     </message>
@@ -2675,250 +2675,238 @@ Fortfahren?</translation>
         <translation type="vanished"> - Kollision</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="812"/>
-        <location filename="../windows/planning.py" line="884"/>
         <source>Cambio de evaluación: {0:+d}</source>
-        <translation>Änderung der Bewertung: {0:+d}</translation>
+        <translation type="vanished">Änderung der Bewertung: {0:+d}</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="814"/>
-        <location filename="../windows/planning.py" line="882"/>
         <source>Destino posible</source>
-        <translation>Mögliches Ziel</translation>
+        <translation type="vanished">Mögliches Ziel</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="816"/>
-        <location filename="../windows/planning.py" line="873"/>
-        <location filename="../windows/planning.py" line="918"/>
         <source>No cabe: {0}</source>
-        <translation>Nicht möglich: {0}</translation>
+        <translation type="vanished">Nicht möglich: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="826"/>
+        <location filename="../windows/planning.py" line="729"/>
         <source>Clic para intercambiar</source>
         <translation>Klicken zum Tauschen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="851"/>
         <source>Lección {0}: {1} destino(s) posible(s)</source>
-        <translation>Unterricht {0}: {1} mögliche(s) Ziel(e)</translation>
+        <translation type="vanished">Unterricht {0}: {1} mögliche(s) Ziel(e)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="872"/>
         <source>fuera de la rejilla</source>
-        <translation>außerhalb des Zeitrasters</translation>
+        <translation type="vanished">außerhalb des Zeitrasters</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="907"/>
         <source>No se está arrastrando nada</source>
-        <translation>Es wird nichts gezogen</translation>
+        <translation type="vanished">Es wird nichts gezogen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="914"/>
         <source>Esa celda no es un destino de la sesión</source>
-        <translation>Diese Zelle ist kein Ziel der Stunde</translation>
+        <translation type="vanished">Diese Zelle ist kein Ziel der Stunde</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="966"/>
-        <location filename="../windows/planning.py" line="985"/>
+        <location filename="../windows/planning.py" line="813"/>
+        <location filename="../windows/planning.py" line="832"/>
         <source>La celda está vacía</source>
         <translation>Die Zelle ist leer</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="978"/>
+        <location filename="../windows/planning.py" line="825"/>
         <source>Elige una celda</source>
         <translation>Wähle eine Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1053"/>
+        <location filename="../windows/planning.py" line="900"/>
         <source>Elige la celda con la que intercambiar (Esc cancela)</source>
         <translation>Wähle die Zelle zum Tauschen (Esc bricht ab)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1063"/>
+        <location filename="../windows/planning.py" line="910"/>
         <source>Elige una celda ocupada</source>
         <translation>Wähle eine belegte Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1065"/>
+        <location filename="../windows/planning.py" line="912"/>
         <source>Es la misma lección</source>
         <translation>Das ist derselbe Unterricht</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1005"/>
-        <location filename="../windows/planning.py" line="1120"/>
+        <location filename="../windows/planning.py" line="852"/>
+        <location filename="../windows/planning.py" line="967"/>
         <source>Desfijar</source>
         <translation>Fixierung lösen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="427"/>
+        <location filename="../windows/planning.py" line="348"/>
         <source>Horario de:</source>
         <translation>Stundenplan von:</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="429"/>
+        <location filename="../windows/planning.py" line="350"/>
         <source>Qué horario se planifica: de una clase, profesor o aula</source>
         <translation>Welcher Stundenplan bearbeitet wird: einer Klasse, eines Lehrers oder eines Raums</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="431"/>
+        <location filename="../windows/planning.py" line="352"/>
         <source>La clase, profesor o aula cuyo horario se ve</source>
         <translation>Klasse, Lehrer oder Raum, dessen Stundenplan angezeigt wird</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="434"/>
+        <location filename="../windows/planning.py" line="355"/>
         <source>Períodos sin hora: arrástralos a la cuadrícula; suelta aquí para desprogramar</source>
         <translation>Stunden ohne Zeit: Ziehe sie in das Raster; hier ablegen zum Ausplanen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="436"/>
+        <location filename="../windows/planning.py" line="357"/>
         <source>Todo colocado.</source>
         <translation>Alles verplant.</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="439"/>
-        <location filename="../windows/planning.py" line="1008"/>
-        <location filename="../windows/planning.py" line="1120"/>
+        <location filename="../windows/planning.py" line="360"/>
+        <location filename="../windows/planning.py" line="855"/>
+        <location filename="../windows/planning.py" line="967"/>
         <source>Fijar</source>
         <translation>Fixieren</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="441"/>
+        <location filename="../windows/planning.py" line="362"/>
         <source>Fija o desfija la lección de la celda elegida: fijada no se mueve al optimizar</source>
         <translation>Fixiert den Unterricht der gewählten Zelle oder löst die Fixierung: Fixierter Unterricht wird beim Optimieren nicht verschoben</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="446"/>
+        <location filename="../windows/planning.py" line="367"/>
         <source>Desprogramar</source>
         <translation>Ausplanen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="447"/>
+        <location filename="../windows/planning.py" line="368"/>
         <source>Quita la clase de la celda elegida y la pasa a Sin colocar (F7)</source>
         <translation>Nimmt die Stunde aus der gewählten Zelle und verschiebt sie nach Nicht verplant (F7)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="451"/>
+        <location filename="../windows/planning.py" line="372"/>
         <source>Intercambiar</source>
         <translation>Tauschen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="452"/>
+        <location filename="../windows/planning.py" line="373"/>
         <source>Intercambia la celda elegida con otra: pulsa y luego haz clic en la otra</source>
         <translation>Tauscht die gewählte Zelle mit einer anderen: Klicke hier und danach auf die andere Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="456"/>
+        <location filename="../windows/planning.py" line="377"/>
         <source>Abrir lección</source>
         <translation>Unterricht öffnen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="457"/>
+        <location filename="../windows/planning.py" line="378"/>
         <source>Muestra la lección de la celda elegida en la ventana Lecciones</source>
         <translation>Zeigt den Unterricht der gewählten Zelle im Fenster Unterricht</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="462"/>
+        <location filename="../windows/planning.py" line="383"/>
         <source>Arrastra una clase para moverla: verde = puede ir ahí, rojo = no cabe. Clic derecho para fijar, desprogramar o intercambiar. Esc cancela.</source>
         <translation>Ziehe eine Stunde, um sie zu verschieben: grün = möglich, rot = passt nicht. Rechtsklick zum Fixieren, Ausplanen oder Tauschen. Esc bricht ab.</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="677"/>
+        <location filename="../windows/planning.py" line="598"/>
         <source>Lección {0}: {1} período(s) sin colocar. Arrástrala a la cuadrícula.</source>
         <translation>Unterricht {0}: {1} Stunde(n) nicht verplant. Ziehe ihn in das Raster.</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="700"/>
+        <location filename="../windows/planning.py" line="621"/>
         <source>Número de evaluación del horario activo: cuanto más bajo, mejor</source>
         <translation>Bewertungszahl des aktiven Stundenplans: Je niedriger, desto besser</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="785"/>
+        <location filename="../windows/planning.py" line="706"/>
         <source>Recreo</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="790"/>
+        <location filename="../windows/planning.py" line="711"/>
         <source>Hueco libre</source>
         <translation>Freier Platz</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="795"/>
+        <location filename="../windows/planning.py" line="716"/>
         <source>Hora cerrada (-3): aquí no puede haber clase</source>
         <translation>Stunde gesperrt (-3): hier kann kein Unterricht stattfinden</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="818"/>
         <source>Ojo: {0}</source>
-        <translation>Achtung: {0}</translation>
+        <translation type="vanished">Achtung: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1013"/>
+        <location filename="../windows/planning.py" line="860"/>
         <source>Elige antes una celda de la cuadrícula</source>
         <translation>Wähle zuerst eine Zelle im Raster</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1077"/>
+        <location filename="../windows/planning.py" line="924"/>
         <source>Sin horario</source>
         <translation>Kein Stundenplan</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1106"/>
+        <location filename="../windows/planning.py" line="953"/>
         <source>Abrir esta hora</source>
         <translation>Diese Stunde freigeben</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1106"/>
+        <location filename="../windows/planning.py" line="953"/>
         <source>Cerrar esta hora</source>
         <translation>Diese Stunde sperren</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1107"/>
+        <location filename="../windows/planning.py" line="954"/>
         <source>Vuelve a permitir clase aquí (quita el deseo -3)</source>
         <translation>Erlaubt hier wieder Unterricht (entfernt den Zeitwunsch -3)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1109"/>
+        <location filename="../windows/planning.py" line="956"/>
         <source>Pone un deseo -3: ni la optimización ni tú podréis poner clase aquí</source>
         <translation>Setzt den Zeitwunsch -3: weder die Optimierung noch Sie können hier Unterricht setzen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1121"/>
+        <location filename="../windows/planning.py" line="968"/>
         <source>Deja que la optimización la mueva</source>
         <translation>Die Optimierung darf sie verschieben</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1123"/>
+        <location filename="../windows/planning.py" line="970"/>
         <source>La optimización no la moverá de aquí</source>
         <translation>Die Optimierung verschiebt sie nicht von hier</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1128"/>
+        <location filename="../windows/planning.py" line="975"/>
         <source>Desprogramar (F7)</source>
         <translation>Ausplanen (F7)</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1129"/>
+        <location filename="../windows/planning.py" line="976"/>
         <source>Quita la clase de aquí y la pasa a la lista Sin colocar</source>
         <translation>Nimmt die Stunde von hier und verschiebt sie in die Liste Nicht verplant</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1134"/>
+        <location filename="../windows/planning.py" line="981"/>
         <source>Intercambiar con...</source>
         <translation>Tauschen mit...</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1135"/>
+        <location filename="../windows/planning.py" line="982"/>
         <source>Después haz clic en otra celda verde para cambiarlas de sitio</source>
         <translation>Klicke danach auf eine andere grüne Zelle, um beide zu tauschen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1141"/>
+        <location filename="../windows/planning.py" line="988"/>
         <source>Abrir lección {0}</source>
         <translation>Unterricht {0} öffnen</translation>
     </message>
     <message>
-        <location filename="../windows/planning.py" line="1142"/>
+        <location filename="../windows/planning.py" line="989"/>
         <source>Muestra la lección en la ventana Lecciones</source>
         <translation>Zeigt den Unterricht im Fenster Unterricht</translation>
     </message>
@@ -4076,43 +4064,48 @@ Fortfahren?</translation>
 <context>
     <name>TimetablePane</name>
     <message>
-        <location filename="../windows/timetables.py" line="132"/>
+        <location filename="../windows/timetables.py" line="158"/>
         <source>Clase</source>
         <extracomment>Icono de cada tipo de horario. Tipos de horario y su ventana de datos maestros. Disposiciones: nº de paneles -&gt; (filas, columnas).</extracomment>
         <translation>Klasse</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="133"/>
+        <location filename="../windows/timetables.py" line="159"/>
         <source>Profesor</source>
         <translation>Lehrer</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="134"/>
+        <location filename="../windows/timetables.py" line="160"/>
         <source>Aula</source>
         <translation>Raum</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="135"/>
+        <location filename="../windows/timetables.py" line="161"/>
         <source>Materia</source>
         <translation>Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="139"/>
+        <location filename="../windows/timetables.py" line="165"/>
         <source>Tipo de horario: de clase, profesor, aula o materia</source>
         <translation>Art des Stundenplans: Klasse, Lehrer, Raum oder Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="140"/>
+        <location filename="../windows/timetables.py" line="166"/>
         <source>La clase, profesor, aula o materia que se muestra</source>
         <translation>Angezeigte Klasse, angezeigter Lehrer, Raum oder angezeigtes Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="212"/>
+        <location filename="../windows/timetables.py" line="169"/>
+        <source>Arrastra una clase a otra hora para moverla: verde = puede ir ahí, rojo = no cabe. Esc cancela.</source>
+        <translation>Ziehe eine Stunde auf eine andere Zeit, um sie zu verschieben: grün = passt, rot = passt nicht. Esc bricht ab.</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="269"/>
         <source>Recreo</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="229"/>
+        <location filename="../windows/timetables.py" line="284"/>
         <source>Hora cerrada (-3): aquí no puede haber clase</source>
         <translation>Stunde gesperrt (-3): hier kann kein Unterricht stattfinden</translation>
     </message>
@@ -4120,251 +4113,256 @@ Fortfahren?</translation>
 <context>
     <name>TimetablesWindow</name>
     <message>
-        <location filename="../windows/timetables.py" line="369"/>
+        <location filename="../windows/timetables.py" line="495"/>
         <source>Horarios:</source>
         <translation>Stundenpläne:</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="370"/>
+        <location filename="../windows/timetables.py" line="496"/>
         <source>Formato:</source>
         <translation>Format:</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="371"/>
+        <location filename="../windows/timetables.py" line="497"/>
         <source>Letra:</source>
         <translation>Schrift:</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="373"/>
-        <location filename="../windows/timetables.py" line="387"/>
+        <location filename="../windows/timetables.py" line="499"/>
+        <location filename="../windows/timetables.py" line="513"/>
         <source>Clase</source>
         <translation>Klasse</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="374"/>
-        <location filename="../windows/timetables.py" line="385"/>
+        <location filename="../windows/timetables.py" line="500"/>
+        <location filename="../windows/timetables.py" line="511"/>
         <source>Profesor</source>
         <translation>Lehrer</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="375"/>
-        <location filename="../windows/timetables.py" line="386"/>
+        <location filename="../windows/timetables.py" line="501"/>
+        <location filename="../windows/timetables.py" line="512"/>
         <source>Aula</source>
         <translation>Raum</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="376"/>
+        <location filename="../windows/timetables.py" line="502"/>
         <source>Completo</source>
         <translation>Vollständig</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="377"/>
+        <location filename="../windows/timetables.py" line="503"/>
         <source>Compacto</source>
         <translation>Kompakt</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="378"/>
+        <location filename="../windows/timetables.py" line="504"/>
         <source>Impresión (sin colores)</source>
         <translation>Druck (ohne Farben)</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="384"/>
+        <location filename="../windows/timetables.py" line="510"/>
         <source>Materia</source>
         <translation>Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="384"/>
+        <location filename="../windows/timetables.py" line="510"/>
         <source>Muestra la materia en cada celda</source>
         <translation>Zeigt das Fach in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="385"/>
+        <location filename="../windows/timetables.py" line="511"/>
         <source>Muestra el profesor en cada celda</source>
         <translation>Zeigt den Lehrer in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="386"/>
+        <location filename="../windows/timetables.py" line="512"/>
         <source>Muestra el aula en cada celda</source>
         <translation>Zeigt den Raum in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="387"/>
+        <location filename="../windows/timetables.py" line="513"/>
         <source>Muestra la clase en cada celda</source>
         <translation>Zeigt die Klasse in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="390"/>
+        <location filename="../windows/timetables.py" line="516"/>
         <source>Colores</source>
         <translation>Farben</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="391"/>
+        <location filename="../windows/timetables.py" line="517"/>
         <source>Pinta cada celda con el color de su materia</source>
         <translation>Färbt jede Zelle in der Farbe ihres Fachs</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="395"/>
+        <location filename="../windows/timetables.py" line="521"/>
         <source>Sincronizar</source>
         <translation>Synchronisieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="396"/>
+        <location filename="../windows/timetables.py" line="522"/>
         <source>Los horarios siguen lo que eliges en las demás ventanas</source>
         <translation>Die Stundenpläne folgen deiner Auswahl in den anderen Fenstern</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="401"/>
+        <location filename="../windows/timetables.py" line="527"/>
         <source>Cuántos horarios se ven a la vez: 1, 2 o 4</source>
         <translation>Anzahl der gleichzeitig angezeigten Stundenpläne: 1, 2 oder 4</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="402"/>
+        <location filename="../windows/timetables.py" line="528"/>
         <source>Formato predefinido: qué datos lleva cada celda</source>
         <translation>Vordefiniertes Format: welche Daten jede Zelle enthält</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="403"/>
+        <location filename="../windows/timetables.py" line="529"/>
         <source>Tamaño de la letra en las celdas</source>
         <translation>Schriftgröße in den Zellen</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="404"/>
+        <location filename="../windows/timetables.py" line="530"/>
         <source>Leyenda:</source>
         <translation>Legende:</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="407"/>
-        <location filename="../windows/timetables.py" line="410"/>
+        <location filename="../windows/timetables.py" line="532"/>
+        <source>Cuánto mejora o empeora la evaluación si sueltas la clase ahí</source>
+        <translation>Um wie viel sich die Bewertung verbessert oder verschlechtert, wenn du die Stunde dort ablegst</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="536"/>
+        <location filename="../windows/timetables.py" line="539"/>
         <source>Imprimir / Exportar</source>
         <translation>Drucken / Exportieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="408"/>
+        <location filename="../windows/timetables.py" line="537"/>
         <source>Imprime el horario o lo guarda como PDF, HTML, GPU o XML</source>
         <translation>Druckt den Stundenplan oder speichert ihn als PDF, HTML, GPU oder XML</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="411"/>
+        <location filename="../windows/timetables.py" line="540"/>
         <source>Imprime o exporta horarios</source>
         <translation>Druckt oder exportiert Stundenpläne</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="414"/>
+        <location filename="../windows/timetables.py" line="543"/>
         <source>Imprimir...</source>
         <translation>Drucken...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="415"/>
+        <location filename="../windows/timetables.py" line="544"/>
         <source>Imprime el horario del panel activo</source>
         <translation>Druckt den Stundenplan des aktiven Bereichs</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="418"/>
+        <location filename="../windows/timetables.py" line="547"/>
         <source>PDF del horario...</source>
         <translation>Stundenplan als PDF...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="419"/>
+        <location filename="../windows/timetables.py" line="548"/>
         <source>Guarda el horario del panel activo como PDF</source>
         <translation>Speichert den Stundenplan des aktiven Bereichs als PDF</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="422"/>
+        <location filename="../windows/timetables.py" line="551"/>
         <source>HTML del horario...</source>
         <translation>Stundenplan als HTML...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="423"/>
+        <location filename="../windows/timetables.py" line="552"/>
         <source>Guarda el horario del panel activo como página web</source>
         <translation>Speichert den Stundenplan des aktiven Bereichs als Webseite</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="426"/>
+        <location filename="../windows/timetables.py" line="555"/>
         <source>Exportar todos (HTML, uno por entidad)...</source>
         <translation>Alle exportieren (HTML, je Element eine Datei)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="427"/>
+        <location filename="../windows/timetables.py" line="556"/>
         <source>Una página web por cada clase (o profesor, aula...) en una carpeta</source>
         <translation>Eine Webseite je Klasse (bzw. Lehrer, Raum...) in einem Ordner</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="430"/>
+        <location filename="../windows/timetables.py" line="559"/>
         <source>Exportar todos (un PDF)...</source>
         <translation>Alle exportieren (ein PDF)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="431"/>
+        <location filename="../windows/timetables.py" line="560"/>
         <source>Todos los horarios del tipo del panel activo en un único PDF</source>
         <translation>Alle Stundenpläne der Art des aktiven Bereichs in einem einzigen PDF</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="434"/>
+        <location filename="../windows/timetables.py" line="563"/>
         <source>Exportar GPU (MiUntisWeb)...</source>
         <translation>GPU exportieren (MiUntisWeb)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="435"/>
+        <location filename="../windows/timetables.py" line="564"/>
         <source>Archivos GPU del horario activo, para subirlos a MiUntisWeb</source>
         <translation>GPU-Dateien des aktiven Stundenplans zum Hochladen in MiUntisWeb</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="438"/>
+        <location filename="../windows/timetables.py" line="567"/>
         <source>Exportar XML (Untis)...</source>
         <translation>XML exportieren (Untis)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="439"/>
+        <location filename="../windows/timetables.py" line="568"/>
         <source>Todo el proyecto en XML para abrirlo en Untis</source>
         <translation>Das gesamte Projekt als XML zum Öffnen in Untis</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="594"/>
+        <location filename="../windows/timetables.py" line="737"/>
         <source>HTML exportado: {0}</source>
         <translation>HTML exportiert: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="599"/>
+        <location filename="../windows/timetables.py" line="742"/>
         <source>PDF exportado: {0}</source>
         <translation>PDF exportiert: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="630"/>
+        <location filename="../windows/timetables.py" line="773"/>
         <source>{0} archivo(s) exportado(s) en {1}</source>
         <translation>{0} Datei(en) exportiert nach {1}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="637"/>
+        <location filename="../windows/timetables.py" line="780"/>
         <source>GPU exportado: {0} archivo(s)</source>
         <translation>GPU exportiert: {0} Datei(en)</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="642"/>
+        <location filename="../windows/timetables.py" line="785"/>
         <source>XML exportado: {0}</source>
         <translation>XML exportiert: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="664"/>
+        <location filename="../windows/timetables.py" line="807"/>
         <source>Exportar PDF</source>
         <translation>PDF exportieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="673"/>
+        <location filename="../windows/timetables.py" line="816"/>
         <source>Exportar HTML</source>
         <translation>HTML exportieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="681"/>
+        <location filename="../windows/timetables.py" line="824"/>
         <source>Carpeta de destino</source>
         <translation>Zielordner</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="688"/>
+        <location filename="../windows/timetables.py" line="831"/>
         <source>Carpeta para los archivos GPU</source>
         <translation>Ordner für die GPU-Dateien</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="696"/>
+        <location filename="../windows/timetables.py" line="839"/>
         <source>Exportar XML</source>
         <translation>XML exportieren</translation>
     </message>
@@ -4609,648 +4607,648 @@ Fortfahren?</translation>
 <context>
     <name>help</name>
     <message>
-        <location filename="../help.py" line="52"/>
+        <location filename="../help.py" line="53"/>
         <source>Guía rápida</source>
         <extracomment>Clave de la ficha con el flujo completo (Ayuda -&gt; Guía rápida).</extracomment>
         <translation>Kurzanleitung</translation>
     </message>
     <message>
-        <location filename="../help.py" line="53"/>
+        <location filename="../help.py" line="54"/>
         <source>Un horario se construye siempre en el mismo orden: primero el tiempo disponible, después quién enseña qué a quién, y por último se genera y se revisa. La página de Inicio marca cada paso en verde cuando está hecho.</source>
         <translation>Ein Stundenplan entsteht immer in derselben Reihenfolge: zuerst die verfügbare Zeit, dann wer was in welcher Klasse unterrichtet, und zum Schluss wird er erzeugt und geprüft. Die Startseite markiert jeden erledigten Schritt grün.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="60"/>
+        <location filename="../help.py" line="61"/>
         <source>Rejilla de tiempo: indica los días lectivos, las horas de cada período y los recreos.</source>
         <translation>Zeitraster: Lege die Unterrichtstage, die Uhrzeiten jeder Stunde und die Pausen fest.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="65"/>
+        <location filename="../help.py" line="66"/>
         <source>Datos maestros: da de alta las clases, los profesores, las aulas y las materias con un nombre corto.</source>
         <translation>Stammdaten: Lege Klassen, Lehrer, Räume und Fächer jeweils mit einem Kurznamen an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="70"/>
+        <location filename="../help.py" line="71"/>
         <source>Lecciones: di qué profesor da qué materia a qué clase y cuántas horas por semana.</source>
         <translation>Unterricht: Gib an, welcher Lehrer welches Fach in welcher Klasse mit wie vielen Wochenstunden unterrichtet.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="75"/>
+        <location filename="../help.py" line="76"/>
         <source>Deseos (opcional): marca las horas en las que alguien no puede o prefiere no tener clase.</source>
         <translation>Zeitwünsche (optional): Markiere die Stunden, in denen jemand keinen Unterricht haben kann oder lieber keinen hätte.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="80"/>
+        <location filename="../help.py" line="81"/>
         <source>Ponderación (opcional): decide qué criterios de calidad pesan más.</source>
         <translation>Gewichtung (optional): Lege fest, welche Qualitätskriterien stärker zählen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="84"/>
+        <location filename="../help.py" line="85"/>
         <source>Generar: abre Optimización y pulsa Iniciar. Puedes seguir el progreso y detenerlo cuando quieras.</source>
         <translation>Erzeugen: Öffne die Optimierung und klicke auf Starten. Du kannst den Fortschritt verfolgen und jederzeit anhalten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="89"/>
+        <location filename="../help.py" line="90"/>
         <source>Revisar: mira el número de evaluación y el Diagnóstico, y retoca a mano en el Diálogo de planificación.</source>
         <translation>Prüfen: Sieh dir die Bewertungszahl und die Diagnose an und korrigiere von Hand im Planungsdialog.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="94"/>
+        <location filename="../help.py" line="95"/>
         <source>Imprimir y exportar: en Horarios, elige clase, profesor o aula y sácalo a PDF, HTML o impresora.</source>
         <translation>Drucken und exportieren: Wähle unter Stundenpläne Klasse, Lehrer oder Raum und gib den Plan als PDF, HTML oder auf dem Drucker aus.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="101"/>
+        <location filename="../help.py" line="102"/>
         <source>Guarda a menudo (Ctrl+S): el proyecto se guarda en un único archivo .rsp.</source>
         <translation>Speichere oft (Strg+S): Das Projekt wird in einer einzigen .rsp-Datei gespeichert.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="105"/>
+        <location filename="../help.py" line="106"/>
         <source>Todo se puede deshacer con Ctrl+Z; la cinta dice qué se va a deshacer.</source>
         <translation>Alles lässt sich mit Strg+Z rückgängig machen; das Menüband zeigt, was rückgängig gemacht wird.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="109"/>
+        <location filename="../help.py" line="110"/>
         <source>Pulsa F1 en cualquier ventana para ver su ayuda.</source>
         <translation>Drücke in jedem Fenster F1, um seine Hilfe zu sehen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="113"/>
+        <location filename="../help.py" line="114"/>
         <source>Inicio y primeros pasos</source>
         <translation>Start und erste Schritte</translation>
     </message>
     <message>
-        <location filename="../help.py" line="114"/>
+        <location filename="../help.py" line="115"/>
         <source>Punto de partida: crear, abrir o importar un colegio y seguir la lista de pasos hasta tener el horario.</source>
         <translation>Ausgangspunkt: Schule anlegen, öffnen oder importieren und der Schrittliste bis zum fertigen Stundenplan folgen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="120"/>
+        <location filename="../help.py" line="121"/>
         <source>Si empiezas de cero, pulsa «Crear un colegio nuevo»: un asistente te pide el nombre, los días y el horario de la jornada.</source>
         <translation>Wenn du bei null anfängst, klicke auf „Neue Schule anlegen“: Ein Assistent fragt dich nach Name, Unterrichtstagen und Tagesablauf.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="125"/>
+        <location filename="../help.py" line="126"/>
         <source>Si ya trabajas con Untis, usa «Importar de Untis» con el archivo XML o la carpeta de archivos GPU.</source>
         <translation>Wenn du bereits mit Untis arbeitest, verwende „Aus Untis importieren“ mit der XML-Datei oder dem Ordner mit den GPU-Dateien.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="130"/>
+        <location filename="../help.py" line="131"/>
         <source>Sigue la lista «Primeros pasos»: cada paso tiene un botón que abre la ventana adecuada.</source>
         <translation>Folge der Liste „Erste Schritte“: Jeder Schritt hat eine Schaltfläche, die das passende Fenster öffnet.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="135"/>
+        <location filename="../help.py" line="136"/>
         <source>Los pasos se marcan solos cuando los datos están completos.</source>
         <translation>Die Schritte werden automatisch abgehakt, sobald die Daten vollständig sind.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="138"/>
+        <location filename="../help.py" line="139"/>
         <source>Los últimos proyectos abiertos aparecen abajo para volver a ellos con un clic.</source>
         <translation>Die zuletzt geöffneten Projekte stehen unten und lassen sich mit einem Klick wieder öffnen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="143"/>
+        <location filename="../help.py" line="144"/>
         <source>Vuelve aquí en cualquier momento con Ctrl+0.</source>
         <translation>Mit Strg+0 kommst du jederzeit hierher zurück.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="147"/>
+        <location filename="../help.py" line="148"/>
         <source>Datos del colegio</source>
         <translation>Schuldaten</translation>
     </message>
     <message>
-        <location filename="../help.py" line="148"/>
+        <location filename="../help.py" line="149"/>
         <source>Nombre del colegio, fechas del curso y textos que salen en los horarios impresos; también el idioma de la interfaz.</source>
         <translation>Name der Schule, Daten des Schuljahres und Texte für die gedruckten Stundenpläne; außerdem die Sprache der Oberfläche.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="154"/>
+        <location filename="../help.py" line="155"/>
         <source>Escribe el nombre del colegio tal como quieres verlo impreso.</source>
         <translation>Gib den Namen der Schule so ein, wie er gedruckt erscheinen soll.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="155"/>
+        <location filename="../help.py" line="156"/>
         <source>Indica el inicio y el fin del curso con el formato AAAAMMDD (por ejemplo 20260901).</source>
         <translation>Gib Beginn und Ende des Schuljahres im Format JJJJMMTT an (zum Beispiel 20260901).</translation>
     </message>
     <message>
-        <location filename="../help.py" line="160"/>
+        <location filename="../help.py" line="161"/>
         <source>Rellena los encabezados y el pie si quieres que aparezcan en las impresiones.</source>
         <translation>Fülle Kopf- und Fußzeilen aus, wenn sie auf den Ausdrucken erscheinen sollen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="166"/>
+        <location filename="../help.py" line="167"/>
         <source>Un campo en rojo tiene un valor no válido: el mensaje de abajo explica por qué.</source>
         <translation>Ein rotes Feld enthält einen ungültigen Wert: Die Meldung darunter erklärt, warum.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="174"/>
+        <location filename="../help.py" line="175"/>
         <source>Clases</source>
         <translation>Klassen</translation>
     </message>
     <message>
-        <location filename="../help.py" line="175"/>
+        <location filename="../help.py" line="176"/>
         <source>Los grupos de alumnos que reciben clase juntos (por ejemplo 6A o 1ºBach).</source>
         <translation>Die Schülergruppen, die gemeinsam Unterricht haben (zum Beispiel 6A oder 11b).</translation>
     </message>
     <message>
-        <location filename="../help.py" line="179"/>
+        <location filename="../help.py" line="180"/>
         <source>Asigna a cada clase su rejilla de tiempo si el colegio tiene horarios distintos por etapa.</source>
         <translation>Weise jeder Klasse ihr Zeitraster zu, wenn die Schule je nach Stufe unterschiedliche Unterrichtszeiten hat.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="186"/>
+        <location filename="../help.py" line="187"/>
         <source>Profesores</source>
         <translation>Lehrer</translation>
     </message>
     <message>
-        <location filename="../help.py" line="187"/>
+        <location filename="../help.py" line="188"/>
         <source>El profesorado: nombre corto, nombre completo y datos para el cálculo de huecos y cargas.</source>
         <translation>Das Kollegium: Kurzname, vollständiger Name und Angaben für die Berechnung von Hohlstunden und Deputat.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="192"/>
+        <location filename="../help.py" line="193"/>
         <source>Usa nombres cortos fáciles de reconocer (tres o cuatro letras): son los que salen en los horarios.</source>
         <translation>Verwende leicht erkennbare Kurznamen (drei oder vier Buchstaben): Sie erscheinen in den Stundenplänen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="199"/>
+        <location filename="../help.py" line="200"/>
         <source>Aulas</source>
         <translation>Räume</translation>
     </message>
     <message>
-        <location filename="../help.py" line="200"/>
+        <location filename="../help.py" line="201"/>
         <source>Las aulas y espacios: aulas de grupo, laboratorios, gimnasio, aulas de informática...</source>
         <translation>Die Räume: Klassenräume, Labore, Turnhalle, Computerräume...</translation>
     </message>
     <message>
-        <location filename="../help.py" line="205"/>
+        <location filename="../help.py" line="206"/>
         <source>Las aulas son opcionales: si una lección no pide aula, se coloca sin tenerla en cuenta.</source>
         <translation>Räume sind optional: Benötigt ein Unterricht keinen Raum, wird er ohne Raum verplant.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="212"/>
+        <location filename="../help.py" line="213"/>
         <source>Materias</source>
         <translation>Fächer</translation>
     </message>
     <message>
-        <location filename="../help.py" line="213"/>
+        <location filename="../help.py" line="214"/>
         <source>Las asignaturas que se imparten; cada una puede tener su color.</source>
         <translation>Die unterrichteten Fächer; jedes kann eine eigene Farbe haben.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="214"/>
+        <location filename="../help.py" line="215"/>
         <source>El color de la materia es el que se usa en los horarios y en el Diálogo de planificación.</source>
         <translation>Die Farbe des Fachs wird in den Stundenplänen und im Planungsdialog verwendet.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="221"/>
+        <location filename="../help.py" line="222"/>
         <source>Departamentos</source>
         <translation>Abteilungen</translation>
     </message>
     <message>
-        <location filename="../help.py" line="222"/>
+        <location filename="../help.py" line="223"/>
         <source>Agrupan profesores y clases (por ejemplo por etapa o por edificio) para filtrar y ordenar.</source>
         <translation>Fassen Lehrer und Klassen zusammen (zum Beispiel nach Stufe oder Gebäude), um zu filtern und zu sortieren.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="227"/>
+        <location filename="../help.py" line="228"/>
         <source>Son opcionales: un colegio pequeño puede no usarlos.</source>
         <translation>Sie sind optional: Eine kleine Schule kann darauf verzichten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="230"/>
+        <location filename="../help.py" line="231"/>
         <source>Grupos de alumnos</source>
         <translation>Schülergruppen</translation>
     </message>
     <message>
-        <location filename="../help.py" line="231"/>
+        <location filename="../help.py" line="232"/>
         <source>Subgrupos de una clase que se separan en algunas materias (desdobles, optativas, religión o valores...).</source>
         <translation>Teilgruppen einer Klasse, die in manchen Fächern getrennt werden (Teilungen, Wahlfächer, Religion oder Ethik...).</translation>
     </message>
     <message>
-        <location filename="../help.py" line="236"/>
+        <location filename="../help.py" line="237"/>
         <source>Un grupo de alumnos se usa en la línea de una lección para indicar que solo asiste una parte de la clase.</source>
         <translation>Eine Schülergruppe wird in einer Unterrichtszeile verwendet, um anzugeben, dass nur ein Teil der Klasse teilnimmt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="243"/>
+        <location filename="../help.py" line="244"/>
         <source>Rejillas de tiempo</source>
         <translation>Zeitraster</translation>
     </message>
     <message>
-        <location filename="../help.py" line="244"/>
+        <location filename="../help.py" line="245"/>
         <source>Cuándo hay clase: días de la semana, hora de cada período y recreos. Todo el horario se coloca sobre esta rejilla.</source>
         <translation>Wann Unterricht ist: Wochentage, Uhrzeit jeder Stunde und Pausen. Der gesamte Stundenplan wird in diesem Raster verplant.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="250"/>
+        <location filename="../help.py" line="251"/>
         <source>Un proyecto nuevo ya trae la rejilla «Estándar»: comprueba que los días y las horas son los de tu colegio.</source>
         <translation>Ein neues Projekt enthält bereits das Zeitraster „Estándar“: Prüfe, ob Tage und Uhrzeiten zu deiner Schule passen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="255"/>
+        <location filename="../help.py" line="256"/>
         <source>Para generar todas las horas de golpe indica la hora de inicio, la duración, el cambio de clase y los recreos.</source>
         <translation>Um alle Uhrzeiten auf einmal zu erzeugen, gib Beginnzeit, Stundendauer, Wechselzeit und Pausen an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="260"/>
+        <location filename="../help.py" line="261"/>
         <source>Si una etapa tiene otro horario (por ejemplo Primaria), crea otra rejilla y asígnala a sus clases.</source>
         <translation>Hat eine Stufe andere Unterrichtszeiten (zum Beispiel die Grundschule), lege ein weiteres Zeitraster an und weise es deren Klassen zu.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="265"/>
+        <location filename="../help.py" line="266"/>
         <source>Para retocar un período concreto, edita su hora de inicio o de fin en la tabla.</source>
         <translation>Um eine einzelne Stunde anzupassen, bearbeite ihre Beginn- oder Endzeit in der Tabelle.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="272"/>
+        <location filename="../help.py" line="273"/>
         <source>Un recreo es un período más marcado como recreo: en él no se coloca ninguna clase.</source>
         <translation>Eine Pause ist eine weitere Stunde, die als Pause markiert ist: In ihr wird kein Unterricht verplant.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="277"/>
+        <location filename="../help.py" line="278"/>
         <source>Cuando ya hay clases colocadas, las horas solo se pueden cambiar período a período.</source>
         <translation>Sobald Unterricht verplant ist, lassen sich die Uhrzeiten nur noch Stunde für Stunde ändern.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="285"/>
+        <location filename="../help.py" line="286"/>
         <source>Deseos de tiempo</source>
         <translation>Zeitwünsche</translation>
     </message>
     <message>
-        <location filename="../help.py" line="286"/>
+        <location filename="../help.py" line="287"/>
         <source>Horas en las que un profesor, una clase, un aula o una materia no puede o prefiere no tener clase (o al revés).</source>
         <translation>Stunden, in denen ein Lehrer, eine Klasse, ein Raum oder ein Fach keinen Unterricht haben kann oder lieber keinen hätte (oder umgekehrt).</translation>
     </message>
     <message>
-        <location filename="../help.py" line="292"/>
+        <location filename="../help.py" line="293"/>
         <source>Elige a quién afecta el deseo: profesor, clase, aula o materia.</source>
         <translation>Wähle, für wen der Zeitwunsch gilt: Lehrer, Klasse, Raum oder Fach.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="295"/>
+        <location filename="../help.py" line="296"/>
         <source>Pinta las celdas: -3 es imposible, 0 indiferente y +3 muy deseable.</source>
         <translation>Male die Zellen an: -3 ist unmöglich, 0 neutral und +3 sehr erwünscht.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="299"/>
+        <location filename="../help.py" line="300"/>
         <source>Usa los valores negativos suaves (-1, -2) cuando algo molesta pero se puede aceptar.</source>
         <translation>Verwende die milden negativen Werte (-1, -2), wenn etwas stört, aber hinnehmbar ist.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="304"/>
+        <location filename="../help.py" line="305"/>
         <source>Marco horario: di de qué hora a qué hora hay clase y pulsa Aplicar; con Aplicar a: todos los de su rejilla lo haces de una vez para todos los cursos que comparten horario.</source>
         <translation>Zeitrahmen: Gib an, von welcher bis zu welcher Stunde Unterricht ist, und klicke auf Anwenden; mit Anwenden auf: alle im Zeitraster machst du das auf einmal für alle Klassen, die sich das Zeitraster teilen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="310"/>
+        <location filename="../help.py" line="311"/>
         <source>Clic en el número de la hora: esa hora queda igual toda la semana. Clic en el nombre del día: el día entero.</source>
         <translation>Klick auf die Stundennummer: Diese Stunde bleibt die ganze Woche gleich. Klick auf den Namen des Tages: der ganze Tag.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="317"/>
+        <location filename="../help.py" line="318"/>
         <source>Demasiados -3 pueden hacer imposible colocar todas las clases: resérvalos para lo que de verdad no se puede.</source>
         <translation>Zu viele -3 können es unmöglich machen, den gesamten Unterricht zu verplanen: Verwende sie nur für das, was wirklich nicht geht.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="325"/>
+        <location filename="../help.py" line="326"/>
         <source>Lecciones</source>
         <translation>Unterricht</translation>
     </message>
     <message>
-        <location filename="../help.py" line="326"/>
+        <location filename="../help.py" line="327"/>
         <source>Qué se enseña: cada lección une materia, profesor y clase(s) con un número de horas por semana.</source>
         <translation>Was unterrichtet wird: Jeder Unterricht verbindet Fach, Lehrer und Klasse(n) mit einer Anzahl Wochenstunden.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="332"/>
+        <location filename="../help.py" line="333"/>
         <source>Elige una clase o un profesor para ver solo sus lecciones.</source>
         <translation>Wähle eine Klasse oder einen Lehrer, um nur deren Unterricht zu sehen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="333"/>
+        <location filename="../help.py" line="334"/>
         <source>Añade una lección con la materia, el profesor, la clase y las horas semanales.</source>
         <translation>Lege einen Unterricht mit Fach, Lehrer, Klasse und Wochenstunden an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="338"/>
+        <location filename="../help.py" line="339"/>
         <source>Para clases que se dan a la vez (desdobles, optativas), añade más líneas a la misma lección: es un acople.</source>
         <translation>Für Unterricht, der gleichzeitig stattfindet (Teilungen, Wahlfächer), füge demselben Unterricht weitere Zeilen hinzu: Das ist eine Kopplung.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="343"/>
+        <location filename="../help.py" line="344"/>
         <source>Indica horas dobles o «no el mismo día» cuando haga falta.</source>
         <translation>Gib bei Bedarf Doppelstunden oder „nicht am selben Tag“ an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="349"/>
+        <location filename="../help.py" line="350"/>
         <source>El resumen de carga avisa si una clase o un profesor tiene más horas que huecos en su rejilla.</source>
         <translation>Die Stundenübersicht warnt, wenn eine Klasse oder ein Lehrer mehr Stunden hat, als im Zeitraster Platz ist.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="357"/>
+        <location filename="../help.py" line="358"/>
         <source>Ponderación</source>
         <translation>Gewichtung</translation>
     </message>
     <message>
-        <location filename="../help.py" line="358"/>
+        <location filename="../help.py" line="359"/>
         <source>Qué importa más al generar: evitar huecos, repartir la semana, respetar los deseos...</source>
         <translation>Was beim Erzeugen wichtiger ist: Hohlstunden vermeiden, die Woche gleichmäßig verteilen, Zeitwünsche einhalten...</translation>
     </message>
     <message>
-        <location filename="../help.py" line="364"/>
+        <location filename="../help.py" line="365"/>
         <source>Recorre las pestañas y mueve cada deslizador de 0 (no importa) a 5 (máxima importancia).</source>
         <translation>Gehe die Registerkarten durch und stelle jeden Regler zwischen 0 (unwichtig) und 5 (höchste Wichtigkeit) ein.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="369"/>
+        <location filename="../help.py" line="370"/>
         <source>Deja en 5 solo el criterio más importante: si todo es máximo, nada lo es.</source>
         <translation>Setze nur das wichtigste Kriterium auf 5: Wenn alles maximal ist, ist nichts maximal.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="373"/>
+        <location filename="../help.py" line="374"/>
         <source>Vuelve a generar y compara el número de evaluación y el Diagnóstico.</source>
         <translation>Erzeuge erneut und vergleiche Bewertungszahl und Diagnose.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="379"/>
+        <location filename="../help.py" line="380"/>
         <source>Los valores por defecto funcionan bien para empezar: cámbialos solo si el resultado no te convence.</source>
         <translation>Die Standardwerte eignen sich gut für den Anfang: Ändere sie nur, wenn dich das Ergebnis nicht überzeugt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="387"/>
+        <location filename="../help.py" line="388"/>
         <source>Optimización</source>
         <translation>Optimierung</translation>
     </message>
     <message>
-        <location filename="../help.py" line="388"/>
+        <location filename="../help.py" line="389"/>
         <source>Calcula un horario completo que respeta la rejilla, las lecciones y los deseos, y lo mejora según la ponderación.</source>
         <translation>Berechnet einen vollständigen Stundenplan, der Zeitraster, Unterricht und Zeitwünsche berücksichtigt, und verbessert ihn gemäß der Gewichtung.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="394"/>
+        <location filename="../help.py" line="395"/>
         <source>Elige la estrategia: una rápida para probar o una más larga para el horario definitivo.</source>
         <translation>Wähle die Strategie: eine schnelle zum Ausprobieren oder eine längere für den endgültigen Stundenplan.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="399"/>
+        <location filename="../help.py" line="400"/>
         <source>Pulsa Iniciar y sigue el progreso en pantalla.</source>
         <translation>Klicke auf Starten und verfolge den Fortschritt am Bildschirm.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="400"/>
+        <location filename="../help.py" line="401"/>
         <source>Puedes detener el cálculo cuando quieras: se queda el mejor horario encontrado hasta ese momento.</source>
         <translation>Du kannst die Berechnung jederzeit anhalten: Der bis dahin beste Stundenplan bleibt erhalten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="405"/>
+        <location filename="../help.py" line="406"/>
         <source>El resultado se guarda como un horario nuevo; los anteriores no se pierden.</source>
         <translation>Das Ergebnis wird als neuer Stundenplan gespeichert; die bisherigen bleiben erhalten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="411"/>
+        <location filename="../help.py" line="412"/>
         <source>Mientras se optimiza, las demás ventanas quedan bloqueadas para no mezclar cambios.</source>
         <translation>Während der Optimierung sind die anderen Fenster gesperrt, damit sich keine Änderungen vermischen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="416"/>
+        <location filename="../help.py" line="417"/>
         <source>Si quedan clases sin colocar, mira el Diagnóstico: suele faltar hueco para algún profesor o clase.</source>
         <translation>Bleiben Stunden unverplant, sieh in die Diagnose: Meist fehlt einem Lehrer oder einer Klasse freie Zeit.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="424"/>
+        <location filename="../help.py" line="425"/>
         <source>Evaluación</source>
         <translation>Bewertung</translation>
     </message>
     <message>
-        <location filename="../help.py" line="425"/>
+        <location filename="../help.py" line="426"/>
         <source>La nota del horario: cuanto más bajo es el número de evaluación, mejor. Muestra de dónde vienen los puntos.</source>
         <translation>Die Note des Stundenplans: Je niedriger die Bewertungszahl, desto besser. Zeigt, woher die Punkte kommen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="431"/>
+        <location filename="../help.py" line="432"/>
         <source>Mira primero los períodos sin colocar y los choques: deben ser cero.</source>
         <translation>Prüfe zuerst die nicht verplanten Stunden und die Kollisionen: Beide sollten null sein.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="435"/>
+        <location filename="../help.py" line="436"/>
         <source>Después revisa el desglose por criterio: los de arriba son los que más penalizan.</source>
         <translation>Sieh dir danach die Aufschlüsselung nach Kriterium an: Die obersten wirken sich am stärksten aus.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="440"/>
+        <location filename="../help.py" line="441"/>
         <source>Compara los horarios generados y activa el que prefieras.</source>
         <translation>Vergleiche die erzeugten Stundenpläne und aktiviere den, der dir am besten gefällt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="443"/>
+        <location filename="../help.py" line="444"/>
         <source>El número de evaluación también se ve en la barra de estado; haz clic en él para abrir esta ventana.</source>
         <translation>Die Bewertungszahl steht auch in der Statusleiste; ein Klick darauf öffnet dieses Fenster.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="451"/>
+        <location filename="../help.py" line="452"/>
         <source>Diagnóstico</source>
         <translation>Diagnose</translation>
     </message>
     <message>
-        <location filename="../help.py" line="452"/>
+        <location filename="../help.py" line="453"/>
         <source>Lista de problemas: errores en los datos de entrada y defectos del horario activo, agrupados por tipo.</source>
         <translation>Liste der Probleme: Fehler in den Eingabedaten und Mängel des aktiven Stundenplans, nach Art gruppiert.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="458"/>
+        <location filename="../help.py" line="459"/>
         <source>Empieza por los errores (en rojo): impiden colocar clases o producen choques.</source>
         <translation>Beginne mit den Fehlern (rot): Sie verhindern das Verplanen oder verursachen Kollisionen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="462"/>
+        <location filename="../help.py" line="463"/>
         <source>Despliega un grupo para ver cada caso concreto.</source>
         <translation>Klappe eine Gruppe auf, um jeden einzelnen Fall zu sehen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="463"/>
+        <location filename="../help.py" line="464"/>
         <source>Selecciona un caso para ir a la lección, la clase o el profesor afectado.</source>
         <translation>Wähle einen Fall, um zum betroffenen Unterricht, zur Klasse oder zum Lehrer zu springen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="468"/>
+        <location filename="../help.py" line="469"/>
         <source>Las advertencias (en ámbar) son mejoras posibles, no fallos.</source>
         <translation>Warnungen (gelb) sind mögliche Verbesserungen, keine Fehler.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="471"/>
+        <location filename="../help.py" line="472"/>
         <source>Diálogo de planificación</source>
         <translation>Planungsdialog</translation>
     </message>
     <message>
-        <location filename="../help.py" line="472"/>
+        <location filename="../help.py" line="473"/>
         <source>Retoque manual del horario: mover, intercambiar, fijar o quitar clases viendo al momento si el cambio es posible.</source>
         <translation>Manuelle Nachbearbeitung des Stundenplans: Stunden verschieben, tauschen, fixieren oder ausplanen und dabei sofort sehen, ob die Änderung möglich ist.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="478"/>
+        <location filename="../help.py" line="479"/>
         <source>Elige la clase, el profesor o el aula que quieres ver.</source>
         <translation>Wähle die Klasse, den Lehrer oder den Raum, den du sehen möchtest.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="479"/>
+        <location filename="../help.py" line="480"/>
         <source>Arrastra una clase: las celdas verdes son destinos posibles y las rojas, imposibles.</source>
         <translation>Ziehe eine Stunde: Grüne Zellen sind mögliche Ziele, rote unmögliche.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="484"/>
+        <location filename="../help.py" line="485"/>
         <source>Fija las clases que no deben moverse en la próxima optimización.</source>
         <translation>Fixiere die Stunden, die bei der nächsten Optimierung nicht verschoben werden sollen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="487"/>
+        <location filename="../help.py" line="488"/>
         <source>Las clases sin colocar aparecen aparte: arrástralas a un hueco libre.</source>
         <translation>Nicht verplante Stunden werden gesondert angezeigt: Ziehe sie auf einen freien Platz.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="493"/>
+        <location filename="../help.py" line="494"/>
         <source>Cada movimiento indica cuánto sube o baja el número de evaluación.</source>
         <translation>Bei jeder Verschiebung wird angezeigt, um wie viel die Bewertungszahl steigt oder sinkt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="496"/>
+        <location filename="../help.py" line="497"/>
         <source>Si te equivocas, Ctrl+Z deshace el último cambio.</source>
         <translation>Wenn du dich vertust, macht Strg+Z die letzte Änderung rückgängig.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="500"/>
+        <location filename="../help.py" line="501"/>
         <source>Horarios</source>
         <translation>Stundenpläne</translation>
     </message>
     <message>
-        <location filename="../help.py" line="501"/>
+        <location filename="../help.py" line="502"/>
         <source>Ver, imprimir y exportar el horario de cada clase, profesor o aula.</source>
         <translation>Stundenplan jeder Klasse, jedes Lehrers oder Raums ansehen, drucken und exportieren.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="505"/>
+        <location filename="../help.py" line="506"/>
         <source>Elige el tipo (clase, profesor o aula) y la entidad.</source>
         <translation>Wähle die Art (Klasse, Lehrer oder Raum) und das Element.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="506"/>
+        <location filename="../help.py" line="507"/>
         <source>Revisa el horario en pantalla.</source>
         <translation>Prüfe den Stundenplan am Bildschirm.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="507"/>
+        <location filename="../help.py" line="508"/>
         <source>Imprímelo o expórtalo a PDF o HTML, uno a uno o todos a la vez.</source>
         <translation>Drucke ihn oder exportiere ihn als PDF oder HTML, einzeln oder alle auf einmal.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="512"/>
+        <location filename="../help.py" line="513"/>
         <source>Los encabezados y el pie de las impresiones se editan en Datos del colegio.</source>
         <translation>Kopf- und Fußzeilen der Ausdrucke bearbeitest du in den Schuldaten.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="519"/>
+        <location filename="../help.py" line="520"/>
         <source>Guardias de recreo</source>
         <translation>Pausenaufsicht</translation>
     </message>
     <message>
-        <location filename="../help.py" line="520"/>
+        <location filename="../help.py" line="521"/>
         <source>Quién vigila cada zona del colegio en cada recreo, repartido con justicia entre el profesorado.</source>
         <translation>Wer welchen Bereich der Schule in welcher Pause beaufsichtigt, gerecht unter den Lehrkräften verteilt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="526"/>
+        <location filename="../help.py" line="527"/>
         <source>Crea las zonas que hay que vigilar: patio, pasillos, comedor, entrada.</source>
         <translation>Erstelle die Bereiche, die beaufsichtigt werden müssen: Schulhof, Flure, Mensa, Eingang.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="530"/>
+        <location filename="../help.py" line="531"/>
         <source>Pulsa Generar turnos: crea un turno vacío por zona, día y recreo.</source>
         <translation>Klicke auf Aufsichten erzeugen: Das legt eine leere Aufsicht pro Bereich, Tag und Pause an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="534"/>
+        <location filename="../help.py" line="535"/>
         <source>Pon a mano los turnos que ya estén decididos; quedan fijados y el reparto no los toca.</source>
         <translation>Lege die bereits entschiedenen Aufsichten manuell fest; sie bleiben fixiert, und die Verteilung rührt sie nicht an.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="539"/>
+        <location filename="../help.py" line="540"/>
         <source>Pulsa Repartir guardias: reparte los turnos libres entre quienes están en el centro a esa hora, equilibrando minutos.</source>
         <translation>Klicke auf Aufsichten verteilen: Das verteilt die freien Aufsichten unter denen, die zu dieser Zeit im Schulgebäude sind, und gleicht dabei die Minuten aus.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="544"/>
+        <location filename="../help.py" line="545"/>
         <source>Revisa el resumen de la derecha: en rojo, quien se pasa de sus minutos de guardia a la semana.</source>
         <translation>Sieh dir die Übersicht rechts an: Rot markiert ist, wer seine wöchentlichen Aufsichtsminuten überschreitet.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="551"/>
+        <location filename="../help.py" line="552"/>
         <source>Los minutos máximos de cada profesor se ponen en Datos maestros → Profesores. Un 0 lo deja fuera del reparto.</source>
         <translation>Die maximalen Minuten jeder Lehrkraft legst du unter Stammdaten → Lehrer fest. Eine 0 schließt sie von der Verteilung aus.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="559"/>
+        <location filename="../help.py" line="560"/>
         <source>Sustituciones</source>
         <translation>Vertretungen</translation>
     </message>
     <message>
-        <location filename="../help.py" line="560"/>
+        <location filename="../help.py" line="561"/>
         <source>El parte del día cuando falta un profesor, una clase o un aula: quién cubre cada hora, qué se suprime y qué cambia de sitio.</source>
         <translation>Der Tagesbericht, wenn eine Lehrkraft, eine Klasse oder ein Raum fehlt: wer welche Stunde übernimmt, was ausfällt und was den Raum wechselt.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="566"/>
+        <location filename="../help.py" line="567"/>
         <source>Elige la fecha del día que estás organizando.</source>
         <translation>Wähle das Datum des Tages, den du organisierst.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="567"/>
+        <location filename="../help.py" line="568"/>
         <source>Da de alta la ausencia: a quién afecta, desde cuándo, hasta cuándo y, si es solo parte del día, entre qué horas.</source>
         <translation>Lege die Absenz an: wen sie betrifft, ab wann, bis wann und, falls sie nur einen Teil des Tages betrifft, zwischen welchen Stunden.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="572"/>
+        <location filename="../help.py" line="573"/>
         <source>Mira las clases afectadas y pulsa Proponer sustituto: salen los profesores posibles, del mejor al peor, con la razón de su puesto.</source>
         <translation>Sieh dir die betroffenen Klassen an und klicke auf Vertretung vorschlagen: Es erscheinen die möglichen Lehrkräfte, vom besten zum schlechtesten, mit dem Grund für ihre Reihenfolge.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="577"/>
+        <location filename="../help.py" line="578"/>
         <source>Si nadie puede cubrirla, suprime la clase o cámbiale el aula.</source>
         <translation>Wenn niemand sie übernehmen kann, lass die Stunde entfallen oder ändere ihren Raum.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="581"/>
+        <location filename="../help.py" line="582"/>
         <source>Vigila los contadores: cuántas sustituciones lleva cada profesor.</source>
         <translation>Behalte die Zähler im Blick: wie viele Vertretungen jede Lehrkraft schon übernommen hat.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="587"/>
+        <location filename="../help.py" line="588"/>
         <source>Los días sin clase (festivos y vacaciones) se dan de alta aquí mismo: en ellos no se propone nada.</source>
         <translation>Unterrichtsfreie Tage (Feiertage und Ferien) werden hier angelegt: An ihnen wird nichts vorgeschlagen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="603"/>
+        <location filename="../help.py" line="604"/>
         <source>Pulsa Añadir y escribe el nombre corto (debe ser único).</source>
         <translation>Klicke auf Hinzufügen und gib den Kurznamen ein (er muss eindeutig sein).</translation>
     </message>
     <message>
-        <location filename="../help.py" line="604"/>
+        <location filename="../help.py" line="605"/>
         <source>Completa las columnas que necesites directamente en la tabla, como en una hoja de cálculo.</source>
         <translation>Fülle die benötigten Spalten direkt in der Tabelle aus, wie in einer Tabellenkalkulation.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="609"/>
+        <location filename="../help.py" line="610"/>
         <source>Selecciona una fila para ver sus lecciones y su horario en las demás ventanas.</source>
         <translation>Wähle eine Zeile, um ihren Unterricht und ihren Stundenplan in den anderen Fenstern zu sehen.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="613"/>
+        <location filename="../help.py" line="614"/>
         <source>Para borrar, selecciona la fila y pulsa Borrar: si algo la usa, se te avisa antes.</source>
         <translation>Zum Löschen wähle die Zeile und klicke auf Löschen: Wird sie noch verwendet, erhältst du vorher einen Hinweis.</translation>
     </message>
     <message>
-        <location filename="../help.py" line="621"/>
+        <location filename="../help.py" line="622"/>
         <source>Una celda en rojo tiene un valor no válido; pasa el ratón por ella para ver el motivo.</source>
         <translation>Eine rote Zelle enthält einen ungültigen Wert; zeige mit der Maus darauf, um den Grund zu sehen.</translation>
     </message>
