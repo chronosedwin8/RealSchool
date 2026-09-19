@@ -17,6 +17,7 @@ semanal (`PA-Max`); quien se pasa sale en rojo.
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -73,6 +74,9 @@ class SupervisionWindow(QWidget):
 
         self.toolbar = QToolBar()
         self.toolbar.setIconSize(icon_size("button"))
+        # Con el texto al lado del icono se lee qué hace cada botón sin
+        # tener que pasar el ratón por encima.
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.add_action = make_action(self, "add", self.add_area)
         self.rename_action = make_action(self, "rename", self.rename_area)
         self.remove_action = make_action(self, "delete", self.remove_area)

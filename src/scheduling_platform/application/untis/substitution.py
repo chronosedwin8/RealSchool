@@ -622,8 +622,8 @@ class SubstitutionMixin:
             }
             if teacher not in posibles:
                 return EditResult.failure(
-                    f"{teacher} no se puede proponer esa hora: está ocupado, ausente o "
-                    "con reserva 9 (usa force=True para ponerlo igualmente)"
+                    f"{teacher} no puede cubrir esa hora: está dando clase, de guardia, "
+                    "ausente o marcado para no sustituir nunca"
                 )
         ausente = info.teachers[0] if info is not None and info.teachers else ""
         return self._decide(

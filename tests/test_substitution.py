@@ -659,8 +659,8 @@ def test_fachada_corregir_una_decision_conserva_su_id() -> None:
         (1, 1, "ZZZ", "no existe"),
         (5, 1, "BEA", "no se da"),
         (1, 99, "BEA", "no se da"),
-        (1, 1, "CARL", "no se puede proponer"),
-        (1, 1, "ANA", "no se puede proponer"),
+        (1, 1, "CARL", "no puede cubrir esa hora"),
+        (1, 1, "ANA", "no puede cubrir esa hora"),
     ],
 )
 def test_fachada_valida_la_asignacion(hora: int, leccion: int, profesor: str, error: str) -> None:
@@ -682,7 +682,7 @@ def test_fachada_una_guardia_de_recreo_saca_al_profesor_de_los_candidatos() -> N
     assert SVC.add_absence(s, "teacher", "ANA", LUNES).ok
     assert SVC.substitute_candidates(s, LUNES, 1, 1)[0].teacher == "FRAN"
     rechazo = SVC.assign_substitute(s, LUNES, 1, 1, "BEA")
-    assert not rechazo.ok and "no se puede proponer" in rechazo.message
+    assert not rechazo.ok and "no puede cubrir esa hora" in rechazo.message
     assert SVC.assign_substitute(s, LUNES, 1, 1, "BEA", force=True).ok
 
 
@@ -911,6 +911,33 @@ def test_ventana_festivo_y_cambio_de_dia(
     assert ventana.report is not None and not ventana.report.is_holiday
     ventana.previous_day()
     assert ventana.date == LUNES
+
+
+def test_ventana_marca_y_quita_el_dia_sin_clase(
+    ventana: ventana_mod.SubstitutionWindow, qapp: QApplication
+) -> None:
+    """El botón de la barra es la única forma de tocar el calendario del curso."""
+    assert not ventana.is_holiday()
+    assert ventana.holiday_button.text() == "Día sin clase"
+
+    assert ventana.toggle_holiday().ok
+    qapp.processEvents()
+    assert ventana.is_holiday()
+    assert ventana.holiday_button.text() == "Devolver la clase"
+    assert ventana.report is not None and ventana.report.is_holiday
+    assert not ventana.report.rows  # un día sin clase no tiene nada que sustituir
+
+    assert ventana.toggle_holiday().ok
+    qapp.processEvents()
+    assert not ventana.is_holiday()
+    assert ventana.holiday_button.text() == "Día sin clase"
+    assert not ventana.bridge.session.project.holidays
+
+    # Y se deshace como cualquier otro cambio.
+    assert ventana.toggle_holiday().ok
+    SVC.undo(ventana.bridge.session)
+    ventana.refresh()
+    assert not ventana.is_holiday()
 
 
 def test_ventana_dialogo_de_ausencia_trae_los_datos(

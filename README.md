@@ -14,6 +14,7 @@ pegan desde una hoja de cálculo o se cargan de un CSV.
 - **Fuente de verdad:** [REFACTOR_UNTIS_MAESTRO.md](REFACTOR_UNTIS_MAESTRO.md)
   (supersede a `Prompt3.md` y `PLAN_DE_TRABAJO.md` en lo que contradiga; ver
   [ADR-034](docs/adr/ADR-034-reorientacion-a-untis.md)).
+- **Manual de uso (con capturas):** [docs/wiki/Home.md](docs/wiki/Home.md)
 - **Decisiones de arquitectura:** [docs/adr/](docs/adr/)
 - **Estado de la refactorización:** [PLAN_DE_TRABAJO.md](PLAN_DE_TRABAJO.md#refactorización-untis-r0r5)
 

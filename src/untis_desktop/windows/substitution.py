@@ -263,6 +263,7 @@ class SubstitutionWindow(QWidget):
         self.prev_button = tool_button("undo", self.previous_day, text_beside=False)
         self.next_button = tool_button("redo", self.next_day, text_beside=False)
         self.weekday_label = QLabel()
+        self.holiday_button = tool_button("grid_remove", self.toggle_holiday)
 
         self.absence_box = QGroupBox()
         self.absence_table = _table(5)
@@ -309,6 +310,8 @@ class SubstitutionWindow(QWidget):
         barra.addWidget(self.date_edit)
         barra.addWidget(self.next_button)
         barra.addWidget(self.weekday_label)
+        barra.addSpacing(16)
+        barra.addWidget(self.holiday_button)
         barra.addStretch(1)
         centro = QHBoxLayout()
         centro.addWidget(self.absence_box, 2)
@@ -371,6 +374,7 @@ class SubstitutionWindow(QWidget):
             self.day_empty.show_hint(self.tr("Sin proyecto: abre o crea uno."))
             self.absence_empty.show_hint(self.tr("Sin proyecto."))
             self.weekday_label.setText("")
+            self._update_holiday_button()
             return
         sesion = self.bridge.session
         parte = self.facade.day_report(sesion, self.date)
@@ -381,6 +385,7 @@ class SubstitutionWindow(QWidget):
         self._fill_absences()
         self._fill_day()
         self._fill_counters()
+        self._update_holiday_button()
 
     def _weekday_text(self, parte: DayReport) -> str:
         nombre = day_name(parte.weekday, self.bridge.language) if parte.weekday else ""
@@ -476,6 +481,44 @@ class SubstitutionWindow(QWidget):
         if dialogo.exec() != QDialog.DialogCode.Accepted:
             return EditResult.failure("")
         return self.add_absence(*dialogo.values())
+
+    def _update_holiday_button(self) -> None:
+        """El botón dice lo que va a hacer: marcar el día o devolverle la clase."""
+        festivo = self.is_holiday()
+        self.holiday_button.setText(
+            self.tr("Devolver la clase") if festivo else self.tr("Día sin clase")
+        )
+        self.holiday_button.setToolTip(
+            self.tr("Este día está marcado como día sin clase: quítale la marca")
+            if festivo
+            else self.tr("Marca este día como festivo o jornada sin clase")
+        )
+        self.holiday_button.setEnabled(self.bridge.has_session)
+
+    def is_holiday(self) -> bool:
+        """`True` si el día elegido está marcado como día sin clase."""
+        if not self.bridge.has_session:
+            return False
+        dia = self.date
+        return any(f.begin <= dia <= f.end for f in self.facade.holidays(self.bridge.session))
+
+    def toggle_holiday(self) -> EditResult:
+        """Marca el día elegido como día sin clase, o le quita la marca.
+
+        Es el calendario del curso en su forma más simple: un día marcado no
+        tiene clases, así que no hay nada que sustituir en él.
+        """
+        if not self.bridge.has_session:
+            return EditResult.failure(self.tr("No hay proyecto abierto"))
+        facade, sesion, dia = self.facade, self.bridge.session, self.date
+        festivo = next((f for f in facade.holidays(sesion) if f.begin <= dia <= f.end), None)
+        if festivo is not None:
+            resultado = self.bridge.edit(lambda: facade.remove_holiday(sesion, festivo.id))
+        else:
+            nombre = self.tr("Día sin clase")
+            resultado = self.bridge.edit(lambda: facade.add_holiday(sesion, nombre, dia))
+        self.refresh()
+        return resultado
 
     def remove_absence(self) -> EditResult:
         """Quita la ausencia seleccionada (y las decisiones que venían de ella)."""
@@ -580,6 +623,7 @@ class SubstitutionWindow(QWidget):
         self.prev_button.setToolTip(self.tr("Ver el parte del día anterior"))
         self.next_button.setText(self.tr("Día siguiente"))
         self.next_button.setToolTip(self.tr("Ver el parte del día siguiente"))
+        self._update_holiday_button()
         self.absence_box.setTitle(self.tr("Ausencias del día"))
         self.absence_table.setHorizontalHeaderLabels(
             [
