@@ -17,9 +17,11 @@ from scheduling_platform.interop.codec import (
     PROJECT_SECTIONS,
     CodecError,
     JsonObject,
+    absence_to_dict,
     date_scheme_from_dict,
     date_scheme_to_dict,
     department_from_dict,
+    holiday_to_dict,
     lesson_from_dict,
     lesson_line_from_dict,
     lesson_to_dict,
@@ -35,6 +37,9 @@ from scheduling_platform.interop.codec import (
     student_group_from_dict,
     subject_from_dict,
     subject_to_dict,
+    substitution_to_dict,
+    supervision_area_to_dict,
+    supervision_to_dict,
     teacher_from_dict,
     teacher_to_dict,
     term_from_dict,
@@ -50,6 +55,7 @@ from scheduling_platform.untis_model import (
     REQUEST_MIN,
     SLIDER_MAX,
     SLIDER_MIN,
+    Absence,
     Assignment,
     CriterionScore,
     DateScheme,
@@ -57,6 +63,7 @@ from scheduling_platform.untis_model import (
     EntityKind,
     Evaluation,
     HalfDay,
+    Holiday,
     Lesson,
     LessonLine,
     MinMax,
@@ -67,6 +74,10 @@ from scheduling_platform.untis_model import (
     SchoolInfo,
     StudentGroup,
     Subject,
+    Substitution,
+    SubstitutionKind,
+    Supervision,
+    SupervisionArea,
     Teacher,
     Term,
     TimeGrid,
@@ -466,7 +477,19 @@ def test_el_dict_emite_todos_los_campos() -> None:
     assert set(doc) == set(Teacher.__dataclass_fields__)
 
 
-type _Entidad = SchoolClass | Room | Subject | SchoolInfo | Lesson | DateScheme
+type _Entidad = (
+    SchoolClass
+    | Room
+    | Subject
+    | SchoolInfo
+    | Lesson
+    | DateScheme
+    | SupervisionArea
+    | Supervision
+    | Holiday
+    | Absence
+    | Substitution
+)
 
 
 @pytest.mark.parametrize(
@@ -478,6 +501,17 @@ type _Entidad = SchoolClass | Room | Subject | SchoolInfo | Lesson | DateScheme
         (school_info_to_dict(SchoolInfo()), SchoolInfo()),
         (lesson_to_dict(Lesson(1, (LessonLine("M"),), 1)), Lesson(1, (LessonLine("M"),), 1)),
         (date_scheme_to_dict(DateScheme("U")), DateScheme("U")),
+        (supervision_area_to_dict(SupervisionArea("P")), SupervisionArea("P")),
+        (supervision_to_dict(Supervision("P", 1, 3)), Supervision("P", 1, 3)),
+        (holiday_to_dict(Holiday("F")), Holiday("F")),
+        (
+            absence_to_dict(Absence("A", EntityKind.TEACHER, "T1", "20260907")),
+            Absence("A", EntityKind.TEACHER, "T1", "20260907"),
+        ),
+        (
+            substitution_to_dict(Substitution("S", "20260907", 2, 100)),
+            Substitution("S", "20260907", 2, 100),
+        ),
     ],
 )
 def test_cada_entidad_emite_todos_sus_campos(doc: JsonObject, entidad: _Entidad) -> None:
@@ -495,3 +529,45 @@ def test_esquemas_de_fechas_ida_y_vuelta() -> None:
     doc = project_to_dict(project)
     assert doc["date_schemes"] == [{"id": ".", "pattern": "11111FF", "periodic_weeks": "1"}]
     assert project_from_dict(doc) == project
+
+
+def test_guardias_y_sustituciones_ida_y_vuelta() -> None:
+    """Las secciones nuevas del proyecto sobreviven al .rsp sin perder nada."""
+    project = UntisProject(
+        supervision_areas=(SupervisionArea("Patio", "Patio grande", weight=3),),
+        supervisions=(Supervision("Patio", 2, 4, teacher="T1", fixed=True, minutes=20),),
+        holidays=(Holiday("PUENTE", "Puente de octubre", "20261012", "20261013"),),
+        absences=(
+            Absence(
+                "A1",
+                EntityKind.TEACHER,
+                "T1",
+                "20261005",
+                "20261009",
+                first_period=3,
+                reason="Curso",
+            ),
+        ),
+        substitutions=(
+            Substitution(
+                "S1",
+                "20261005",
+                3,
+                1345,
+                kind=SubstitutionKind.SUBSTITUTION,
+                absent_teacher="T1",
+                teacher="T2",
+                absence="A1",
+            ),
+        ),
+    )
+    doc = project_to_dict(project)
+    assert project_from_dict(json.loads(json.dumps(doc))) == project
+
+
+def test_profesor_guarda_los_campos_de_guardias_y_sustituciones() -> None:
+    profe = Teacher("T1", supervision_max=90, substitution_lock=4)
+    doc = teacher_to_dict(profe)
+    assert doc["supervision_max"] == 90
+    assert doc["substitution_lock"] == 4
+    assert teacher_from_dict(doc) == profe

@@ -49,6 +49,7 @@ from ..qt_bridge import FacadeBridge
 from ..registry import RibbonTab, WindowSpec, register
 from ..theme import BREAK_COLOR, day_name
 from ..widgets.timetable_cells import (
+    BLOCKED_ROLE,
     CONFLICT_ROLE,
     FIXED_ROLE,
     TimetableCellDelegate,
@@ -217,11 +218,17 @@ class TimetablePane(QFrame):
                     item.setForeground(QBrush(texto))
                     item.setData(CONFLICT_ROLE, any(c.conflict for c in celdas))
                     item.setData(FIXED_ROLE, any(c.fixed for c in celdas))
+                    cerrada = grid.is_blocked(dia, periodo.number)
+                    item.setData(BLOCKED_ROLE, cerrada)
                     if any(c.fixed for c in celdas):
                         negrita = QFont(fuente)
                         negrita.setBold(True)
                         item.setFont(negrita)
-                    item.setToolTip(cell_tooltip(celdas))
+                    ayuda = cell_tooltip(celdas)
+                    if cerrada:
+                        cerrado = self.tr("Hora cerrada (-3): aquí no puede haber clase")
+                        ayuda = "\n".join(x for x in (ayuda, cerrado) if x)
+                    item.setToolTip(ayuda)
                 tabla.setItem(fila, col, item)
 
     def cell_text(self, day: int, period: int) -> str:

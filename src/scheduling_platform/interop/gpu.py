@@ -604,6 +604,7 @@ def _class_rows(classes: Iterable[SchoolClass]) -> Iterator[list[Cell]]:
             .set("main_subjects_consecutive", c.main_subjects_consecutive)
             .set("main_subjects_per_day", c.main_subjects_per_day)
             .set("level", c.level)
+            .set("class_teacher", c.class_teacher)
             .set("department", c.department)
             .set("special_text", c.text)
             .cells
@@ -620,6 +621,7 @@ def _read_classes(rows: Iterable[GpuRow]) -> tuple[SchoolClass, ...]:
             id=r.text("id"),
             name=r.text("name"),
             home_room=r.opt("home_room"),
+            class_teacher=r.opt("class_teacher"),
             department=r.opt("department"),
             students=alumnos,
             level=r.num("level"),

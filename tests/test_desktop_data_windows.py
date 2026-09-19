@@ -387,12 +387,20 @@ def test_rejilla_de_deseos_pinta_y_guarda(
     assert rejilla.color_at(1, 3) == request_color(-3)
     assert SVC.request_grid(anon.session, "teacher", "T001").value(1, 2) == -3
 
-    # Día completo desde la cabecera de fila.
+    # Día completo desde la cabecera de fila (la fila 0 es "toda la semana").
     w.set_paint_value(2)
-    rejilla.verticalHeader().sectionClicked.emit(1)
+    rejilla.verticalHeader().sectionClicked.emit(2)
     _flush(qapp)
     assert SVC.request_grid(anon.session, "teacher", "T001").day_values[2] == 2
     assert rejilla.value_at(2, None) == "+2"
+
+    # Hora entera desde la cabecera de columna: un deseo para todos los días.
+    w.set_paint_value(-3)
+    hora = next(p for p in rejilla.grid.periods if p not in rejilla.grid.breaks)
+    rejilla.horizontalHeader().sectionClicked.emit(rejilla.grid.periods.index(hora) + 1)
+    _flush(qapp)
+    assert SVC.request_grid(anon.session, "teacher", "T001").period_values[hora] == -3
+    assert rejilla.value_at(None, hora) == "-3"
 
     # Arrastre con el ratón sobre la fila del miércoles y borrado con clic derecho.
     w.resize(1000, 400)

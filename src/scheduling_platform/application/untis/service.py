@@ -12,7 +12,7 @@ from __future__ import annotations
 import dataclasses
 import time
 from collections import Counter, defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -85,6 +85,7 @@ from .views import (
     PeriodRow,
     RequestGrid,
     SliderView,
+    TimeFrame,
     TimetableCell,
     TimetableGrid,
     TimetableSummary,
@@ -100,6 +101,33 @@ _KIND_OF: dict[str, EntityKind] = {
     "room": EntityKind.ROOM,
     "subject": EntityKind.SUBJECT,
 }
+
+
+def _with_requests(
+    requests: tuple[TimeRequest, ...],
+    kind: EntityKind,
+    entity_ids: Sequence[str],
+    cells: Sequence[tuple[int | None, int | None]],
+    value: int,
+) -> tuple[TimeRequest, ...]:
+    """Deseos con `value` en cada entidad y celda; 0 borra. Función pura."""
+    claves = {(e, d, per) for e in entity_ids for d, per in cells}
+    otros = [
+        r
+        for r in requests
+        if not (r.entity_kind is kind and (r.entity_id, r.day, r.period) in claves)
+    ]
+    if value == 0:
+        return tuple(otros)
+    nuevos = [TimeRequest(kind, e, value, day=d, period=per) for e, d, per in sorted(claves)]
+    return (*otros, *nuevos)
+
+
+def _within(period: int, first: int | None, last: int | None) -> bool:
+    """`True` si la hora está dentro del marco (extremos abiertos si son `None`)."""
+    if first is not None and period < first:
+        return False
+    return not (last is not None and period > last)
 
 
 def _entity_kind(kind: str) -> EntityKind:
@@ -1025,12 +1053,15 @@ class UntisService:
         )
         valores: dict[tuple[int, int], int] = {}
         por_dia: dict[int, int] = {}
+        por_periodo: dict[int, int] = {}
         for r in p.requests_for(ek, entity_id):
             if r.day is not None and r.period is not None:
                 valores[(r.day, r.period)] = r.value
             elif r.day is not None:
                 por_dia[r.day] = r.value
-        return RequestGrid(kind, entity_id, dias, periodos, valores, por_dia, recreos)
+            elif r.period is not None:
+                por_periodo[r.period] = r.value
+        return RequestGrid(kind, entity_id, dias, periodos, valores, por_dia, por_periodo, recreos)
 
     def set_request(
         self,
@@ -1065,6 +1096,131 @@ class UntisService:
             except ValueError as exc:
                 return EditResult.failure(str(exc))
         session.apply(dataclasses.replace(p, time_requests=nuevos), f"Deseo de {entity_id}")
+        return EditResult.success()
+
+    def set_requests(
+        self,
+        session: UntisSession,
+        kind: str,
+        entity_ids: Sequence[str],
+        cells: Sequence[tuple[int | None, int | None]],
+        value: int,
+    ) -> EditResult:
+        """Fija el mismo deseo en varias entidades y celdas de una sola vez.
+
+        Una celda es `(día, período)`; `día=None` es esa hora en toda la semana
+        y `período=None` el día entero. Un solo paso de deshacer para todo, que
+        es lo que hace falta para cerrar la tarde de 82 clases sin pintar a mano.
+        """
+        p = session.project
+        try:
+            ek = _entity_kind(kind)
+        except ValueError as exc:
+            return EditResult.failure(str(exc))
+        if not entity_ids or not cells:
+            return EditResult.failure("Elige al menos una entidad y una celda")
+        try:
+            nuevos = _with_requests(p.time_requests, ek, entity_ids, cells, value)
+        except ValueError as exc:
+            return EditResult.failure(str(exc))
+        cuantas = len(entity_ids) * len(set(cells))
+        session.apply(
+            dataclasses.replace(p, time_requests=nuevos),
+            f"Deseo {value:+d} en {cuantas} celdas" if value else f"Borrar {cuantas} deseos",
+        )
+        return EditResult.success()
+
+    def blocked_cells(
+        self, session: UntisSession, kind: str, entity_id: str
+    ) -> frozenset[tuple[int, int]]:
+        """Celdas `(día, período)` cerradas con un deseo -3 para esta entidad."""
+        p = session.project
+        try:
+            ek = _entity_kind(kind)
+        except ValueError:
+            return frozenset()
+        grid = self._grid_of(p, kind, entity_id)
+        if grid is None:
+            return frozenset()
+        vetos = [r for r in p.requests_for(ek, entity_id) if r.is_block]
+        return frozenset(
+            (d, per.number)
+            for d in grid.days
+            for per in grid.periods
+            if any(r.covers(d, per.number) for r in vetos)
+        )
+
+    def set_blocked(
+        self,
+        session: UntisSession,
+        kind: str,
+        entity_id: str,
+        cells: Sequence[tuple[int, int]],
+        blocked: bool = True,
+    ) -> EditResult:
+        """Cierra (-3) o abre (0) celdas concretas: el bloqueo desde el horario."""
+        celdas: list[tuple[int | None, int | None]] = [(d, p) for d, p in cells]
+        return self.set_requests(session, kind, (entity_id,), celdas, -3 if blocked else 0)
+
+    def time_frame(self, session: UntisSession, kind: str, entity_id: str) -> TimeFrame:
+        """Primera y última hora lectiva abierta de la entidad: su marco horario."""
+        p = session.project
+        grid = self._grid_of(p, kind, entity_id)
+        if grid is None:
+            return TimeFrame(None, None, ())
+        cerradas = self.blocked_cells(session, kind, entity_id)
+        lectivas = [x.number for x in grid.teaching_periods]
+        abiertas = [n for n in lectivas if any((d, n) not in cerradas for d in grid.days)]
+        return TimeFrame(
+            first=abiertas[0] if abiertas else None,
+            last=abiertas[-1] if abiertas else None,
+            periods=tuple(lectivas),
+        )
+
+    def set_time_frame(
+        self,
+        session: UntisSession,
+        kind: str,
+        entity_ids: Sequence[str],
+        first: int | None,
+        last: int | None,
+    ) -> EditResult:
+        """Deja clase solo entre la hora `first` y la `last`, ambas incluidas.
+
+        Cierra con -3 las horas lectivas de fuera del marco —la columna entera,
+        todos los días, como en Untis— y abre las de dentro. Los bloqueos de
+        celdas sueltas (un día concreto) no se tocan: son decisiones aparte.
+        """
+        p = session.project
+        if not entity_ids:
+            return EditResult.failure("Elige al menos una entidad")
+        if first is not None and last is not None and first > last:
+            return EditResult.failure("La primera hora es posterior a la última")
+        try:
+            ek = _entity_kind(kind)
+        except ValueError as exc:
+            return EditResult.failure(str(exc))
+        fuera: set[tuple[int | None, int | None]] = set()
+        dentro: set[tuple[int | None, int | None]] = set()
+        for eid in entity_ids:
+            grid = self._grid_of(p, kind, eid)
+            if grid is None:
+                return EditResult.failure(f"{eid} no tiene rejilla de tiempo")
+            for per in grid.teaching_periods:
+                destino = dentro if _within(per.number, first, last) else fuera
+                destino.add((None, per.number))
+        deseos = p.time_requests
+        try:
+            for celdas, valor in ((dentro, 0), (fuera, -3)):
+                if celdas:
+                    deseos = _with_requests(deseos, ek, entity_ids, sorted(celdas), valor)
+        except ValueError as exc:
+            return EditResult.failure(str(exc))
+        marco = f"{first or ''}-{last or ''}".strip("-") or "toda la jornada"
+        session.apply(
+            dataclasses.replace(p, time_requests=deseos),
+            f"Marco horario {marco} en {len(entity_ids)} elementos",
+        )
         return EditResult.success()
 
     def unspecified_requests(
@@ -1106,6 +1262,11 @@ class UntisService:
             f"Deseo no especificado de {entity_id}",
         )
         return EditResult.success()
+
+    def grid_id_of(self, session: UntisSession, kind: str, entity_id: str) -> str:
+        """Id de la rejilla por la que se rige la entidad (vacío si no tiene)."""
+        grid = self._grid_of(session.project, kind, entity_id)
+        return grid.id if grid is not None else ""
 
     @staticmethod
     def _grid_of(project: UntisProject, kind: str, entity_id: str) -> TimeGrid | None:
@@ -1514,6 +1675,7 @@ class UntisService:
             periods=self._period_rows(grid.periods) if grid is not None else (),
             cells=tuple(celdas),
             unplaced=tuple(sin),
+            blocked=self.blocked_cells(session, kind, entity_id),
         )
 
     @staticmethod
@@ -1553,8 +1715,10 @@ class UntisService:
     ) -> tuple[MoveTarget, ...]:
         """Para cada celda posible: ¿se puede soltar ahí la sesión, y por qué no?
 
-        `cell` es la celda actual de la sesión (`None` = sesión sin colocar). Solo
-        se ofrecen celdas de la misma duración (`untis_model.sessions`).
+        `cell` es la celda actual de la sesión (`None` = sesión sin colocar). Se
+        ofrecen todas las horas lectivas de su rejilla, como hace el generador:
+        una hora de duración distinta no está prohibida, cuesta puntos, y eso ya
+        se ve en el cambio de evaluación que acompaña a cada destino.
         """
         p = session.project
         le = p.lesson_by_number.get(lesson)
@@ -1562,15 +1726,13 @@ class UntisService:
         grid = p.grid_by_id.get(le.time_grid) if le is not None else None
         if le is None or grid is None:
             return ()
-        duracion = self._session_duration(grid, cell)
         ocupacion = self._occupancy(p, tt, excluir=(lesson, cell))
         propias = self._lesson_cells(tt, lesson)
         vetos = self._hard_blocks(p, le)
+        duracion = self._session_duration(grid, cell)
         objetivos: list[MoveTarget] = []
         for dia in sorted(grid.days):
             for per in grid.teaching_periods:
-                if per.duration != duracion:
-                    continue
                 destino = (dia, per.number)
                 motivo = ""
                 if destino != cell and destino in propias:
@@ -1581,7 +1743,12 @@ class UntisService:
                     motivo = "lección fijada"
                 else:
                     motivo = self._clash_reason(ocupacion, le, dia, per.start, per.end)
-                objetivos.append(MoveTarget(dia, per.number, not motivo, motivo))
+                aviso = (
+                    ""
+                    if per.duration == duracion
+                    else f"esta hora dura {per.duration} min y la clase ocupa {duracion}"
+                )
+                objetivos.append(MoveTarget(dia, per.number, not motivo, motivo, warning=aviso))
         return tuple(objetivos)
 
     def move_delta(
@@ -1707,6 +1874,7 @@ class UntisService:
 
     @staticmethod
     def _session_duration(grid: TimeGrid, cell: tuple[int, int] | None) -> int:
+        """Duración (min) de la sesión: la de su hora actual o la habitual de la rejilla."""
         if cell is not None:
             periodo = grid.period(cell[1])
             if periodo is not None:

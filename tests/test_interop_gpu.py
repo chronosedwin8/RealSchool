@@ -94,6 +94,7 @@ def synthetic_project() -> UntisProject:
                 lunch_break=MinMax(1, 2),
                 main_subjects_per_day=3,
                 main_subjects_consecutive=2,
+                class_teacher="MUE",
                 text="Grupo bilingüe",
             ),
             SchoolClass(id="5B", name="Quinto B", time_grid="SEC"),

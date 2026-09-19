@@ -161,10 +161,49 @@ class RequestGrid:
     """`(día, período) -> valor`; las celdas sin deseo no aparecen (valor 0)."""
     day_values: dict[int, int] = field(default_factory=dict)
     """Deseo de día completo."""
+    period_values: dict[int, int] = field(default_factory=dict)
+    """Deseo de un período en todos los días (la columna entera)."""
     breaks: tuple[int, ...] = field(default_factory=tuple)
 
     def value(self, day: int, period: int) -> int:
+        """Valor efectivo de la celda: el propio, si no el del día, si no el del período."""
+        propio = self.values.get((day, period))
+        if propio is not None:
+            return propio
+        return self.day_values.get(day, self.period_values.get(period, 0))
+
+    def own_value(self, day: int, period: int) -> int:
+        """Valor escrito en la celda concreta, sin heredar día ni período."""
         return self.values.get((day, period), 0)
+
+
+@dataclass(frozen=True, slots=True)
+class TimeFrame:
+    """Marco horario de una clase o profesor: de qué hora a qué hora hay clase.
+
+    `first`/`last` son la primera y la última hora lectiva que no está cerrada
+    con un deseo -3; `None` en ambas significa que no queda ninguna abierta.
+    """
+
+    first: int | None
+    last: int | None
+    periods: tuple[int, ...]
+    """Todas las horas lectivas de su rejilla, en orden."""
+
+    @property
+    def is_full(self) -> bool:
+        """`True` si no hay ninguna hora cerrada: el marco es la jornada entera."""
+        return bool(self.periods) and (self.first, self.last) == (
+            self.periods[0],
+            self.periods[-1],
+        )
+
+    @property
+    def label(self) -> str:
+        """Texto corto del marco, p. ej. `"1-6"` (vacío si no hay horas)."""
+        if self.first is None or self.last is None:
+            return ""
+        return f"{self.first}-{self.last}"
 
 
 # --------------------------------------------------------------------------- #
@@ -302,6 +341,12 @@ class TimetableGrid:
     cells: tuple[TimetableCell, ...]
     unplaced: tuple[tuple[int, int], ...] = field(default_factory=tuple)
     """`(lección, períodos sin colocar)` de la entidad: lista del Diálogo de planificación."""
+    blocked: frozenset[tuple[int, int]] = field(default_factory=frozenset)
+    """Celdas `(día, período)` cerradas con un deseo -3 de esta entidad."""
+
+    def is_blocked(self, day: int, period: int) -> bool:
+        """`True` si la entidad tiene la celda cerrada (deseo -3)."""
+        return (day, period) in self.blocked
 
     def at(self, day: int, period: int) -> tuple[TimetableCell, ...]:
         return tuple(c for c in self.cells if c.day == day and c.period == period)
@@ -317,6 +362,8 @@ class MoveTarget:
     reason: str = ""
     delta: int | None = None
     """Cambio del número de evaluación si se mueve ahí (`None` si no se calculó)."""
+    warning: str = ""
+    """Aviso si se puede pero conviene mirarlo (p. ej. la hora dura otra cosa)."""
 
 
 # --------------------------------------------------------------------------- #

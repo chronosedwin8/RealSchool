@@ -30,6 +30,8 @@ REQUEST_COLORS: dict[int, str] = {
 ERROR_COLOR = "#fecaca"
 #: Celda de recreo en rejillas y horarios.
 BREAK_COLOR = "#e5e7eb"
+#: Horas cerradas con un deseo -3: trama gris sobre la celda.
+BLOCKED_COLOR = "#6b7280"
 #: Conflicto en el Diálogo de planificación / horarios.
 CONFLICT_COLOR = "#f87171"
 #: Destino válido al arrastrar en el Diálogo de planificación.

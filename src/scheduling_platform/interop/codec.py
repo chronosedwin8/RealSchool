@@ -27,6 +27,7 @@ from collections.abc import Callable
 from enum import StrEnum
 
 from ..untis_model import (
+    Absence,
     Assignment,
     CriterionScore,
     DateScheme,
@@ -34,6 +35,7 @@ from ..untis_model import (
     EntityKind,
     Evaluation,
     HalfDay,
+    Holiday,
     Lesson,
     LessonLine,
     MinMax,
@@ -44,6 +46,10 @@ from ..untis_model import (
     SchoolInfo,
     StudentGroup,
     Subject,
+    Substitution,
+    SubstitutionKind,
+    Supervision,
+    SupervisionArea,
     Teacher,
     Term,
     TimeGrid,
@@ -333,6 +339,7 @@ def school_class_to_dict(x: SchoolClass) -> JsonObject:
         "name": x.name,
         "time_grid": x.time_grid,
         "home_room": x.home_room,
+        "class_teacher": x.class_teacher,
         "department": x.department,
         "students": x.students,
         "level": x.level,
@@ -350,6 +357,7 @@ def school_class_from_dict(d: JsonObject, where: str = "SchoolClass") -> SchoolC
         name=_str(d, "name", where),
         time_grid=_str(d, "time_grid", where),
         home_room=_opt_str(d, "home_room", where),
+        class_teacher=_opt_str(d, "class_teacher", where),
         department=_opt_str(d, "department", where),
         students=_int(d, "students", where),
         level=_opt_int(d, "level", where),
@@ -376,6 +384,8 @@ def teacher_to_dict(x: Teacher) -> JsonObject:
         "ntp_per_week": minmax_to_dict(x.ntp_per_week),
         "lunch_break": minmax_to_dict(x.lunch_break),
         "consecutive_max": x.consecutive_max,
+        "supervision_max": x.supervision_max,
+        "substitution_lock": x.substitution_lock,
         "text": x.text,
         "status": x.status,
         "payroll_number": x.payroll_number,
@@ -398,6 +408,8 @@ def teacher_from_dict(d: JsonObject, where: str = "Teacher") -> Teacher:
         ntp_per_week=_minmax_field(d, "ntp_per_week", where),
         lunch_break=_minmax_field(d, "lunch_break", where),
         consecutive_max=_opt_int(d, "consecutive_max", where),
+        supervision_max=_opt_int(d, "supervision_max", where),
+        substitution_lock=_int(d, "substitution_lock", where),
         text=_str(d, "text", where),
         status=_str(d, "status", where),
         payroll_number=_str(d, "payroll_number", where),
@@ -757,6 +769,124 @@ def timetable_from_dict(d: JsonObject, where: str = "Timetable") -> Timetable:
 
 
 # --------------------------------------------------------------------------- #
+# Guardias de recreo, calendario, ausencias y sustituciones
+# --------------------------------------------------------------------------- #
+
+
+def supervision_area_to_dict(x: SupervisionArea) -> JsonObject:
+    return {
+        "id": x.id,
+        "name": x.name,
+        "time_grid": x.time_grid,
+        "weight": x.weight,
+        "text": x.text,
+    }
+
+
+def supervision_area_from_dict(d: JsonObject, where: str = "SupervisionArea") -> SupervisionArea:
+    return SupervisionArea(
+        id=_req_str(d, "id", where),
+        name=_str(d, "name", where),
+        time_grid=_str(d, "time_grid", where),
+        weight=_int(d, "weight", where, default=1),
+        text=_str(d, "text", where),
+    )
+
+
+def supervision_to_dict(x: Supervision) -> JsonObject:
+    return {
+        "area": x.area,
+        "day": x.day,
+        "period": x.period,
+        "teacher": x.teacher,
+        "fixed": x.fixed,
+        "minutes": x.minutes,
+    }
+
+
+def supervision_from_dict(d: JsonObject, where: str = "Supervision") -> Supervision:
+    return Supervision(
+        area=_req_str(d, "area", where),
+        day=_int(d, "day", where),
+        period=_int(d, "period", where),
+        teacher=_str(d, "teacher", where),
+        fixed=_bool(d, "fixed", where),
+        minutes=_int(d, "minutes", where),
+    )
+
+
+def holiday_to_dict(x: Holiday) -> JsonObject:
+    return {"id": x.id, "name": x.name, "begin": x.begin, "end": x.end}
+
+
+def holiday_from_dict(d: JsonObject, where: str = "Holiday") -> Holiday:
+    return Holiday(
+        id=_req_str(d, "id", where),
+        name=_str(d, "name", where),
+        begin=_str(d, "begin", where),
+        end=_str(d, "end", where),
+    )
+
+
+def absence_to_dict(x: Absence) -> JsonObject:
+    return {
+        "id": x.id,
+        "entity_kind": x.entity_kind.value,
+        "entity_id": x.entity_id,
+        "begin": x.begin,
+        "end": x.end,
+        "first_period": x.first_period,
+        "last_period": x.last_period,
+        "reason": x.reason,
+        "text": x.text,
+    }
+
+
+def absence_from_dict(d: JsonObject, where: str = "Absence") -> Absence:
+    return Absence(
+        id=_req_str(d, "id", where),
+        entity_kind=_enum(EntityKind, _require(d, "entity_kind", where), f"{where}.entity_kind"),
+        entity_id=_req_str(d, "entity_id", where),
+        begin=_req_str(d, "begin", where),
+        end=_str(d, "end", where),
+        first_period=_opt_int(d, "first_period", where),
+        last_period=_opt_int(d, "last_period", where),
+        reason=_str(d, "reason", where),
+        text=_str(d, "text", where),
+    )
+
+
+def substitution_to_dict(x: Substitution) -> JsonObject:
+    return {
+        "id": x.id,
+        "date": x.date,
+        "period": x.period,
+        "lesson_number": x.lesson_number,
+        "kind": x.kind.value,
+        "absent_teacher": x.absent_teacher,
+        "teacher": x.teacher,
+        "room": x.room,
+        "absence": x.absence,
+        "note": x.note,
+    }
+
+
+def substitution_from_dict(d: JsonObject, where: str = "Substitution") -> Substitution:
+    return Substitution(
+        id=_req_str(d, "id", where),
+        date=_req_str(d, "date", where),
+        period=_int(d, "period", where),
+        lesson_number=_int(d, "lesson_number", where),
+        kind=_opt_enum(d, "kind", where, SubstitutionKind, SubstitutionKind.SUBSTITUTION),
+        absent_teacher=_str(d, "absent_teacher", where),
+        teacher=_str(d, "teacher", where),
+        room=_str(d, "room", where),
+        absence=_str(d, "absence", where),
+        note=_str(d, "note", where),
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Proyecto
 # --------------------------------------------------------------------------- #
 
@@ -778,6 +908,11 @@ PROJECT_SECTIONS: tuple[str, ...] = (
     "weighting",
     "timetables",
     "date_schemes",
+    "supervision_areas",
+    "supervisions",
+    "holidays",
+    "absences",
+    "substitutions",
 )
 
 
@@ -801,6 +936,11 @@ def project_to_dict(project: UntisProject) -> JsonObject:
         "weighting": weighting_to_dict(project.weighting),
         "timetables": [timetable_to_dict(x) for x in project.timetables],
         "date_schemes": [date_scheme_to_dict(x) for x in project.date_schemes],
+        "supervision_areas": [supervision_area_to_dict(x) for x in project.supervision_areas],
+        "supervisions": [supervision_to_dict(x) for x in project.supervisions],
+        "holidays": [holiday_to_dict(x) for x in project.holidays],
+        "absences": [absence_to_dict(x) for x in project.absences],
+        "substitutions": [substitution_to_dict(x) for x in project.substitutions],
     }
 
 
@@ -836,4 +976,9 @@ def project_from_dict(d: JsonObject, where: str = "UntisProject") -> UntisProjec
         ),
         timetables=_list_field(d, "timetables", where, timetable_from_dict),
         date_schemes=_list_field(d, "date_schemes", where, date_scheme_from_dict),
+        supervision_areas=_list_field(d, "supervision_areas", where, supervision_area_from_dict),
+        supervisions=_list_field(d, "supervisions", where, supervision_from_dict),
+        holidays=_list_field(d, "holidays", where, holiday_from_dict),
+        absences=_list_field(d, "absences", where, absence_from_dict),
+        substitutions=_list_field(d, "substitutions", where, substitution_from_dict),
     )

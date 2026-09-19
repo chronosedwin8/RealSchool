@@ -22,6 +22,8 @@ from .master_data import (
     Term,
 )
 from .requests import TimeRequest, UnspecifiedRequest
+from .substitution import Absence, Holiday, Substitution
+from .supervision import Supervision, SupervisionArea
 from .time_grid import TimeGrid
 from .timetable import Timetable
 from .weighting import Weighting
@@ -89,6 +91,16 @@ class UntisProject:
     weighting: Weighting = field(default_factory=Weighting)
     timetables: tuple[Timetable, ...] = field(default_factory=tuple)
     date_schemes: tuple[DateScheme, ...] = field(default_factory=tuple)
+    supervision_areas: tuple[SupervisionArea, ...] = field(default_factory=tuple)
+    """Zonas que se vigilan en los recreos."""
+    supervisions: tuple[Supervision, ...] = field(default_factory=tuple)
+    """Turnos de guardia, asignados o no."""
+    holidays: tuple[Holiday, ...] = field(default_factory=tuple)
+    """Días sin clase del curso."""
+    absences: tuple[Absence, ...] = field(default_factory=tuple)
+    """Faltas de profesores, clases y aulas."""
+    substitutions: tuple[Substitution, ...] = field(default_factory=tuple)
+    """Decisiones del día: sustituciones, supresiones y cambios de aula."""
 
     def __post_init__(self) -> None:
         vistos: set[str] = set()
@@ -136,6 +148,14 @@ class UntisProject:
         return _index(self.date_schemes)
 
     @property
+    def area_by_id(self) -> dict[str, SupervisionArea]:
+        return _index(self.supervision_areas)
+
+    @property
+    def absence_by_id(self) -> dict[str, Absence]:
+        return _index(self.absences)
+
+    @property
     def lesson_by_number(self) -> dict[int, Lesson]:
         indice: dict[int, Lesson] = {}
         for le in self.lessons:
@@ -179,6 +199,22 @@ class UntisProject:
     def lessons_of_teacher(self, teacher_id: str) -> tuple[Lesson, ...]:
         """Lecciones en las que participa un profesor."""
         return tuple(le for le in self.lessons if teacher_id in le.teachers)
+
+    def supervisions_of_teacher(self, teacher_id: str) -> tuple[Supervision, ...]:
+        """Turnos de guardia de un profesor."""
+        return tuple(s for s in self.supervisions if s.teacher == teacher_id)
+
+    def is_holiday(self, day: str) -> bool:
+        """`True` si esa fecha `AAAAMMDD` no tiene clase."""
+        return any(h.covers(day) for h in self.holidays)
+
+    def absences_on(self, day: str) -> tuple[Absence, ...]:
+        """Ausencias vigentes en una fecha `AAAAMMDD`."""
+        return tuple(a for a in self.absences if a.covers_day(day))
+
+    def substitutions_on(self, day: str) -> tuple[Substitution, ...]:
+        """Decisiones tomadas para una fecha `AAAAMMDD`."""
+        return tuple(s for s in self.substitutions if s.date == day)
 
     def timetable_by_id(self, timetable_id: str) -> Timetable | None:
         """Una versión de horario concreta."""

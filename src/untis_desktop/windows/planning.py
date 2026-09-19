@@ -90,6 +90,13 @@ from ..theme import (
     subject_color,
     text_color_for,
 )
+from ..widgets.timetable_cells import (
+    BLOCKED_ROLE,
+    TimetableCellDelegate,
+    cell_tooltip,
+    legend_items,
+    readable_colors,
+)
 
 # Los roles se reexportan ("as"): las pruebas los siguen importando desde aquí.
 from ..widgets.timetable_cells import (
@@ -103,12 +110,6 @@ from ..widgets.timetable_cells import (
 )
 from ..widgets.timetable_cells import (
     MARK_ROLE as MARK_ROLE,
-)
-from ..widgets.timetable_cells import (
-    TimetableCellDelegate,
-    cell_tooltip,
-    legend_items,
-    readable_colors,
 )
 from ..widgets.uikit import Banner, Legend, icon_label, make_action, set_texts, tool_button
 
@@ -505,7 +506,9 @@ class PlanningWindow(QWidget):
         self.entity_combo.addItems(ids)
         self.entity_combo.setCurrentText(entity_id)
         self.entity_combo.blockSignals(False)
-        if self.focus != (kind, entity_id):
+        if self.focus != (kind, entity_id) or self.grid is None:
+            # `_load_entities` deja un foco de oficio sin dibujar nada: si coincide
+            # con lo que se pide, hay que dibujarlo igual.
             self.focus = (kind, entity_id)
             self.cancel_modes()
             self.refresh(force=True)
@@ -786,6 +789,10 @@ class PlanningWindow(QWidget):
         item.setText(self._text_for(celdas))
         ayuda = [cell_tooltip(celdas)] if celdas else [self.tr("Hueco libre")]
         fondo, _texto = readable_colors(celdas)
+        cerrada = self.grid is not None and self.grid.is_blocked(dia, periodo.number)
+        item.setData(BLOCKED_ROLE, cerrada)
+        if cerrada:
+            ayuda.append(self.tr("Hora cerrada (-3): aquí no puede haber clase"))
         item.setData(CONFLICT_ROLE, any(c.conflict for c in celdas))
         item.setData(FIXED_ROLE, any(c.fixed for c in celdas))
         item.setData(DELTA_ROLE, None)
@@ -807,6 +814,8 @@ class PlanningWindow(QWidget):
                         ayuda.append(self.tr("Destino posible"))
                 else:
                     ayuda.append(self.tr("No cabe: {0}").format(objetivo.reason))
+                if objetivo.warning:
+                    ayuda.append(self.tr("Ojo: {0}").format(objetivo.warning))
             if celda == self._hover and marca != "source":
                 marca = "hover"
         elif self.swap_source is not None:
@@ -1062,14 +1071,47 @@ class PlanningWindow(QWidget):
             self.refresh()
         return resultado
 
+    def toggle_blocked(self, day: int, period: int) -> EditResult:
+        """Cierra la hora con un deseo -3, o la vuelve a abrir."""
+        if self.focus is None or not self.bridge.has_session:
+            return EditResult.failure(self.tr("Sin horario"))
+        kind, entidad = self.focus
+        cerrada = self.grid is not None and self.grid.is_blocked(day, period)
+        svc = self.bridge.service
+        resultado = self.bridge.edit(
+            lambda: svc.set_blocked(
+                self.bridge.session, kind, entidad, [(day, period)], blocked=not cerrada
+            )
+        )
+        if resultado.ok:
+            self.refresh(force=True)
+        return resultado
+
     def context_menu(self, day: int, period: int) -> QMenu | None:
-        """Menú contextual de una celda ocupada."""
-        celda = self.primary(day, period)
-        if celda is None:
+        """Menú contextual de una celda: cerrar la hora y, si hay clase, moverla."""
+        if self.focus is None:
+            return None
+        periodo = next((p for p in self._periods if p.number == period), None)
+        if periodo is None or periodo.is_break:
             return None
         self.select_cell(day, period)
+        cerrada = self.grid is not None and self.grid.is_blocked(day, period)
         menu = QMenu(self)
         menu.setToolTipsVisible(True)
+        bloquear = make_action(
+            menu, "unlocked" if cerrada else "locked", lambda: self.toggle_blocked(day, period)
+        )
+        set_texts(
+            bloquear,
+            self.tr("Abrir esta hora") if cerrada else self.tr("Cerrar esta hora"),
+            self.tr("Vuelve a permitir clase aquí (quita el deseo -3)")
+            if cerrada
+            else self.tr("Pone un deseo -3: ni la optimización ni tú podréis poner clase aquí"),
+        )
+        celda = self.primary(day, period)
+        if celda is None:
+            menu.addAction(bloquear)
+            return menu
         fijar = make_action(
             menu, "unfix" if celda.fixed else "fix", lambda: self.toggle_fixed(day, period)
         )
@@ -1101,6 +1143,8 @@ class PlanningWindow(QWidget):
         )
         for accion in (fijar, desprogramar, intercambiar):
             menu.addAction(accion)
+        menu.addSeparator()
+        menu.addAction(bloquear)
         menu.addSeparator()
         menu.addAction(abrir)
         return menu

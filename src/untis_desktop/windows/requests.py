@@ -1,9 +1,15 @@
-"""Ventana Deseos de tiempo: valores -3..+3 por celda, por día y por entidad.
+"""Ventana Deseos de tiempo: valores -3..+3 por celda, día, hora y entidad.
 
 Se elige el tipo (clase, profesor, aula, materia) y la entidad; la ventana sigue
 la selección sincronizada, así que al elegir una clase en Datos maestros (o
 pulsar "Deseos" en su fila) se enfoca aquí. Una paleta fija el valor que pinta
-el clic o el arrastre; el clic en la cabecera del día fija el deseo del día.
+el clic o el arrastre; el clic en el nombre del día fija el deseo del día entero
+y el clic en el número de hora, el de esa hora en toda la semana.
+
+Arriba está el **marco horario**: de qué hora a qué hora hay clase. Cierra con
+-3 las horas de fuera, que es como se hace en Untis (un -3 es un bloqueo
+absoluto), y puede aplicarse de golpe a todas las entidades del mismo tipo o a
+las de una rejilla, para no pintar 820 celdas a mano.
 El cuadro de deseos no especificados guarda "N días/mañanas/tardes libres".
 """
 
@@ -16,6 +22,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSpinBox,
     QToolButton,
     QVBoxLayout,
@@ -34,6 +41,9 @@ from ..widgets.uikit import Banner, Legend, exempt
 
 #: Tipos de entidad con deseos, en el orden del desplegable.
 REQUEST_KINDS: tuple[str, ...] = ("class", "teacher", "room", "subject")
+
+#: Alcance de lo que se pinta: esta entidad, las de su rejilla o todas.
+SCOPES: tuple[str, ...] = ("one", "grid", "all")
 
 #: Tipos de deseo no especificado (Fachada `set_unspecified`).
 UNSPECIFIED_KINDS: tuple[str, ...] = ("free_day", "free_morning", "free_afternoon")
@@ -88,6 +98,19 @@ class RequestsWindow(QWidget):
             lambda ident: self.set_paint_value(ident - PALETTE_ID_OFFSET)
         )
 
+        self.scope_label = QLabel()
+        self.scope_combo = QComboBox()
+        for clave in SCOPES:
+            self.scope_combo.addItem(clave, clave)
+        self.frame_label = QLabel()
+        self.frame_first = QSpinBox()
+        self.frame_last = QSpinBox()
+        for caja in (self.frame_first, self.frame_last):
+            caja.setRange(0, 99)
+            caja.setMinimumWidth(52)
+        self.frame_apply = QPushButton(icon("requests"), "")
+        self.frame_apply.clicked.connect(self.apply_time_frame)
+
         self.grid = RequestGridWidget()
         self.grid.painted.connect(self._on_painted)
         self.hint = Banner("tip")
@@ -114,9 +137,19 @@ class RequestsWindow(QWidget):
         barra.addWidget(self.palette_label)
         barra.addLayout(paleta)
         barra.addStretch(1)
+        marco = QHBoxLayout()
+        marco.addWidget(self.frame_label)
+        marco.addWidget(self.frame_first)
+        marco.addWidget(self.frame_last)
+        marco.addWidget(self.frame_apply)
+        marco.addSpacing(16)
+        marco.addWidget(self.scope_label)
+        marco.addWidget(self.scope_combo)
+        marco.addStretch(1)
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(4, 4, 4, 4)
         raiz.addLayout(barra)
+        raiz.addLayout(marco)
         centro = QHBoxLayout()
         centro.addWidget(self.grid, 1)
         lateral = QVBoxLayout()
@@ -145,6 +178,24 @@ class RequestsWindow(QWidget):
     @property
     def entity(self) -> str:
         return self.entity_combo.currentText()
+
+    @property
+    def scope(self) -> str:
+        """A quién se aplica lo que se pinta: solo la entidad, la rejilla o todas."""
+        return str(self.scope_combo.currentData() or "one")
+
+    def targets(self) -> list[str]:
+        """Entidades a las que se aplica, según el alcance elegido."""
+        if not self.bridge.has_session or not self.entity:
+            return []
+        if self.scope == "one":
+            return [self.entity]
+        svc, s = self.bridge.service, self.bridge.session
+        todas = list(entity_ids(self.bridge, KIND_OF_SELECTION[self.kind]))
+        if self.scope == "all":
+            return todas
+        propia = svc.grid_id_of(s, self.kind, self.entity)
+        return [e for e in todas if svc.grid_id_of(s, self.kind, e) == propia]
 
     def set_paint_value(self, value: int) -> None:
         self.grid.paint_value = value
@@ -180,6 +231,23 @@ class RequestsWindow(QWidget):
             caja.setValue(cantidades.get(tipo, 0))
             caja.blockSignals(False)
             caja.setEnabled(activo)
+        self._load_frame(activo)
+
+    def _load_frame(self, activo: bool) -> None:
+        """Pone en los selectores el marco horario que tiene la entidad."""
+        for caja in (self.frame_first, self.frame_last):
+            caja.setEnabled(activo)
+            caja.blockSignals(True)
+        self.frame_apply.setEnabled(activo)
+        if activo:
+            marco = self.bridge.service.time_frame(self.bridge.session, self.kind, self.entity)
+            horas = marco.periods or (1,)
+            for caja in (self.frame_first, self.frame_last):
+                caja.setRange(horas[0], horas[-1])
+            self.frame_first.setValue(marco.first if marco.first is not None else horas[0])
+            self.frame_last.setValue(marco.last if marco.last is not None else horas[-1])
+        for caja in (self.frame_first, self.frame_last):
+            caja.blockSignals(False)
 
     def focus_entity(self, kind: str, entity_id: str) -> None:
         """Muestra los deseos de `entity_id` (selección sincronizada)."""
@@ -214,23 +282,33 @@ class RequestsWindow(QWidget):
             self.paint(cells, value)
 
     def paint(self, cells: list[RequestCell], value: int) -> EditResult:
-        """Fija `value` en las celdas (período `None` = día completo)."""
-        if not self.bridge.has_session or not self.entity:
+        """Fija `value` en las celdas y en todas las entidades del alcance.
+
+        Una celda es `(día, período)`: período `None` es el día entero y día
+        `None`, esa hora en toda la semana.
+        """
+        destinos = self.targets()
+        if not destinos:
             return EditResult.failure(self.tr("Elige una entidad"))
-        svc, kind, entidad = self.bridge.service, self.kind, self.entity
-
-        def aplicar() -> EditResult:
-            ultimo = EditResult.success()
-            for dia, periodo in cells:
-                r = svc.set_request(self.bridge.session, kind, entidad, dia, periodo, value)
-                if not r.ok:
-                    return r
-                ultimo = r
-            return ultimo
-
-        resultado = self.bridge.edit(aplicar)
+        svc, kind = self.bridge.service, self.kind
+        resultado = self.bridge.edit(
+            lambda: svc.set_requests(self.bridge.session, kind, destinos, cells, value)
+        )
         if not resultado.ok:
             self._load_grid()
+        return resultado
+
+    def apply_time_frame(self) -> EditResult:
+        """Deja clase solo entre las horas elegidas, en todas las del alcance."""
+        destinos = self.targets()
+        if not destinos:
+            return EditResult.failure(self.tr("Elige una entidad"))
+        svc, kind = self.bridge.service, self.kind
+        primera, ultima = self.frame_first.value(), self.frame_last.value()
+        resultado = self.bridge.edit(
+            lambda: svc.set_time_frame(self.bridge.session, kind, destinos, primera, ultima)
+        )
+        self._load_grid()
         return resultado
 
     def _on_unspecified(self, request_kind: str, count: int) -> None:
@@ -265,6 +343,30 @@ class RequestsWindow(QWidget):
             self.kind_combo.setItemText(i, nombres[kind])
         self.kind_label.setText(self.tr("Deseos de:"))
         self.palette_label.setText(self.tr("Valor:"))
+        self.frame_label.setText(self.tr("Hay clase de la hora:"))
+        self.frame_apply.setText(self.tr("Aplicar marco horario"))
+        self.frame_apply.setToolTip(
+            self.tr(
+                "Cierra con -3 las horas de fuera del marco, todos los días. "
+                "Es la forma de decir a qué hora empieza y termina la jornada."
+            )
+        )
+        self.frame_first.setToolTip(self.tr("Primera hora en que puede haber clase"))
+        self.frame_last.setToolTip(self.tr("Última hora en que puede haber clase"))
+        self.scope_label.setText(self.tr("Aplicar a:"))
+        alcances = {
+            "one": self.tr("solo este"),
+            "grid": self.tr("todos los de su rejilla"),
+            "all": self.tr("todos"),
+        }
+        for i, clave in enumerate(SCOPES):
+            self.scope_combo.setItemText(i, alcances[clave])
+        self.scope_combo.setToolTip(
+            self.tr(
+                "A quién se aplica lo que pintas y el marco horario: solo a este "
+                "elemento, a todos los que comparten su rejilla de tiempo, o a todos."
+            )
+        )
         self.unspecified_box.setTitle(self.tr("Deseos no especificados"))
         textos = {
             "free_day": self.tr("Días libres"),
@@ -308,7 +410,8 @@ class RequestsWindow(QWidget):
         self.hint.setText(
             self.tr(
                 "Elige un valor en la paleta y pinta con clic o arrastrando. Clic derecho: borra. "
-                "Clic en el nombre del día: deseo para el día entero."
+                "Clic en el nombre del día: el día entero. Clic en el número de hora: esa hora "
+                "toda la semana. Con -3 la hora queda cerrada y el generador nunca la usa."
             )
         )
         self._load_grid()

@@ -14,6 +14,7 @@ from enum import StrEnum
 from .common import REQUEST_MAX, REQUEST_MIN, EntityKind
 from .lessons import LessonLine
 from .project import UntisProject
+from .requests import TimeRequest
 
 
 class Severity(StrEnum):
@@ -323,6 +324,108 @@ def _check_class_load(project: UntisProject) -> list[DataIssue]:
     return issues
 
 
+def _open_cells(project: UntisProject) -> dict[str, set[tuple[int, int]]]:
+    """Celdas lectivas que cada clase tiene abiertas: su rejilla menos los -3."""
+    vetos: defaultdict[str, list[TimeRequest]] = defaultdict(list)
+    for r in project.time_requests:
+        if r.entity_kind is EntityKind.CLASS and r.is_block:
+            vetos[r.entity_id].append(r)
+    grids = {g.id: g for g in project.time_grids}
+    abiertas: dict[str, set[tuple[int, int]]] = {}
+    for clase in project.classes:
+        grid = grids.get(clase.time_grid)
+        if grid is None:
+            continue
+        reglas = vetos.get(clase.id, ())
+        abiertas[clase.id] = {
+            (d, p) for d, p in grid.slots() if not any(r.covers(d, p) for r in reglas)
+        }
+    return abiertas
+
+
+def _check_class_frame(project: UntisProject) -> list[DataIssue]:
+    """Marco horario de cada clase: horas abiertas frente a horas que necesita.
+
+    Es el aviso que evita el caso más típico al empezar de cero: dejar la
+    jornada entera abierta y que el generador coloque clase a horas en las que
+    el colegio ya no da servicio, o al revés, cerrar tanto que no quepa.
+    """
+    issues: list[DataIssue] = []
+    carga: defaultdict[str, int] = defaultdict(int)
+    for le in project.active_lessons:
+        for cid in le.classes:
+            carga[cid] += le.periods_per_week
+    abiertas = _open_cells(project)
+    clases = project.class_by_id
+    for cid in sorted(carga):
+        clase = clases.get(cid)
+        if clase is None or cid not in abiertas:
+            continue
+        libres = len(abiertas[cid])
+        necesita = carga[cid]
+        if necesita > libres:
+            issues.append(
+                DataIssue(
+                    Severity.ERROR,
+                    "marco_horario_insuficiente",
+                    f"La clase {clase.display_name!r} necesita {necesita} períodos/semana "
+                    f"y solo tiene {libres} horas abiertas: amplía su marco horario "
+                    f"o quita deseos -3.",
+                    EntityKind.CLASS,
+                    cid,
+                )
+            )
+        elif libres >= necesita + 5 and libres >= necesita * 1.25:
+            issues.append(
+                DataIssue(
+                    Severity.WARNING,
+                    "marco_horario_abierto",
+                    f"La clase {clase.display_name!r} tiene {libres} horas abiertas y solo "
+                    f"necesita {necesita}: si su jornada termina antes, ciérrala en Deseos "
+                    f"de tiempo (marco horario).",
+                    EntityKind.CLASS,
+                    cid,
+                )
+            )
+    return issues
+
+
+def _check_short_periods(project: UntisProject) -> list[DataIssue]:
+    """Horas mucho más cortas que las demás y abiertas para muchas clases."""
+    issues: list[DataIssue] = []
+    abiertas = _open_cells(project)
+    por_clase: defaultdict[str, str] = defaultdict(str)
+    for clase in project.classes:
+        por_clase[clase.id] = clase.time_grid
+    for grid in project.time_grids:
+        lectivas = grid.teaching_periods
+        if len(lectivas) < 2:
+            continue
+        habitual = max(
+            {p.duration for p in lectivas},
+            key=lambda d: sum(1 for p in lectivas if p.duration == d),
+        )
+        cortas = [p for p in lectivas if p.duration * 2 <= habitual]
+        for corta in cortas:
+            cuantas = sum(
+                1
+                for cid, celdas in abiertas.items()
+                if por_clase[cid] == grid.id and any(p == corta.number for _d, p in celdas)
+            )
+            if cuantas:
+                issues.append(
+                    DataIssue(
+                        Severity.WARNING,
+                        "hora_corta_abierta",
+                        f"La hora {corta.number} de la rejilla {grid.display_name!r} dura "
+                        f"{corta.duration} min frente a los {habitual} habituales y está "
+                        f"abierta para {cuantas} clase(s): ciérrala si solo es para "
+                        f"dirección de grupo.",
+                    )
+                )
+    return issues
+
+
 def _check_time_requests(project: UntisProject) -> list[DataIssue]:
     """Una celda no puede ser a la vez imposible (-3) y muy deseable (+3)."""
     issues: list[DataIssue] = []
@@ -354,6 +457,8 @@ def diagnose_data(project: UntisProject) -> list[DataIssue]:
         *_check_room_chains(project),
         *_check_lessons(project),
         *_check_class_load(project),
+        *_check_class_frame(project),
+        *_check_short_periods(project),
         *_check_time_requests(project),
     ]
     issues.sort(key=lambda i: (not i.is_error, i.code, i.entity_id, i.lesson_number or 0))

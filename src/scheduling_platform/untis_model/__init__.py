@@ -36,6 +36,16 @@ from .master_data import (
 )
 from .project import SchoolInfo, UntisProject
 from .requests import TimeRequest, UnspecifiedKind, UnspecifiedRequest
+from .substitution import (
+    Absence,
+    Holiday,
+    Substitution,
+    SubstitutionKind,
+    format_date,
+    parse_date,
+    weekday_of,
+)
+from .supervision import Supervision, SupervisionArea
 from .time_grid import PeriodDef, TimeGrid, hhmm_to_minutes, minutes_to_hhmm
 from .timetable import Assignment, CriterionScore, Evaluation, Timetable
 from .weighting import (
@@ -61,6 +71,7 @@ __all__ = [
     "TAB_OF_CRITERION",
     "UNPLACED_PENALTY",
     "UNSET",
+    "Absence",
     "Assignment",
     "CriterionScore",
     "DataIssue",
@@ -69,6 +80,7 @@ __all__ = [
     "EntityKind",
     "Evaluation",
     "HalfDay",
+    "Holiday",
     "Lesson",
     "LessonLine",
     "MinMax",
@@ -80,6 +92,10 @@ __all__ = [
     "Severity",
     "StudentGroup",
     "Subject",
+    "Substitution",
+    "SubstitutionKind",
+    "Supervision",
+    "SupervisionArea",
     "Teacher",
     "Term",
     "TimeGrid",
@@ -93,8 +109,11 @@ __all__ = [
     "build_lesson_id",
     "diagnose_data",
     "double_periods_from_block",
+    "format_date",
     "hhmm_to_minutes",
     "minutes_to_hhmm",
+    "parse_date",
     "slider_to_weight",
     "split_lesson_id",
+    "weekday_of",
 ]

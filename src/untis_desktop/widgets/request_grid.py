@@ -16,8 +16,9 @@ from scheduling_platform.application import RequestGrid
 
 from ..theme import BREAK_COLOR, day_name, request_color, text_color_for
 
-#: Una celda pintable: `(día, período)`; período `None` = día completo.
-type RequestCell = tuple[int, int | None]
+#: Una celda pintable: `(día, período)`. Período `None` = el día entero;
+#: día `None` = esa hora todos los días (la columna, como el marco horario).
+type RequestCell = tuple[int | None, int | None]
 
 
 def request_text(value: int) -> str:
@@ -58,6 +59,8 @@ class RequestGridWidget(QTableWidget):
         self.setMouseTracking(False)
         self.verticalHeader().setSectionsClickable(True)
         self.verticalHeader().sectionClicked.connect(self._on_day_header)
+        self.horizontalHeader().setSectionsClickable(True)
+        self.horizontalHeader().sectionClicked.connect(self._on_period_header)
         self.horizontalHeader().setDefaultSectionSize(44)
         self.horizontalHeader().setMinimumSectionSize(36)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -72,18 +75,28 @@ class RequestGridWidget(QTableWidget):
             self.setRowCount(0)
             self.setColumnCount(0)
             return
-        self.setRowCount(len(grid.days))
+        self.setRowCount(len(grid.days) + 1)
         self.setColumnCount(len(grid.periods) + 1)
-        self.setVerticalHeaderLabels([day_name(d, language) for d in grid.days])
+        self.setVerticalHeaderLabels(
+            [self.tr("Toda la semana"), *(day_name(d, language) for d in grid.days)]
+        )
         self.setHorizontalHeaderLabels([self.tr("Día"), *(str(p) for p in grid.periods)])
         cabecera = self.horizontalHeaderItem(0)
         if cabecera is not None:
             cabecera.setToolTip(self.tr("Deseo para el día entero (clic en el nombre del día)"))
-        for fila, dia in enumerate(grid.days):
+        # Fila 0: el deseo de esa hora en todos los días (clic en el número de hora).
+        esquina = QTableWidgetItem("")
+        esquina.setFlags(Qt.ItemFlag.NoItemFlags)
+        self.setItem(0, 0, esquina)
+        for col, periodo in enumerate(grid.periods, start=1):
+            recreo = periodo in grid.breaks
+            valor = 0 if recreo else grid.period_values.get(periodo, 0)
+            self._set_cell(0, col, valor, recreo)
+        for fila, dia in enumerate(grid.days, start=1):
             self._set_cell(fila, 0, grid.day_values.get(dia, 0), is_break=False)
             for col, periodo in enumerate(grid.periods, start=1):
                 recreo = periodo in grid.breaks
-                self._set_cell(fila, col, 0 if recreo else grid.value(dia, periodo), recreo)
+                self._set_cell(fila, col, 0 if recreo else grid.own_value(dia, periodo), recreo)
 
     def _set_cell(self, row: int, column: int, value: int, is_break: bool) -> None:
         item = QTableWidgetItem(request_text(value))
@@ -100,40 +113,43 @@ class RequestGridWidget(QTableWidget):
             periodos = self.grid.periods if self.grid is not None else ()
             if column == 0:
                 donde = self.tr("Todo el día")
-            elif column - 1 < len(periodos):
-                donde = self.tr("Período {0}").format(periodos[column - 1])
-            else:
+            elif column - 1 >= len(periodos):
                 donde = ""
+            elif row == 0:
+                donde = self.tr("Hora {0} de todos los días").format(periodos[column - 1])
+            else:
+                donde = self.tr("Período {0}").format(periodos[column - 1])
             item.setToolTip(f"{donde}: {request_meaning(value)}")
         self.setItem(row, column, item)
 
     def cell_of(self, row: int, column: int) -> RequestCell | None:
-        """Celda del modelo en `(fila, columna)`, o `None` si es un recreo."""
+        """Celda del modelo en `(fila, columna)`, o `None` si no es pintable."""
         grid = self.grid
-        if grid is None or not 0 <= row < len(grid.days):
+        if grid is None or not 0 <= row <= len(grid.days):
             return None
-        dia = grid.days[row]
+        dia = None if row == 0 else grid.days[row - 1]
         if column == 0:
-            return (dia, None)
+            # La esquina sería "toda la semana": Untis no lo permite.
+            return None if dia is None else (dia, None)
         if not 1 <= column <= len(grid.periods):
             return None
         periodo = grid.periods[column - 1]
         return None if periodo in grid.breaks else (dia, periodo)
 
-    def position_of(self, day: int, period: int | None) -> tuple[int, int]:
+    def position_of(self, day: int | None, period: int | None) -> tuple[int, int]:
         """`(fila, columna)` de una celda del modelo."""
         grid = self.grid
         if grid is None:
             raise ValueError("Sin rejilla")
         columna = 0 if period is None else grid.periods.index(period) + 1
-        return grid.days.index(day), columna
+        return (0 if day is None else grid.days.index(day) + 1), columna
 
-    def value_at(self, day: int, period: int | None) -> str:
+    def value_at(self, day: int | None, period: int | None) -> str:
         fila, col = self.position_of(day, period)
         item = self.item(fila, col)
         return item.text() if item is not None else ""
 
-    def color_at(self, day: int, period: int | None) -> QColor:
+    def color_at(self, day: int | None, period: int | None) -> QColor:
         fila, col = self.position_of(day, period)
         item = self.item(fila, col)
         return item.background().color() if item is not None else QColor()
@@ -180,12 +196,18 @@ class RequestGridWidget(QTableWidget):
             self.painted.emit(celdas, self._drag_value)
         event.accept()
 
-    def cell_center(self, day: int, period: int | None) -> QPoint:
+    def cell_center(self, day: int | None, period: int | None) -> QPoint:
         """Centro de una celda en coordenadas del *viewport* (pruebas, atajos)."""
         fila, col = self.position_of(day, period)
         return self.visualRect(self.model().index(fila, col)).center()
 
     def _on_day_header(self, row: int) -> None:
         celda = self.cell_of(row, 0)
+        if celda is not None:
+            self.painted.emit([celda], self.paint_value)
+
+    def _on_period_header(self, column: int) -> None:
+        """Clic en el número de hora: esa hora en todos los días (la columna)."""
+        celda = self.cell_of(0, column)
         if celda is not None:
             self.painted.emit([celda], self.paint_value)

@@ -301,6 +301,21 @@ def help_entries() -> dict[str, HelpEntry]:
                     "Usa los valores negativos suaves (-1, -2) cuando algo molesta pero "
                     "se puede aceptar.",
                 ),
+                translate(
+                    "help",
+                    "Marco horario: di de qué hora a qué hora hay clase y pulsa Aplicar. "
+                    "Cierra sola las horas de fuera en todos los días.",
+                ),
+                translate(
+                    "help",
+                    "Con Aplicar a: todos los de su rejilla lo haces de una vez para "
+                    "todos los cursos que comparten horario.",
+                ),
+                translate(
+                    "help",
+                    "Clic en el número de la hora: esa hora queda igual toda la semana. "
+                    "Clic en el nombre del día: el día entero.",
+                ),
             ),
             (
                 translate(

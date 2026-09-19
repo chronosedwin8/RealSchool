@@ -14,14 +14,24 @@ desplegables de referencias y los hallazgos del diagnóstico de datos.
   celda se pinta en rojo con el motivo como ayuda emergente, como en Untis.
 - Última fila en blanco (con un texto gris que lo explica): escribir un nombre
   corto añade la entidad. El botón Añadir de la barra lleva a esa fila.
-- Barra de herramientas con iconos (Añadir, Borrar, Deseos, Columnas) y filtro
-  con lupa; ayuda emergente en cada cabecera con el significado de la columna.
+- Barra de herramientas con iconos (Añadir, Borrar, Deseos, Copiar, Pegar,
+  Importar CSV, Exportar CSV, Columnas) y filtro con lupa; ayuda emergente en
+  cada cabecera con el significado de la columna.
 - Estado vacío: con la tabla sin filas se ve un texto que dice qué hacer.
+- **Alta masiva** (un colegio tiene 150 profesores, no se teclean uno a uno):
+  Ctrl+C copia las filas seleccionadas y Ctrl+V pega un bloque entero desde
+  Excel. Si se pega sobre la columna del nombre corto, las filas que no existen
+  se dan de alta y las que existen se actualizan; si se pega sobre otra columna,
+  el bloque cae sobre las filas que hay desde la celda actual hacia abajo. En
+  los dos casos va todo en un solo paso de deshacer y con la misma validación
+  que la edición celda a celda: lo que no pasa se queda fuera, se pinta en rojo
+  y el motivo sale en la franja de aviso.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import (
@@ -35,15 +45,17 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QColor, QIcon, QKeySequence
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
+    QMessageBox,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableView,
@@ -59,6 +71,15 @@ from scheduling_platform.application import (
     MasterRow,
     MasterTable,
     ValueType,
+)
+from scheduling_platform.application.untis.bulk import (
+    CellsResult,
+    ImportReport,
+    export_master,
+    import_master,
+    preview_import,
+    set_master_cells,
+    table_from_rows,
 )
 
 from ..icons import icon
@@ -82,6 +103,13 @@ KIND_OF_SELECTION: dict[str, MasterKind] = {v: k for k, v in SELECTION_KIND.item
 #: Clave de la ventana Deseos de tiempo en el registro.
 REQUESTS_KEY = "requests"
 
+#: Filtro de archivo de los diálogos de importar y exportar.
+CSV_FILTER = "CSV (*.csv *.txt *.tsv);;Todos los archivos (*)"
+
+#: Codificación con la que se escriben los CSV: UTF-8 con BOM, que es lo que
+#: Excel necesita para abrir las tildes bien de un doble clic.
+CSV_ENCODING = "utf-8-sig"
+
 
 def layout_settings() -> QSettings:
     """Almacén de la disposición de columnas (las pruebas lo sustituyen)."""
@@ -102,6 +130,12 @@ def is_checked(value: object) -> bool:
 
 def warning_icon() -> QIcon:
     return icon("warning")
+
+
+def _split_block(text: str) -> list[list[str]]:
+    """Texto del portapapeles -> filas de celdas (tabulador entre columnas)."""
+    normalizado = text.replace("\r\n", "\n").replace("\r", "\n")
+    return [linea.split("\t") for linea in normalizado.split("\n") if linea.strip()]
 
 
 # --------------------------------------------------------------------------- #
@@ -209,6 +243,18 @@ class MasterTableModel(QAbstractTableModel):
 
     def error_at(self, key: str, field: str) -> str:
         return self._errors.get((key, field), "")
+
+    def mark_error(self, key: str, field: str, message: str) -> None:
+        """Pinta una celda en rojo con su motivo (pegar e importar en bloque)."""
+        col = next((i for i, c in enumerate(self.columns) if c.field == field), -1)
+        fila = self.row_of(key)
+        if not message:
+            self._errors.pop((key, field), None)
+        else:
+            self._errors[(key, field)] = message
+        if fila >= 0 and col >= 0:
+            indice = self.index(fila, col)
+            self.dataChanged.emit(indice, indice)
 
     def references(self, column: int) -> tuple[str, ...] | None:
         if self.table is None or not 0 <= column < len(self.columns):
@@ -492,6 +538,10 @@ class MasterDataGrid(QWidget):
         self.remove_button = tool_button("delete", self.remove_selected)
         self.requests_button = tool_button("requests", self.open_requests)
         self.requests_button.setVisible(self.selection_kind is not None)
+        self.copy_button = tool_button("copy", self.copy_selection)
+        self.paste_button = tool_button("table", self.paste_clipboard)
+        self.import_button = tool_button("import", self.ask_import)
+        self.export_button = tool_button("export", self.ask_export)
         self.columns_menu = QMenu(self)
         self.columns_menu.menuAction().setIcon(icon("columns"))
         self.columns_menu.aboutToShow.connect(lambda: self._fill_columns_menu(self.columns_menu))
@@ -537,6 +587,15 @@ class MasterDataGrid(QWidget):
         self.remove_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.view.addAction(self.remove_action)
         self.requests_action = make_action(self, "requests", self.open_requests)
+        self.copy_action = make_action(self, "copy", self.copy_selection)
+        self.copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+        self.paste_action = make_action(self, "table", self.paste_clipboard)
+        self.paste_action.setShortcut(QKeySequence.StandardKey.Paste)
+        self.import_action = make_action(self, "import", self.ask_import)
+        self.export_action = make_action(self, "export", self.ask_export)
+        for accion in (self.copy_action, self.paste_action):
+            accion.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            self.view.addAction(accion)
 
         self.message = Banner("error")
         self.message.hide()
@@ -547,6 +606,10 @@ class MasterDataGrid(QWidget):
             self.add_button,
             self.remove_button,
             self.requests_button,
+            self.copy_button,
+            self.paste_button,
+            self.import_button,
+            self.export_button,
             self.columns_button,
         ):
             barra.addWidget(boton)
@@ -655,6 +718,17 @@ class MasterDataGrid(QWidget):
         self.requests_button.setEnabled(hay_fila)
         self.requests_action.setEnabled(hay_fila)
         self.columns_button.setEnabled(abierto)
+        for boton in (self.copy_button, self.copy_action):
+            boton.setEnabled(hay_fila)
+        for widget in (
+            self.paste_button,
+            self.paste_action,
+            self.import_button,
+            self.import_action,
+            self.export_button,
+            self.export_action,
+        ):
+            widget.setEnabled(abierto)
 
     def _settings_key(self) -> str:
         return f"layouts/{self.window_key}/header"
@@ -856,6 +930,220 @@ class MasterDataGrid(QWidget):
         self.message.show_message(text, "error")
         if text:
             self.bridge.status.emit(text)
+
+    # --- alta masiva: copiar, pegar, importar y exportar --------------------------- #
+
+    def visible_columns(self) -> list[int]:
+        """Índices de columna visibles, en el orden en que se ven (no el del modelo)."""
+        cabecera = self.view.horizontalHeader()
+        columnas = [cabecera.logicalIndex(v) for v in range(cabecera.count())]
+        return [c for c in columnas if 0 <= c < len(self.model.columns) and not cabecera.isSectionHidden(c)]
+
+    def selected_source_rows(self) -> list[int]:
+        """Filas del modelo seleccionadas, en el orden en que se ven (sin la vacía)."""
+        seleccion = self.view.selectionModel()
+        elegidas = {i.row() for i in seleccion.selectedRows()}
+        actual = self.view.currentIndex()
+        if not elegidas and actual.isValid():
+            elegidas = {actual.row()}
+        filas: list[int] = []
+        for vista in range(self.proxy.rowCount()):
+            if vista not in elegidas:
+                continue
+            fuente = self.proxy.mapToSource(self.proxy.index(vista, 0)).row()
+            if not self.model.is_blank_row(fuente):
+                filas.append(fuente)
+        return filas
+
+    def copy_selection(self) -> str:
+        """Copia las filas seleccionadas al portapapeles, separadas por tabuladores.
+
+        Se copian solo las columnas visibles y en el orden en que se ven, que es
+        lo que el usuario espera al pegarlo en una hoja de cálculo.
+        """
+        columnas = self.visible_columns()
+        lineas: list[str] = []
+        for fuente in self.selected_source_rows():
+            fila = self.model.row_at(fuente)
+            if fila is None:
+                continue
+            lineas.append("\t".join(self._cell_text(fila, c) for c in columnas))
+        texto = "\n".join(lineas)
+        if texto:
+            QGuiApplication.clipboard().setText(texto)
+            self.message.show_message(
+                self.tr("{0} fila(s) copiada(s) al portapapeles.").format(len(lineas)), "ok"
+            )
+        return texto
+
+    @staticmethod
+    def _cell_text(row: MasterRow, column: int) -> str:
+        return row.cells[column] if 0 <= column < len(row.cells) else ""
+
+    def paste_clipboard(self) -> bool:
+        return self.paste_text(QGuiApplication.clipboard().text())
+
+    def paste_text(self, text: str) -> bool:
+        """Pega un bloque de celdas desde la celda actual, en un solo deshacer.
+
+        Sobre la columna del nombre corto el bloque son filas enteras (las que no
+        existen se dan de alta); sobre cualquier otra columna cae sobre las filas
+        que ya hay, de la actual hacia abajo.
+        """
+        if self.model.table is None or not self.bridge.has_session:
+            return False
+        bloque = _split_block(text)
+        if not bloque:
+            self.show_message(self.tr("El portapapeles no trae ninguna fila."))
+            return False
+        columnas = self.visible_columns()
+        actual = self.view.currentIndex()
+        fuente = self.proxy.mapToSource(actual) if actual.isValid() else QModelIndex()
+        desde = columnas.index(fuente.column()) if fuente.column() in columnas else 0
+        campos = [self.model.columns[c].field for c in columnas[desde:]]
+        if not campos:
+            return False
+        if campos[0] == "id":
+            return self._paste_as_rows(bloque, campos)
+        return self._paste_as_cells(bloque, campos, fuente.row() if fuente.isValid() else 0)
+
+    def _paste_as_rows(self, block: list[list[str]], fields: list[str]) -> bool:
+        """El bloque trae el nombre corto: alta de las filas nuevas y actualización."""
+        recortado = [fila[: len(fields)] for fila in block]
+        tabla = table_from_rows(fields[: max(len(f) for f in recortado)], recortado)
+        informe: list[ImportReport] = []
+
+        def aplicar() -> EditResult:
+            resultado = import_master(self.bridge.session, self.kind, tabla)
+            informe.append(resultado)
+            return EditResult(resultado.ok, resultado.summary())
+
+        self.bridge.edit(aplicar)
+        if not informe:
+            self.show_message(self.tr("Espera a que termine la optimización"))
+            return False
+        self.refresh()
+        self._announce(informe[0].summary(), informe[0].ok, informe[0].rows_ok)
+        return informe[0].ok
+
+    def _paste_as_cells(self, block: list[list[str]], fields: list[str], first_row: int) -> bool:
+        """El bloque cae sobre las filas que ya hay, desde la actual hacia abajo."""
+        claves = self._keys_from(first_row, len(block))
+        ediciones = [
+            (clave, campo, texto)
+            for fila, clave in zip(block, claves, strict=False)
+            for texto, campo in zip(fila, fields, strict=False)
+        ]
+        if not ediciones:
+            self.show_message(self.tr("No hay filas donde pegar desde la celda actual."))
+            return False
+        resultado: list[CellsResult] = []
+
+        def aplicar() -> EditResult:
+            salida = set_master_cells(
+                self.bridge.session, self.kind, ediciones, label=self.tr("Pegar datos")
+            )
+            resultado.append(salida)
+            return EditResult(salida.ok, salida.summary())
+
+        self.bridge.edit(aplicar)
+        if not resultado:
+            self.show_message(self.tr("Espera a que termine la optimización"))
+            return False
+        salida = resultado[0]
+        sobran = len(block) - len(claves)
+        self.refresh()
+        for problema in salida.issues:
+            self.model.mark_error(problema.key, problema.field, problema.message)
+        texto = salida.summary()
+        if sobran > 0:
+            texto += "\n" + self.tr(
+                "{0} fila(s) del portapapeles no cabían: añádelas antes o pega sobre "
+                "la columna del nombre corto."
+            ).format(sobran)
+        self._announce(texto, salida.ok and not sobran, salida.applied)
+        return salida.ok and not sobran
+
+    def _keys_from(self, source_row: int, count: int) -> list[str]:
+        """Nombres cortos de `count` filas desde `source_row`, en el orden de la vista."""
+        inicio = self.proxy.mapFromSource(self.model.index(max(source_row, 0), 0)).row()
+        claves: list[str] = []
+        for vista in range(max(inicio, 0), min(max(inicio, 0) + count, self.proxy.rowCount())):
+            fuente = self.proxy.mapToSource(self.proxy.index(vista, 0)).row()
+            clave = self.model.key_at(fuente)
+            if clave is not None:
+                claves.append(clave)
+        return claves
+
+    def _announce(self, text: str, ok: bool, entered: int) -> None:
+        """Franja de aviso: correcto, aviso (entró parte) o error (no entró nada)."""
+        self.message.show_message(text, "ok" if ok else ("warning" if entered else "error"))
+        self.bridge.status.emit(text.splitlines()[0])
+
+    def ask_import(self) -> None:
+        """Pide el CSV, enseña qué va a pasar y, si se confirma, lo importa."""
+        if self.model.table is None:
+            return
+        ruta, _ = QFileDialog.getOpenFileName(self, self.tr("Importar CSV"), "", CSV_FILTER)
+        if not ruta:
+            return
+        previo = preview_import(self.bridge.session, self.kind, Path(ruta))
+        respuesta = QMessageBox.question(
+            self,
+            self.tr("Importar CSV"),
+            self.tr("Se va a importar «{0}»:\n\n{1}\n\n¿Continúo?").format(
+                Path(ruta).name, previo.summary()
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if respuesta == QMessageBox.StandardButton.Yes:
+            self.import_csv(ruta)
+
+    def import_csv(self, path: str | Path) -> ImportReport | None:
+        """Importa el CSV en un solo paso de deshacer y avisa de lo que no entró."""
+        if self.model.table is None or not self.bridge.has_session:
+            return None
+        informe: list[ImportReport] = []
+
+        def aplicar() -> EditResult:
+            resultado = import_master(self.bridge.session, self.kind, Path(path))
+            informe.append(resultado)
+            return EditResult(resultado.ok, resultado.summary())
+
+        self.bridge.edit(aplicar)
+        if not informe:
+            self.show_message(self.tr("Espera a que termine la optimización"))
+            return None
+        self.refresh()
+        self._announce(informe[0].summary(), informe[0].ok, informe[0].rows_ok)
+        return informe[0]
+
+    def ask_export(self) -> None:
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Exportar CSV"), f"{self.window_key}.csv", CSV_FILTER
+        )
+        if ruta:
+            self.export_csv(ruta)
+
+    def export_csv(self, path: str | Path) -> Path | None:
+        """Escribe la cuadrícula entera como CSV, lista para abrirla en Excel."""
+        if self.model.table is None or not self.bridge.has_session:
+            return None
+        destino = Path(path)
+        if not destino.suffix:
+            destino = destino.with_suffix(".csv")
+        texto = export_master(self.bridge.session, self.kind, language=self.bridge.language)
+        try:
+            destino.write_text(texto, encoding=CSV_ENCODING, newline="")
+        except OSError as exc:
+            self.show_message(self.tr("No se pudo escribir {0}: {1}").format(destino.name, exc))
+            return None
+        self._announce(
+            self.tr("{0} fila(s) exportadas a {1}.").format(len(self.model.rows), destino.name),
+            True,
+            len(self.model.rows),
+        )
+        return destino
 
     def row_menu(self) -> QMenu:
         """Menú contextual de una fila (también para las pruebas)."""

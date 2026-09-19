@@ -816,7 +816,24 @@ class State:
                     chain += r4
                     if m.room_requests:
                         trr += self._room_requests(self.rooms[s], cell[s])
-        vec = (dp, blk, nsd, nsdc, uni, spc, topt, mm, trt, trc, trs, req, opt, cap, chain, trr)
+        vec = (
+            dp,
+            blk,
+            nsd,
+            nsdc,
+            uni,
+            spc,
+            topt,
+            mm,
+            trt,
+            trc,
+            trs,
+            req,
+            opt,
+            cap,
+            chain,
+            trr,
+        )
         val = penal
         if dp or blk or nsd or nsdc or uni or spc or topt or mm or trt or trc or trs:
             w = self._w_l

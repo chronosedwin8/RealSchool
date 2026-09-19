@@ -34,6 +34,8 @@ class SchoolClass:
     """Id de la `TimeGrid` por la que se rige esta clase."""
     home_room: str | None = None
     """Aula base (Klassenraum)."""
+    class_teacher: str | None = None
+    """Profesor tutor (Untis: "Klassenlehrer"); lo trae el GPU003."""
     department: str | None = None
     students: int = 0
     level: int | None = None
@@ -76,6 +78,12 @@ class Teacher:
     lunch_break: MinMax = UNSET
     consecutive_max: int | None = None
     """Períodos seguidos máximo."""
+    supervision_max: int | None = None
+    """Minutos de vigilancia de recreo que puede tener a la semana (Untis: "PA-Max");
+    0 lo deja fuera del reparto de guardias."""
+    substitution_lock: int = 0
+    """Reserva para sustituir 0-9 (Untis: "Sperrvermerk"): cuanto más alto, menos
+    se le propone como sustituto."""
     text: str = ""
     """Texto libre del profesor (columna "Text" de Untis)."""
     status: str = ""
@@ -92,6 +100,13 @@ class Teacher:
             raise ValueError(f"Profesor {self.id!r}: días/semana negativo")
         if self.consecutive_max is not None and self.consecutive_max < 1:
             raise ValueError(f"Profesor {self.id!r}: períodos seguidos máx. < 1")
+        if self.supervision_max is not None and self.supervision_max < 0:
+            raise ValueError(f"Profesor {self.id!r}: minutos de guardia negativos")
+        if not 0 <= self.substitution_lock <= 9:
+            raise ValueError(
+                f"Profesor {self.id!r}: reserva de sustitución fuera de 0-9: "
+                f"{self.substitution_lock}"
+            )
 
     @property
     def display_name(self) -> str:

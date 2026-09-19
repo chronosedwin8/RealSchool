@@ -15,13 +15,20 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from PySide6.QtCore import QCoreApplication, QModelIndex, QPersistentModelIndex, QRect, Qt
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
 from scheduling_platform.application import UntisTimetableCell
 
 from ..icons import icon
-from ..theme import CONFLICT_COLOR, TARGET_NO_COLOR, TARGET_OK_COLOR, subject_color, text_color_for
+from ..theme import (
+    BLOCKED_COLOR,
+    CONFLICT_COLOR,
+    TARGET_NO_COLOR,
+    TARGET_OK_COLOR,
+    subject_color,
+    text_color_for,
+)
 from .uikit import Swatch
 
 #: Roles de datos que lee el delegado.
@@ -30,6 +37,8 @@ FIXED_ROLE = Qt.ItemDataRole.UserRole + 2
 DELTA_ROLE = Qt.ItemDataRole.UserRole + 3
 MARK_ROLE = Qt.ItemDataRole.UserRole + 4
 """Marca de la celda: `source` (origen del arrastre o del intercambio) o `hover`."""
+BLOCKED_ROLE = Qt.ItemDataRole.UserRole + 5
+"""`True` si la hora está cerrada con un deseo -3 para la entidad que se ve."""
 
 _CONTEXT = "TimetableCells"
 
@@ -75,6 +84,7 @@ def legend_items(*, targets: bool) -> list[tuple[Swatch, str]]:
         items.append((("fill", TARGET_NO_COLOR), _tr("No cabe")))
     items.append((("outline", CONFLICT_COLOR), _tr("Choque")))
     items.append((("icon", "fix"), _tr("Fijada")))
+    items.append((("fill", BLOCKED_COLOR), _tr("Hora cerrada (-3)")))
     return items
 
 
@@ -90,6 +100,11 @@ class TimetableCellDelegate(QStyledItemDelegate):
         super().paint(painter, option, index)
         rect: QRect = option.rect
         painter.save()
+        if index.data(BLOCKED_ROLE):
+            # Trama diagonal: la hora está cerrada, no puede haber clase.
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(BLOCKED_COLOR), Qt.BrushStyle.FDiagPattern))
+            painter.drawRect(rect)
         if index.data(FIXED_ROLE):
             painter.setPen(QPen(QColor("#1f2937"), 2))
             painter.setBrush(Qt.BrushStyle.NoBrush)

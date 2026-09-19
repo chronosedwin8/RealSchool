@@ -29,6 +29,8 @@ desde cero con el export real 2026-2027 (ADR-039, `tests/test_real_2026_2027.py`
 | 14 | Ver la carga de una clase o profesor frente a su capacidad | Lecciones → barra de suma | `test_untis_facade::test_resumen_de_carga`, `test_desktop_data_windows` | ☐ |
 | 15 | Filtrar lecciones al elegir una clase en Datos maestros | Selección sincronizada | `test_desktop_shell::test_puente_seleccion_sincronizada`, `test_desktop_data_windows` | ☐ |
 | 16 | Poner deseos −3…+3 por celda y por día completo | Datos maestros → Deseos de tiempo | `test_untis_facade::test_deseos_de_tiempo`, `test_desktop_data_windows` | ☐ |
+| 16b | Cerrar la jornada de un curso (marco horario) y aplicarlo a varios a la vez | Deseos de tiempo → marco horario + alcance | `test_marco_horario` | ☐ |
+| 16c | Cerrar una hora suelta desde el horario y verla marcada | Planificación / Horarios → clic derecho | `test_marco_horario` | ☐ |
 | 17 | Pedir "2 tardes libres" (deseo no especificado) | Deseos de tiempo → no especificados | `test_untis_facade::test_deseos_no_especificados`, `test_evaluation::test_deseos_blandos_y_no_especificados` | ☐ |
 | 18 | Ajustar ponderaciones 0–5 con ayuda por criterio | Módulos → Ponderación | `test_untis_facade::test_ponderacion_nueve_pestanas`, `test_desktop_data_windows` | ☐ |
 | 19 | Revisar el Diagnóstico de datos antes de optimizar | Panel Diagnóstico (Datos de entrada) | `test_untis_facade::test_evaluacion_y_diagnostico_real`, `test_desktop_planning_windows` | ☐ |

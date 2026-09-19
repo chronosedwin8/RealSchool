@@ -66,3 +66,4 @@ El producto se reorienta a Untis sobre el motor congelado en `engine-1.0`.
 - [ADR-037 — Heurística de generación y Fachada Untis](../adr/ADR-037-heuristica-y-fachada-untis.md)
 - [ADR-038 — Independencia total desde la interfaz y usabilidad](../adr/ADR-038-independencia-y-usabilidad.md)
 - [ADR-039 — Fidelidad con los datos reales del curso 2026-2027](../adr/ADR-039-fidelidad-con-datos-reales-2026-2027.md)
+- [ADR-040 — Marco horario y bloqueo de horas](../adr/ADR-040-marco-horario-y-bloqueos.md)

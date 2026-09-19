@@ -17,11 +17,13 @@ from scheduling_platform.untis_model import (
     TAB_OF_CRITERION,
     UNPLACED_PENALTY,
     UNSET,
+    Absence,
     Assignment,
     CriterionScore,
     DateScheme,
     EntityKind,
     Evaluation,
+    Holiday,
     Lesson,
     LessonLine,
     MinMax,
@@ -33,6 +35,10 @@ from scheduling_platform.untis_model import (
     Severity,
     StudentGroup,
     Subject,
+    Substitution,
+    SubstitutionKind,
+    Supervision,
+    SupervisionArea,
     Teacher,
     TimeGrid,
     TimeRequest,
@@ -45,10 +51,13 @@ from scheduling_platform.untis_model import (
     build_lesson_id,
     diagnose_data,
     double_periods_from_block,
+    format_date,
     hhmm_to_minutes,
     minutes_to_hhmm,
+    parse_date,
     slider_to_weight,
     split_lesson_id,
+    weekday_of,
 )
 
 # --------------------------------------------------------------------------- #
@@ -561,3 +570,107 @@ def test_diagnostico_errores_primero_y_lecciones_ignoradas() -> None:
     assert not any(i.lesson_number == 5 for i in issues)
     severidades = [i.severity for i in issues]
     assert severidades == sorted(severidades, key=lambda s: s is not Severity.ERROR)
+
+
+# --------------------------------------------------------------------------- #
+# Guardias de recreo
+# --------------------------------------------------------------------------- #
+
+
+def test_zona_y_turno_de_guardia_validan_sus_datos() -> None:
+    zona = SupervisionArea("Patio", "Patio grande", weight=3)
+    assert zona.display_name == "Patio grande"
+    with pytest.raises(ValueError, match="id"):
+        SupervisionArea("")
+    with pytest.raises(ValueError, match="0-5"):
+        SupervisionArea("Patio", weight=9)
+    turno = Supervision("Patio", 2, 4, teacher="T1", minutes=20)
+    assert turno.slot == (2, 4) and turno.key == ("Patio", 2, 4) and turno.assigned
+    assert not Supervision("Patio", 2, 4).assigned
+    with pytest.raises(ValueError, match="zona"):
+        Supervision("", 1, 1)
+    with pytest.raises(ValueError, match="Día"):
+        Supervision("Patio", 0, 1)
+    with pytest.raises(ValueError, match="Recreo"):
+        Supervision("Patio", 1, 0)
+
+
+def test_guardias_de_un_profesor() -> None:
+    p = _project(
+        supervision_areas=(SupervisionArea("Patio"),),
+        supervisions=(
+            Supervision("Patio", 1, 3, teacher="ANA"),
+            Supervision("Patio", 2, 3, teacher="LUIS"),
+        ),
+    )
+    assert [g.day for g in p.supervisions_of_teacher("ANA")] == [1]
+    assert p.area_by_id["Patio"].display_name == "Patio"
+
+
+def test_profesor_con_minutos_de_guardia_y_reserva_de_sustitucion() -> None:
+    profe = Teacher("T1", supervision_max=90, substitution_lock=4)
+    assert profe.supervision_max == 90 and profe.substitution_lock == 4
+    with pytest.raises(ValueError, match="minutos de guardia"):
+        Teacher("T1", supervision_max=-1)
+    with pytest.raises(ValueError, match="0-9"):
+        Teacher("T1", substitution_lock=10)
+
+
+# --------------------------------------------------------------------------- #
+# Calendario, ausencias y sustituciones
+# --------------------------------------------------------------------------- #
+
+
+def test_fechas_untis() -> None:
+    assert parse_date("20260907").month == 9
+    assert format_date(parse_date("20261231")) == "20261231"
+    assert weekday_of("20260907") == 1  # lunes
+    for malo in ("", "2026-09-07", "2026090", "20261332"):
+        with pytest.raises(ValueError, match=r"Fecha|month|day"):
+            parse_date(malo)
+
+
+def test_festivo_cubre_su_tramo() -> None:
+    puente = Holiday("PUENTE", "Puente", "20261012", "20261013")
+    assert puente.covers("20261012") and puente.covers("20261013")
+    assert not puente.covers("20261014")
+    suelto = Holiday("DIA", begin="20261012")
+    assert suelto.covers("20261012") and not suelto.covers("20261013")
+    with pytest.raises(ValueError, match="termina"):
+        Holiday("X", begin="20261013", end="20261012")
+
+
+def test_ausencia_con_horas_solo_acota_el_primer_y_ultimo_dia() -> None:
+    a = Absence("A1", EntityKind.TEACHER, "ANA", "20261005", "20261007", 3, 4)
+    assert not a.covers("20261005", 2) and a.covers("20261005", 3)
+    assert a.covers("20261006", 1) and a.covers("20261006", 8)  # día entero en medio
+    assert a.covers("20261007", 4) and not a.covers("20261007", 5)
+    assert not a.covers_day("20261008")
+    with pytest.raises(ValueError, match="termina antes"):
+        Absence("A2", EntityKind.TEACHER, "ANA", "20261007", "20261005")
+    with pytest.raises(ValueError, match="primera hora"):
+        Absence("A3", EntityKind.CLASS, "1A", "20261005", first_period=5, last_period=2)
+
+
+def test_sustitucion_cuenta_segun_su_tipo() -> None:
+    def sustitucion(**extra: object) -> Substitution:
+        return Substitution(id="S1", date="20261005", period=3, lesson_number=1345, **extra)  # type: ignore[arg-type]
+
+    assert sustitucion(teacher="LUIS").counts == 1
+    assert sustitucion(kind=SubstitutionKind.CANCELLED, teacher="LUIS").counts == 0
+    assert sustitucion().counts == 0  # sin nadie que la asuma
+    assert sustitucion().open
+    assert not sustitucion(kind=SubstitutionKind.CANCELLED).open
+
+
+def test_consultas_del_dia_en_el_proyecto() -> None:
+    p = _project(
+        holidays=(Holiday("F", begin="20261012"),),
+        absences=(Absence("A1", EntityKind.TEACHER, "ANA", "20261005"),),
+        substitutions=(Substitution("S1", "20261005", 3, 1),),
+    )
+    assert p.is_holiday("20261012") and not p.is_holiday("20261013")
+    assert [a.id for a in p.absences_on("20261005")] == ["A1"]
+    assert not p.absences_on("20261006")
+    assert [s.id for s in p.substitutions_on("20261005")] == ["S1"]
+    assert p.absence_by_id["A1"].entity_id == "ANA"
