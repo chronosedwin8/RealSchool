@@ -511,6 +511,11 @@ def help_entries() -> dict[str, HelpEntry]:
                     "cabe, en rojo las que no, con el motivo.",
                 ),
                 translate(
+                    "help",
+                    "Con En ventana sacas ese horario a una ventana propia, y ahí puedes "
+                    "aparcar una hora en la lista Sin colocar para colocarla después.",
+                ),
+                translate(
                     "help", "Imprímelo o expórtalo a PDF o HTML, uno a uno o todos a la vez."
                 ),
             ),

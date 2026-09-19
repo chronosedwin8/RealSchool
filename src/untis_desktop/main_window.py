@@ -9,6 +9,11 @@ Para quien empieza: la página de Inicio aparece cuando no hay ninguna ventana
 abierta, cada botón de la cinta lleva icono y una descripción con su atajo, F1
 abre la ayuda de la ventana activa y la barra de estado resume el horario activo
 (número de evaluación, sin colocar, choques y si hay cambios sin guardar).
+
+Además de las ventanas registradas, el horario de una clase, profesor o aula se
+puede abrir en una ventana hija propia (`open_timetable_window`), pequeña y
+flotante como en Untis: se abren varias a la vez, se mueven, se ponen en
+mosaico y cada una lleva su lista Sin colocar para aparcar horas.
 """
 
 from __future__ import annotations
@@ -46,6 +51,8 @@ from .qt_bridge import FacadeBridge
 from .registry import RIBBON_LABELS, RibbonTab, WindowSpec, load_windows
 from .theme import fmt_int
 from .windows.start import StartPage
+from .windows.timetable_window import TimetableWindow, window_icon_for
+from .windows.timetables import TimetablesWindow
 
 #: Ventana que sigue activa mientras se optimiza.
 OPTIMIZATION_KEY = "optimization"
@@ -60,6 +67,13 @@ STATE_KEY = "main_window/state"
 
 #: Ancho inicial del panel de Diagnóstico (que no se corten los grupos).
 DIAGNOSIS_WIDTH = 360
+
+#: Tamaño inicial de una ventana hija de horario (pequeña y flotante, como en Untis).
+TIMETABLE_WINDOW_SIZE = (560, 460)
+#: Desplazamiento en cascada de cada ventana hija nueva, para que no se tapen.
+TIMETABLE_WINDOW_STEP = 28
+#: Icono de la orden «Horario en ventana» (ventanas superpuestas).
+TIMETABLE_WINDOW_ICON = "cascade"
 
 _FILTERS = (
     "Proyectos y horarios Untis (*.rsp *.xml *.bjs);;Proyecto RealSchool (*.rsp);;"
@@ -137,6 +151,8 @@ class MainWindow(QMainWindow):
         self._specs = {s.key: s for s in load_windows()}
         self._widgets: dict[str, QWidget] = {}
         self._subwindows: dict[str, QMdiSubWindow] = {}
+        self._timetable_subs: dict[tuple[str, str], QMdiSubWindow] = {}
+        """Ventanas hijas de horario, una por `(tipo, entidad)` (como en Untis)."""
         self._docks: dict[str, QDockWidget] = {}
         self._actions: dict[str, QAction] = {}
         self._owned_actions: list[QAction] = []
@@ -352,6 +368,21 @@ class MainWindow(QMainWindow):
             caption = captions.get(spec.key, RIBBON_LABELS[spec.tab][1 if lang == "de" else 0])
             grupo(spec.tab, caption).append(accion)
 
+        # --- Horarios: un horario suelto en su propia ventana ---------------------- #
+        grupo(RibbonTab.TIMETABLES, captions["timetables"]).append(
+            self._make_action(
+                "timetable_window",
+                self.tr("Horario en ventana"),
+                TIMETABLE_WINDOW_ICON,
+                self.open_selected_timetable,
+                self.tr(
+                    "Abre el horario de la clase, profesor o aula elegido en una ventana "
+                    "pequeña aparte, con su lista Sin colocar."
+                ),
+                QKeySequence("Ctrl+Shift+H"),
+            )
+        )
+
         # --- Inicio: ayuda ------------------------------------------------------------ #
         ayuda_grupo = grupo(RibbonTab.HOME, self.tr("Ayuda"))
         ayuda_grupo.append(
@@ -526,6 +557,8 @@ class MainWindow(QMainWindow):
             self._widgets[key] = widget
             if isinstance(widget, StartPage):
                 self._wire_start(widget)
+            elif isinstance(widget, TimetablesWindow):
+                widget.open_timetable_requested.connect(self.open_timetable_window)
         return self._widgets[key]
 
     def show_window(self, key: str) -> QWidget:
@@ -564,6 +597,85 @@ class MainWindow(QMainWindow):
         self.addDockWidget(area, dock)
         self._docks[spec.key] = dock
 
+    # --- ventanas hijas de horario ------------------------------------------ #
+
+    def open_timetable_window(self, kind: str, entity_id: str) -> TimetableWindow | None:
+        """Abre (o enfoca) el horario de una entidad en su propia ventana hija.
+
+        Como en Untis, cada `(tipo, entidad)` tiene una ventana pequeña y
+        flotante que se mueve, se cambia de tamaño, se pone en mosaico y se
+        cierra. Si ya está abierta no se duplica: se trae al frente.
+        """
+        if not self.bridge.has_session:
+            self.bridge.status.emit(self.tr("Abre antes un proyecto."))
+            return None
+        if not entity_id:
+            self.bridge.status.emit(self.tr("Elige antes una clase, profesor o aula."))
+            return None
+        crashlog.note(f"horario en ventana: {kind} {entity_id}")
+        clave = (kind, entity_id)
+        sub = self._timetable_subs.get(clave)
+        if sub is None:
+            sub = self._make_timetable_sub(clave)
+            # La primera ventana hija saca el área MDI del modo pestañas: como en
+            # Untis, varios horarios pequeños a la vez (Mosaico y Cascada siguen).
+            self.mdi.setViewMode(QMdiArea.ViewMode.SubWindowView)
+        ventana = self.timetable_window(kind, entity_id)
+        sub.setEnabled(not self.bridge.busy)
+        sub.show()
+        if ventana is not None:
+            ventana.show()
+        self.mdi.setActiveSubWindow(sub)
+        sub.raise_()
+        return ventana
+
+    def _make_timetable_sub(self, key: tuple[str, str]) -> QMdiSubWindow:
+        """Crea la subventana MDI de un horario (título, icono y sitio en cascada)."""
+        kind, entity_id = key
+        ventana = TimetableWindow(self.bridge, kind, entity_id)
+        sub = self.mdi.addSubWindow(ventana)
+        sub.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        sub.setWindowIcon(icon(window_icon_for(kind)))
+        sub.setWindowTitle(ventana.window_title())
+        sub.resize(*TIMETABLE_WINDOW_SIZE)
+        paso = TIMETABLE_WINDOW_STEP * len(self._timetable_subs)
+        sub.move(paso, paso)
+        sub.installEventFilter(self)
+        ventana.title_changed.connect(sub.setWindowTitle)
+        self._timetable_subs[key] = sub
+        return sub
+
+    def open_selected_timetable(self) -> TimetableWindow | None:
+        """Cinta: el horario de la entidad seleccionada, en ventana propia."""
+        if not self.bridge.has_session:
+            self.bridge.status.emit(self.tr("Abre antes un proyecto."))
+            return None
+        seleccion = self.bridge.selection
+        if seleccion is None:
+            self.bridge.status.emit(
+                self.tr("Elige antes una clase, profesor o aula en cualquier ventana.")
+            )
+            return None
+        return self.open_timetable_window(*seleccion)
+
+    def open_timetable_keys(self) -> tuple[tuple[str, str], ...]:
+        """`(tipo, entidad)` de las ventanas hijas de horario abiertas."""
+        return tuple(k for k, sub in self._timetable_subs.items() if sub.isVisible())
+
+    def timetable_window(self, kind: str, entity_id: str) -> TimetableWindow | None:
+        """La ventana hija de una entidad, si está abierta."""
+        sub = self._timetable_subs.get((kind, entity_id))
+        widget = sub.widget() if sub is not None else None
+        return widget if isinstance(widget, TimetableWindow) else None
+
+    def _forget_timetable_sub(self, sub: QMdiSubWindow) -> bool:
+        """Olvida una ventana hija que se cierra (`True` si era una de ellas)."""
+        clave = next((k for k, s in self._timetable_subs.items() if s is sub), None)
+        if clave is None:
+            return False
+        del self._timetable_subs[clave]
+        return True
+
     def open_keys(self) -> tuple[str, ...]:
         """Ventanas MDI abiertas (para pruebas y para restaurar la sesión)."""
         return tuple(k for k, sub in self._subwindows.items() if sub.isVisible())
@@ -579,17 +691,20 @@ class MainWindow(QMainWindow):
         for key, sub in self._subwindows.items():
             if sub is actual and sub.isVisible():
                 return key
+        if actual is not None and any(s is actual for s in self._timetable_subs.values()):
+            return "timetables"  # F1 sobre una ventana hija: la ayuda de Horarios
         return START_KEY
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.Close and isinstance(watched, QMdiSubWindow):
+            hija = self._forget_timetable_sub(watched)
             cerrada = next((k for k, s in self._subwindows.items() if s is watched), "")
-            if cerrada != START_KEY:
+            if hija or cerrada != START_KEY:
                 QTimer.singleShot(0, self._show_start_if_empty)
         return super().eventFilter(watched, event)
 
     def _show_start_if_empty(self) -> None:
-        if not self.open_keys():
+        if not self.open_keys() and not self._timetable_subs:
             self.show_window(START_KEY)
 
     def tile(self) -> None:
@@ -839,6 +954,8 @@ class MainWindow(QMainWindow):
         self._busy = busy
         for key, sub in self._subwindows.items():
             sub.setEnabled(not busy or key == OPTIMIZATION_KEY)
+        for hija in self._timetable_subs.values():
+            hija.setEnabled(not busy)
         self._sync_actions()
 
     def _sync_actions(self) -> None:
@@ -850,6 +967,8 @@ class MainWindow(QMainWindow):
                 accion.setEnabled(not ocupado and (sesion or key not in _SESSION_ACTIONS))
             elif key.startswith("window:") and key != f"window:{START_KEY}":
                 accion.setEnabled(sesion)
+        if "timetable_window" in self._actions:
+            self._actions["timetable_window"].setEnabled(sesion)
         if sesion:
             s = self.bridge.session
             self._actions["undo"].setEnabled(s.can_undo and not ocupado)
@@ -907,6 +1026,10 @@ class MainWindow(QMainWindow):
         self._docks["log"].setWindowTitle(self.tr("Registro"))
         for key, sub in self._subwindows.items():
             sub.setWindowTitle(self._specs[key].label(self.bridge.language))
+        for clave, hija in self._timetable_subs.items():
+            ventana = self.timetable_window(*clave)
+            if ventana is not None:
+                hija.setWindowTitle(ventana.window_title())
         for key, dock in self._docks.items():
             if key in self._specs:
                 dock.setWindowTitle(self._specs[key].label(self.bridge.language))

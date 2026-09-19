@@ -1449,325 +1449,351 @@ Fortfahren?</translation>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../main_window.py" line="153"/>
-        <location filename="../main_window.py" line="409"/>
-        <location filename="../main_window.py" line="414"/>
-        <location filename="../main_window.py" line="907"/>
+        <location filename="../main_window.py" line="169"/>
+        <location filename="../main_window.py" line="440"/>
+        <location filename="../main_window.py" line="445"/>
+        <location filename="../main_window.py" line="1026"/>
         <source>Registro</source>
-        <extracomment>Ventana que sigue activa mientras se optimiza. Página de Inicio / Primeros pasos. Claves de `QSettings`. Ancho inicial del panel de Diagnóstico (que no se corten los grupos). Atajos de las ventanas principales (si la ventana no declara uno propio). Icono de reserva cuando una ventana no declara el suyo. Órdenes que necesitan un proyecto abierto. Órdenes que se bloquean mientras se optimiza.</extracomment>
+        <extracomment>Ventana que sigue activa mientras se optimiza. Página de Inicio / Primeros pasos. Claves de `QSettings`. Ancho inicial del panel de Diagnóstico (que no se corten los grupos). Tamaño inicial de una ventana hija de horario (pequeña y flotante, como en Untis). Desplazamiento en cascada de cada ventana hija nueva, para que no se tapen. Icono de la orden «Horario en ventana» (ventanas superpuestas). Atajos de las ventanas principales (si la ventana no declara uno propio). Icono de reserva cuando una ventana no declara el suyo. Órdenes que necesitan un proyecto abierto. Órdenes que se bloquean mientras se optimiza.</extracomment>
         <translation>Protokoll</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="178"/>
+        <location filename="../main_window.py" line="194"/>
         <source>Cinta</source>
         <translation>Menüband</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="216"/>
+        <location filename="../main_window.py" line="232"/>
         <source>Colegio</source>
         <translation>Schule</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="217"/>
+        <location filename="../main_window.py" line="233"/>
         <source>Entidades</source>
         <translation>Stammdaten</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="218"/>
+        <location filename="../main_window.py" line="234"/>
         <source>Tiempo</source>
         <translation>Zeit</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="230"/>
+        <location filename="../main_window.py" line="246"/>
         <source>Lecciones</source>
         <translation>Unterricht</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="231"/>
+        <location filename="../main_window.py" line="247"/>
         <source>Ajustes</source>
         <translation>Einstellungen</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="232"/>
+        <location filename="../main_window.py" line="248"/>
         <source>Generar</source>
         <translation>Erzeugen</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="233"/>
-        <location filename="../main_window.py" line="234"/>
+        <location filename="../main_window.py" line="249"/>
+        <location filename="../main_window.py" line="250"/>
         <source>Revisar</source>
         <translation>Prüfen</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="235"/>
+        <location filename="../main_window.py" line="251"/>
         <source>Planificar</source>
         <translation>Planen</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="236"/>
+        <location filename="../main_window.py" line="252"/>
         <source>Salida</source>
         <translation>Ausgabe</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="259"/>
+        <location filename="../main_window.py" line="275"/>
         <source>Archivo</source>
         <translation>Datei</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="264"/>
+        <location filename="../main_window.py" line="280"/>
         <source>Nuevo</source>
         <translation>Neu</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="267"/>
+        <location filename="../main_window.py" line="283"/>
         <source>Crea un colegio nuevo con un asistente paso a paso.</source>
         <translation>Legt mit einem Assistenten Schritt für Schritt eine neue Schule an.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="274"/>
-        <location filename="../main_window.py" line="663"/>
-        <location filename="../main_window.py" line="693"/>
+        <location filename="../main_window.py" line="290"/>
+        <location filename="../main_window.py" line="778"/>
+        <location filename="../main_window.py" line="808"/>
         <source>Abrir</source>
         <translation>Öffnen</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="277"/>
+        <location filename="../main_window.py" line="293"/>
         <source>Abre un proyecto de RealSchool (.rsp) o un archivo de Untis.</source>
         <translation>Öffnet ein RealSchool-Projekt (.rsp) oder eine Untis-Datei.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="283"/>
+        <location filename="../main_window.py" line="299"/>
         <source>Importar</source>
         <translation>Importieren</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="286"/>
+        <location filename="../main_window.py" line="302"/>
         <source>Importa datos de Untis: un archivo XML o una carpeta de archivos GPU.</source>
         <translation>Importiert Daten aus Untis: eine XML-Datei oder einen Ordner mit GPU-Dateien.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="290"/>
+        <location filename="../main_window.py" line="306"/>
         <source>Archivo XML de Untis...</source>
         <translation>Untis-XML-Datei...</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="291"/>
+        <location filename="../main_window.py" line="307"/>
         <source>Carpeta con archivos GPU...</source>
         <translation>Ordner mit GPU-Dateien...</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="297"/>
+        <location filename="../main_window.py" line="313"/>
         <source>Guardar</source>
         <translation>Speichern</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="300"/>
+        <location filename="../main_window.py" line="316"/>
         <source>Guarda el proyecto en su archivo .rsp.</source>
         <translation>Speichert das Projekt in seiner .rsp-Datei.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="307"/>
-        <location filename="../main_window.py" line="710"/>
+        <location filename="../main_window.py" line="323"/>
+        <location filename="../main_window.py" line="825"/>
         <source>Guardar como</source>
         <translation>Speichern unter</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="310"/>
+        <location filename="../main_window.py" line="326"/>
         <source>Guarda el proyecto con otro nombre o en otra carpeta.</source>
         <translation>Speichert das Projekt unter einem anderen Namen oder in einem anderen Ordner.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="314"/>
+        <location filename="../main_window.py" line="330"/>
         <source>Edición</source>
         <translation>Bearbeiten</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="318"/>
-        <location filename="../main_window.py" line="868"/>
+        <location filename="../main_window.py" line="334"/>
+        <location filename="../main_window.py" line="987"/>
         <source>Deshacer</source>
         <translation>Rückgängig</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="321"/>
-        <location filename="../main_window.py" line="874"/>
+        <location filename="../main_window.py" line="337"/>
+        <location filename="../main_window.py" line="993"/>
         <source>Deshace el último cambio.</source>
         <translation>Macht die letzte Änderung rückgängig.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="328"/>
-        <location filename="../main_window.py" line="870"/>
+        <location filename="../main_window.py" line="344"/>
+        <location filename="../main_window.py" line="989"/>
         <source>Rehacer</source>
         <translation>Wiederholen</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="331"/>
-        <location filename="../main_window.py" line="881"/>
+        <location filename="../main_window.py" line="347"/>
+        <location filename="../main_window.py" line="1000"/>
         <source>Vuelve a aplicar el cambio deshecho.</source>
         <translation>Wendet die rückgängig gemachte Änderung erneut an.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="356"/>
-        <location filename="../main_window.py" line="370"/>
+        <location filename="../main_window.py" line="375"/>
+        <source>Horario en ventana</source>
+        <translation>Stundenplan im Fenster</translation>
+    </message>
+    <message>
+        <location filename="../main_window.py" line="379"/>
+        <source>Abre el horario de la clase, profesor o aula elegido en una ventana pequeña aparte, con su lista Sin colocar.</source>
+        <translation>Öffnet den Stundenplan der gewählten Klasse, Lehrkraft oder des Raums in einem eigenen kleinen Fenster, mit der Liste der nicht verplanten Stunden.</translation>
+    </message>
+    <message>
+        <location filename="../main_window.py" line="387"/>
+        <location filename="../main_window.py" line="401"/>
         <source>Ayuda</source>
         <translation>Hilfe</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="360"/>
+        <location filename="../main_window.py" line="391"/>
         <source>Guía rápida</source>
         <translation>Kurzanleitung</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="363"/>
+        <location filename="../main_window.py" line="394"/>
         <source>El flujo completo, de la rejilla de tiempo al horario impreso.</source>
         <translation>Der gesamte Ablauf, vom Zeitraster bis zum gedruckten Stundenplan.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="373"/>
+        <location filename="../main_window.py" line="404"/>
         <source>Explica para qué sirve la ventana activa y cómo se usa.</source>
         <translation>Erklärt, wozu das aktive Fenster dient und wie es bedient wird.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="379"/>
+        <location filename="../main_window.py" line="410"/>
         <source>Ventanas</source>
         <translation>Fenster</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="383"/>
+        <location filename="../main_window.py" line="414"/>
         <source>Mosaico</source>
         <translation>Nebeneinander</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="386"/>
+        <location filename="../main_window.py" line="417"/>
         <source>Muestra todas las ventanas abiertas a la vez, una junto a otra.</source>
         <translation>Zeigt alle offenen Fenster gleichzeitig nebeneinander an.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="392"/>
+        <location filename="../main_window.py" line="423"/>
         <source>Cascada</source>
         <translation>Überlappend</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="395"/>
+        <location filename="../main_window.py" line="426"/>
         <source>Superpone las ventanas abiertas, escalonadas.</source>
         <translation>Ordnet die offenen Fenster versetzt übereinander an.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="401"/>
+        <location filename="../main_window.py" line="432"/>
         <source>Pestañas</source>
         <translation>Registerkarten</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="404"/>
+        <location filename="../main_window.py" line="435"/>
         <source>Vuelve a mostrar una ventana cada vez, con pestañas.</source>
         <translation>Zeigt wieder jeweils ein Fenster an, mit Registerkarten.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="407"/>
+        <location filename="../main_window.py" line="438"/>
         <source>Paneles</source>
         <translation>Bereiche</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="415"/>
+        <location filename="../main_window.py" line="446"/>
         <source>Muestra u oculta la lista de mensajes de la sesión.</source>
         <translation>Blendet die Liste der Meldungen dieser Sitzung ein oder aus.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="422"/>
+        <location filename="../main_window.py" line="453"/>
         <source>Idioma</source>
         <translation>Sprache</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="430"/>
+        <location filename="../main_window.py" line="461"/>
         <source>Cambia el idioma de toda la interfaz.</source>
         <translation>Ändert die Sprache der gesamten Oberfläche.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="671"/>
+        <location filename="../main_window.py" line="610"/>
+        <location filename="../main_window.py" line="651"/>
+        <source>Abre antes un proyecto.</source>
+        <translation>Öffne zuerst ein Projekt.</translation>
+    </message>
+    <message>
+        <location filename="../main_window.py" line="613"/>
+        <source>Elige antes una clase, profesor o aula.</source>
+        <translation>Wähle zuerst eine Klasse, Lehrkraft oder einen Raum.</translation>
+    </message>
+    <message>
+        <location filename="../main_window.py" line="656"/>
+        <source>Elige antes una clase, profesor o aula en cualquier ventana.</source>
+        <translation>Wähle zuerst in einem beliebigen Fenster eine Klasse, Lehrkraft oder einen Raum.</translation>
+    </message>
+    <message>
+        <location filename="../main_window.py" line="786"/>
         <source>Importar de Untis</source>
         <translation>Aus Untis importieren</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="680"/>
+        <location filename="../main_window.py" line="795"/>
         <source>Carpeta con archivos GPU de Untis</source>
         <translation>Ordner mit GPU-Dateien aus Untis</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="710"/>
+        <location filename="../main_window.py" line="825"/>
         <source>Proyecto (*.rsp)</source>
         <translation>Projekt (*.rsp)</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="719"/>
+        <location filename="../main_window.py" line="834"/>
         <source>Hay cambios sin guardar. ¿Descartarlos?</source>
         <translation>Es gibt ungespeicherte Änderungen. Verwerfen?</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="792"/>
+        <location filename="../main_window.py" line="907"/>
         <source>Clic para abrir la ventana Evaluación.</source>
         <translation>Klicken, um das Fenster Bewertung zu öffnen.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="795"/>
+        <location filename="../main_window.py" line="910"/>
         <source>Sin horario</source>
         <translation>Kein Stundenplan</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="797"/>
+        <location filename="../main_window.py" line="912"/>
         <source>Aún no hay horario: genera uno en Horarios -&gt; Optimización.</source>
         <translation>Noch kein Stundenplan: Erzeuge einen unter Stundenpläne -&gt; Optimierung.</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="807"/>
+        <location filename="../main_window.py" line="922"/>
         <source>Evaluación: {0}</source>
         <translation>Bewertung: {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="809"/>
+        <location filename="../main_window.py" line="924"/>
         <source>Número de evaluación del horario activo (más bajo es mejor). {0}</source>
         <translation>Bewertungszahl des aktiven Stundenplans (niedriger ist besser). {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="815"/>
+        <location filename="../main_window.py" line="930"/>
         <source>Sin colocar: {0}</source>
         <translation>Nicht verplant: {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="818"/>
+        <location filename="../main_window.py" line="933"/>
         <source>Períodos de clase que no caben en el horario. {0}</source>
         <translation>Unterrichtsstunden, die nicht in den Stundenplan passen. {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="821"/>
+        <location filename="../main_window.py" line="936"/>
         <source>Choques: {0}</source>
         <translation>Kollisionen: {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="823"/>
+        <location filename="../main_window.py" line="938"/>
         <source>Profesores, clases o aulas con dos clases a la vez. {0}</source>
         <translation>Lehrer, Klassen oder Räume mit zwei Stunden gleichzeitig. {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="868"/>
+        <location filename="../main_window.py" line="987"/>
         <source>Deshacer: {0}</source>
         <translation>Rückgängig: {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="870"/>
+        <location filename="../main_window.py" line="989"/>
         <source>Rehacer: {0}</source>
         <translation>Wiederholen: {0}</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="893"/>
+        <location filename="../main_window.py" line="1012"/>
         <source>sin título</source>
         <translation>ohne Titel</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="896"/>
+        <location filename="../main_window.py" line="1015"/>
         <source>Sin guardar</source>
         <translation>Nicht gespeichert</translation>
     </message>
     <message>
-        <location filename="../main_window.py" line="898"/>
+        <location filename="../main_window.py" line="1017"/>
         <source>Hay cambios sin guardar: pulsa Ctrl+S para guardarlos.</source>
         <translation>Es gibt ungespeicherte Änderungen: Drücke Strg+S, um sie zu speichern.</translation>
     </message>
@@ -4186,305 +4212,450 @@ Fortfahren?</translation>
 <context>
     <name>TimetablePane</name>
     <message>
-        <location filename="../windows/timetables.py" line="158"/>
+        <location filename="../windows/timetables.py" line="169"/>
         <source>Clase</source>
-        <extracomment>Icono de cada tipo de horario. Tipos de horario y su ventana de datos maestros. Disposiciones: nº de paneles -&gt; (filas, columnas).</extracomment>
+        <extracomment>Icono de cada tipo de horario. Tipos de horario y su ventana de datos maestros. Disposiciones: nº de paneles -&gt; (filas, columnas). Icono del botón que saca el horario del panel a una ventana propia.</extracomment>
         <translation>Klasse</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="159"/>
+        <location filename="../windows/timetables.py" line="170"/>
         <source>Profesor</source>
         <translation>Lehrer</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="160"/>
+        <location filename="../windows/timetables.py" line="171"/>
         <source>Aula</source>
         <translation>Raum</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="161"/>
+        <location filename="../windows/timetables.py" line="172"/>
         <source>Materia</source>
         <translation>Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="165"/>
+        <location filename="../windows/timetables.py" line="176"/>
         <source>Tipo de horario: de clase, profesor, aula o materia</source>
         <translation>Art des Stundenplans: Klasse, Lehrer, Raum oder Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="166"/>
+        <location filename="../windows/timetables.py" line="177"/>
         <source>La clase, profesor, aula o materia que se muestra</source>
         <translation>Angezeigte Klasse, angezeigter Lehrer, Raum oder angezeigtes Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="169"/>
+        <location filename="../windows/timetables.py" line="180"/>
         <source>Arrastra una clase a otra hora para moverla: verde = puede ir ahí, rojo = no cabe. Esc cancela.</source>
         <translation>Ziehe eine Stunde auf eine andere Zeit, um sie zu verschieben: grün = passt, rot = passt nicht. Esc bricht ab.</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="269"/>
+        <location filename="../windows/timetables.py" line="186"/>
+        <source>En ventana</source>
+        <translation>Im Fenster</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="188"/>
+        <source>Abre este horario en una ventana propia, pequeña y flotante, con su lista Sin colocar para aparcar horas.</source>
+        <translation>Öffnet diesen Stundenplan in einem eigenen, kleinen Fenster, mit der Liste der nicht verplanten Stunden zum Parken von Stunden.</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="292"/>
         <source>Recreo</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="284"/>
+        <location filename="../windows/timetables.py" line="307"/>
         <source>Hora cerrada (-3): aquí no puede haber clase</source>
         <translation>Stunde gesperrt (-3): hier kann kein Unterricht stattfinden</translation>
     </message>
 </context>
 <context>
-    <name>TimetablesWindow</name>
+    <name>TimetableWindow</name>
     <message>
-        <location filename="../windows/timetables.py" line="495"/>
-        <source>Horarios:</source>
-        <translation>Stundenpläne:</translation>
-    </message>
-    <message>
-        <location filename="../windows/timetables.py" line="496"/>
-        <source>Formato:</source>
-        <translation>Format:</translation>
-    </message>
-    <message>
-        <location filename="../windows/timetables.py" line="497"/>
-        <source>Letra:</source>
-        <translation>Schrift:</translation>
-    </message>
-    <message>
-        <location filename="../windows/timetables.py" line="499"/>
-        <location filename="../windows/timetables.py" line="513"/>
+        <location filename="../windows/timetable_window.py" line="282"/>
         <source>Clase</source>
+        <extracomment>Icono de cada tipo de horario (el de la ventana hija y el de su cabecera). Ancho máximo de la lista Sin colocar (la ventana es pequeña).</extracomment>
         <translation>Klasse</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="500"/>
-        <location filename="../windows/timetables.py" line="511"/>
+        <location filename="../windows/timetable_window.py" line="283"/>
         <source>Profesor</source>
         <translation>Lehrer</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="501"/>
-        <location filename="../windows/timetables.py" line="512"/>
+        <location filename="../windows/timetable_window.py" line="284"/>
         <source>Aula</source>
         <translation>Raum</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="502"/>
-        <source>Completo</source>
-        <translation>Vollständig</translation>
-    </message>
-    <message>
-        <location filename="../windows/timetables.py" line="503"/>
-        <source>Compacto</source>
-        <translation>Kompakt</translation>
-    </message>
-    <message>
-        <location filename="../windows/timetables.py" line="504"/>
-        <source>Impresión (sin colores)</source>
-        <translation>Druck (ohne Farben)</translation>
-    </message>
-    <message>
-        <location filename="../windows/timetables.py" line="510"/>
+        <location filename="../windows/timetable_window.py" line="285"/>
         <source>Materia</source>
         <translation>Fach</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="510"/>
+        <location filename="../windows/timetable_window.py" line="287"/>
+        <source>Horario</source>
+        <translation>Stundenplan</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="297"/>
+        <source>Sin colocar</source>
+        <translation>Nicht verplant</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="300"/>
+        <source>Horas aparcadas: arrástralas al horario para colocarlas; suelta aquí una clase del horario para sacarla de su hora</source>
+        <translation>Geparkte Stunden: zum Verplanen in den Stundenplan ziehen; eine Stunde aus dem Stundenplan hier ablegen, um sie aus ihrer Zeit zu nehmen</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="304"/>
+        <source>Todo colocado.</source>
+        <translation>Alles verplant.</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="308"/>
+        <source>Arrastra una clase a otra hora, o suéltala en Sin colocar para aparcarla y colocarla después. F7 la desprograma y Ctrl+Z deshace.</source>
+        <translation>Ziehe eine Stunde auf eine andere Zeit oder lege sie in Nicht verplant ab, um sie zu parken und später zu setzen. F7 nimmt sie heraus, Strg+Z macht rückgängig.</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="314"/>
+        <source>Horario de {0} ({1})</source>
+        <translation>Stundenplan von {0} ({1})</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="397"/>
+        <source>{0} {1} {2}: {3} sin colocar</source>
+        <translation>{0} {1} {2}: {3} nicht verplant</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="409"/>
+        <source>Lección {0}: {1} período(s) aparcado(s). Arrástrala a una hora del horario para colocarla.</source>
+        <translation>Unterricht {0}: {1} geparkte Stunde(n). Ziehe ihn auf eine Zeit im Stundenplan, um ihn zu setzen.</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="512"/>
+        <source>Recreo</source>
+        <translation>Pause</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="517"/>
+        <source>Hueco libre</source>
+        <translation>Freie Stunde</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="522"/>
+        <source>Hora cerrada (-3): aquí no puede haber clase</source>
+        <translation>Stunde gesperrt (-3): hier kann kein Unterricht stattfinden</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="577"/>
+        <location filename="../windows/timetable_window.py" line="596"/>
+        <source>La celda está vacía</source>
+        <translation>Die Zelle ist leer</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="589"/>
+        <source>Elige una celda</source>
+        <translation>Wähle eine Zelle</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="624"/>
+        <source>Desfijar</source>
+        <translation>Freigeben</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="624"/>
+        <source>Fijar</source>
+        <translation>Fixieren</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="625"/>
+        <source>Deja que la optimización la mueva</source>
+        <translation>Lässt die Optimierung die Stunde verschieben</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="627"/>
+        <source>La optimización no la moverá de aquí</source>
+        <translation>Die Optimierung verschiebt die Stunde nicht</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="632"/>
+        <source>Desprogramar (F7)</source>
+        <translation>Herausnehmen (F7)</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="633"/>
+        <source>Saca la clase de esta hora y la aparca en la lista Sin colocar</source>
+        <translation>Nimmt die Stunde aus dieser Zeit und parkt sie in der Liste Nicht verplant</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="638"/>
+        <source>Abrir lección {0}</source>
+        <translation>Unterricht {0} öffnen</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetable_window.py" line="639"/>
+        <source>Muestra la lección en la ventana Lecciones</source>
+        <translation>Zeigt den Unterricht im Fenster Unterricht</translation>
+    </message>
+</context>
+<context>
+    <name>TimetablesWindow</name>
+    <message>
+        <location filename="../windows/timetables.py" line="521"/>
+        <source>Horarios:</source>
+        <translation>Stundenpläne:</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="522"/>
+        <source>Formato:</source>
+        <translation>Format:</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="523"/>
+        <source>Letra:</source>
+        <translation>Schrift:</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="525"/>
+        <location filename="../windows/timetables.py" line="539"/>
+        <source>Clase</source>
+        <translation>Klasse</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="526"/>
+        <location filename="../windows/timetables.py" line="537"/>
+        <source>Profesor</source>
+        <translation>Lehrer</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="527"/>
+        <location filename="../windows/timetables.py" line="538"/>
+        <source>Aula</source>
+        <translation>Raum</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="528"/>
+        <source>Completo</source>
+        <translation>Vollständig</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="529"/>
+        <source>Compacto</source>
+        <translation>Kompakt</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="530"/>
+        <source>Impresión (sin colores)</source>
+        <translation>Druck (ohne Farben)</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="536"/>
+        <source>Materia</source>
+        <translation>Fach</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="536"/>
         <source>Muestra la materia en cada celda</source>
         <translation>Zeigt das Fach in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="511"/>
+        <location filename="../windows/timetables.py" line="537"/>
         <source>Muestra el profesor en cada celda</source>
         <translation>Zeigt den Lehrer in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="512"/>
+        <location filename="../windows/timetables.py" line="538"/>
         <source>Muestra el aula en cada celda</source>
         <translation>Zeigt den Raum in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="513"/>
+        <location filename="../windows/timetables.py" line="539"/>
         <source>Muestra la clase en cada celda</source>
         <translation>Zeigt die Klasse in jeder Zelle</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="516"/>
+        <location filename="../windows/timetables.py" line="542"/>
         <source>Colores</source>
         <translation>Farben</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="517"/>
+        <location filename="../windows/timetables.py" line="543"/>
         <source>Pinta cada celda con el color de su materia</source>
         <translation>Färbt jede Zelle in der Farbe ihres Fachs</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="521"/>
+        <location filename="../windows/timetables.py" line="547"/>
         <source>Sincronizar</source>
         <translation>Synchronisieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="522"/>
+        <location filename="../windows/timetables.py" line="548"/>
         <source>Los horarios siguen lo que eliges en las demás ventanas</source>
         <translation>Die Stundenpläne folgen deiner Auswahl in den anderen Fenstern</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="527"/>
+        <location filename="../windows/timetables.py" line="553"/>
         <source>Cuántos horarios se ven a la vez: 1, 2 o 4</source>
         <translation>Anzahl der gleichzeitig angezeigten Stundenpläne: 1, 2 oder 4</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="528"/>
+        <location filename="../windows/timetables.py" line="554"/>
         <source>Formato predefinido: qué datos lleva cada celda</source>
         <translation>Vordefiniertes Format: welche Daten jede Zelle enthält</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="529"/>
+        <location filename="../windows/timetables.py" line="555"/>
         <source>Tamaño de la letra en las celdas</source>
         <translation>Schriftgröße in den Zellen</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="530"/>
+        <location filename="../windows/timetables.py" line="556"/>
         <source>Leyenda:</source>
         <translation>Legende:</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="532"/>
+        <location filename="../windows/timetables.py" line="558"/>
         <source>Cuánto mejora o empeora la evaluación si sueltas la clase ahí</source>
         <translation>Um wie viel sich die Bewertung verbessert oder verschlechtert, wenn du die Stunde dort ablegst</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="536"/>
-        <location filename="../windows/timetables.py" line="539"/>
+        <location filename="../windows/timetables.py" line="562"/>
+        <location filename="../windows/timetables.py" line="565"/>
         <source>Imprimir / Exportar</source>
         <translation>Drucken / Exportieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="537"/>
+        <location filename="../windows/timetables.py" line="563"/>
         <source>Imprime el horario o lo guarda como PDF, HTML, GPU o XML</source>
         <translation>Druckt den Stundenplan oder speichert ihn als PDF, HTML, GPU oder XML</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="540"/>
+        <location filename="../windows/timetables.py" line="566"/>
         <source>Imprime o exporta horarios</source>
         <translation>Druckt oder exportiert Stundenpläne</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="543"/>
+        <location filename="../windows/timetables.py" line="569"/>
         <source>Imprimir...</source>
         <translation>Drucken...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="544"/>
+        <location filename="../windows/timetables.py" line="570"/>
         <source>Imprime el horario del panel activo</source>
         <translation>Druckt den Stundenplan des aktiven Bereichs</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="547"/>
+        <location filename="../windows/timetables.py" line="573"/>
         <source>PDF del horario...</source>
         <translation>Stundenplan als PDF...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="548"/>
+        <location filename="../windows/timetables.py" line="574"/>
         <source>Guarda el horario del panel activo como PDF</source>
         <translation>Speichert den Stundenplan des aktiven Bereichs als PDF</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="551"/>
+        <location filename="../windows/timetables.py" line="577"/>
         <source>HTML del horario...</source>
         <translation>Stundenplan als HTML...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="552"/>
+        <location filename="../windows/timetables.py" line="578"/>
         <source>Guarda el horario del panel activo como página web</source>
         <translation>Speichert den Stundenplan des aktiven Bereichs als Webseite</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="555"/>
+        <location filename="../windows/timetables.py" line="581"/>
         <source>Exportar todos (HTML, uno por entidad)...</source>
         <translation>Alle exportieren (HTML, je Element eine Datei)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="556"/>
+        <location filename="../windows/timetables.py" line="582"/>
         <source>Una página web por cada clase (o profesor, aula...) en una carpeta</source>
         <translation>Eine Webseite je Klasse (bzw. Lehrer, Raum...) in einem Ordner</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="559"/>
+        <location filename="../windows/timetables.py" line="585"/>
         <source>Exportar todos (un PDF)...</source>
         <translation>Alle exportieren (ein PDF)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="560"/>
+        <location filename="../windows/timetables.py" line="586"/>
         <source>Todos los horarios del tipo del panel activo en un único PDF</source>
         <translation>Alle Stundenpläne der Art des aktiven Bereichs in einem einzigen PDF</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="563"/>
+        <location filename="../windows/timetables.py" line="589"/>
         <source>Exportar GPU (MiUntisWeb)...</source>
         <translation>GPU exportieren (MiUntisWeb)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="564"/>
+        <location filename="../windows/timetables.py" line="590"/>
         <source>Archivos GPU del horario activo, para subirlos a MiUntisWeb</source>
         <translation>GPU-Dateien des aktiven Stundenplans zum Hochladen in MiUntisWeb</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="567"/>
+        <location filename="../windows/timetables.py" line="593"/>
         <source>Exportar XML (Untis)...</source>
         <translation>XML exportieren (Untis)...</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="568"/>
+        <location filename="../windows/timetables.py" line="594"/>
         <source>Todo el proyecto en XML para abrirlo en Untis</source>
         <translation>Das gesamte Projekt als XML zum Öffnen in Untis</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="737"/>
+        <location filename="../windows/timetables.py" line="693"/>
+        <source>Elige antes una clase, profesor o aula.</source>
+        <translation>Wähle zuerst eine Klasse, Lehrkraft oder einen Raum.</translation>
+    </message>
+    <message>
+        <location filename="../windows/timetables.py" line="770"/>
         <source>HTML exportado: {0}</source>
         <translation>HTML exportiert: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="742"/>
+        <location filename="../windows/timetables.py" line="775"/>
         <source>PDF exportado: {0}</source>
         <translation>PDF exportiert: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="773"/>
+        <location filename="../windows/timetables.py" line="806"/>
         <source>{0} archivo(s) exportado(s) en {1}</source>
         <translation>{0} Datei(en) exportiert nach {1}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="780"/>
+        <location filename="../windows/timetables.py" line="813"/>
         <source>GPU exportado: {0} archivo(s)</source>
         <translation>GPU exportiert: {0} Datei(en)</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="785"/>
+        <location filename="../windows/timetables.py" line="818"/>
         <source>XML exportado: {0}</source>
         <translation>XML exportiert: {0}</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="807"/>
+        <location filename="../windows/timetables.py" line="840"/>
         <source>Exportar PDF</source>
         <translation>PDF exportieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="816"/>
+        <location filename="../windows/timetables.py" line="849"/>
         <source>Exportar HTML</source>
         <translation>HTML exportieren</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="824"/>
+        <location filename="../windows/timetables.py" line="857"/>
         <source>Carpeta de destino</source>
         <translation>Zielordner</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="831"/>
+        <location filename="../windows/timetables.py" line="864"/>
         <source>Carpeta para los archivos GPU</source>
         <translation>Ordner für die GPU-Dateien</translation>
     </message>
     <message>
-        <location filename="../windows/timetables.py" line="839"/>
+        <location filename="../windows/timetables.py" line="872"/>
         <source>Exportar XML</source>
         <translation>XML exportieren</translation>
     </message>

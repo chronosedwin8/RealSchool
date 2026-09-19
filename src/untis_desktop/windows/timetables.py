@@ -18,6 +18,10 @@ por encima se ve el cambio del número de evaluación. Al soltar se mueve con la
 Fachada (que impide los choques) y se refrescan todos los paneles; Ctrl+Z lo
 deshace y Esc cancela el arrastre. La máquina de arrastre es la misma del
 Diálogo de planificación (`widgets/timetable_drag.py`).
+
+Cada panel lleva además un botón que saca ese horario a una ventana propia,
+pequeña y flotante (`windows/timetable_window.py`), con su lista Sin colocar:
+así se tienen varios horarios abiertos a la vez, como en Untis.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QShowEvent
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
@@ -70,7 +74,7 @@ from ..widgets.timetable_cells import (
     readable_colors,
 )
 from ..widgets.timetable_drag import Cell, DragState, MoveDragController, MoveDragTable
-from ..widgets.uikit import Legend, set_texts
+from ..widgets.uikit import Legend, set_texts, tool_button
 
 #: Icono de cada tipo de horario.
 KIND_ICONS: dict[str, str] = {
@@ -89,6 +93,9 @@ KINDS: tuple[tuple[str, MasterKind], ...] = (
 )
 #: Disposiciones: nº de paneles -> (filas, columnas).
 LAYOUTS: dict[int, tuple[int, int]] = {1: (1, 1), 2: (1, 2), 4: (2, 2)}
+
+#: Icono del botón que saca el horario del panel a una ventana propia.
+WINDOW_BUTTON_ICON = "cascade"
 
 
 def safe_filename(text: str) -> str:
@@ -134,9 +141,13 @@ class TimetablePane(QFrame):
             shown_timetable=lambda: self.shown_timetable,
         )
         self.table.dragger = self.dragger
+        self.window_button = tool_button(
+            WINDOW_BUTTON_ICON, self._open_in_window, text_beside=False, size="small"
+        )
         barra = QHBoxLayout()
         barra.addWidget(self.kind_combo)
         barra.addWidget(self.entity_combo, 1)
+        barra.addWidget(self.window_button)
         capa = QVBoxLayout(self)
         capa.setContentsMargins(3, 3, 3, 3)
         capa.addLayout(barra)
@@ -170,6 +181,18 @@ class TimetablePane(QFrame):
                 "rojo = no cabe. Esc cancela."
             )
         )
+        set_texts(
+            self.window_button,
+            self.tr("En ventana"),
+            self.tr(
+                "Abre este horario en una ventana propia, pequeña y flotante, con su "
+                "lista Sin colocar para aparcar horas."
+            ),
+        )
+
+    def _open_in_window(self) -> None:
+        """Botón del panel: este mismo horario, en una ventana aparte."""
+        self.owner.request_timetable_window(self)
 
     def load_entities(self) -> None:
         """Rellena el combo de entidades conservando la elegida."""
@@ -366,6 +389,9 @@ class TimetablePane(QFrame):
 
 class TimetablesWindow(QWidget):
     """Horarios con formatos, varios paneles sincronizados y exportación."""
+
+    open_timetable_requested = Signal(str, str)
+    """`(tipo, entidad)`: la ventana principal lo abre en una ventana hija."""
 
     def __init__(self, bridge: FacadeBridge) -> None:
         super().__init__()
@@ -660,6 +686,13 @@ class TimetablesWindow(QWidget):
         """Tras mover una clase: refresca todos los paneles y marca la celda nueva."""
         self.refresh()
         pane.select_cell(*cell)
+
+    def request_timetable_window(self, pane: TimetablePane) -> None:
+        """Saca el horario de un panel a una ventana propia (lo abre la principal)."""
+        if not pane.entity_id:
+            self.bridge.status.emit(self.tr("Elige antes una clase, profesor o aula."))
+            return
+        self.open_timetable_requested.emit(pane.kind, pane.entity_id)
 
     def pane_changed(self, pane: TimetablePane) -> None:
         """Un panel cambió de entidad: pasa a ser el activo y, si hay sincronía, avisa."""

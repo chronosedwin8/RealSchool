@@ -58,6 +58,43 @@ Para desprogramar una clase, fijarla o intercambiar dos, usa el
 [Diálogo de planificación](09-planificacion-manual.md): allí está el menú contextual con
 todas esas opciones y la lista de clases sin colocar.
 
+## Cada horario en su ventana
+
+Como en Untis, un horario puede salir de la ventana Horarios y quedarse en una **ventana
+propia**, pequeña y flotante. Así trabajas con varias a la vez: el curso, el profesor que te
+preocupa y el aula que se pelean dos grupos.
+
+![Tres horarios en ventanas propias](img/timetable_windows.png)
+
+Para abrir una:
+
+- el botón **En ventana** de cada panel de Horarios, o
+- **Horario en ventana** (Ctrl+Shift+H) en la pestaña Horarios de la cinta, que abre el de la
+  clase, profesor o aula que tengas seleccionado en cualquier ventana.
+
+Si pides dos veces el mismo horario no se duplica: se pone delante el que ya estaba. En la
+pestaña **Vista** tienes **Mosaico** y **Cascada** para repartirlas por la pantalla, y
+**Pestañas** para volver a verlas apiladas.
+
+## Aparcar una hora y colocarla después
+
+Cada ventana propia lleva a la izquierda la lista **Sin colocar**, que es el sitio donde dejas
+una hora mientras decides qué hacer con ella.
+
+1. Arrastra la clase del horario a la lista **Sin colocar** (o pulsa **F7** sobre ella, o usa
+   **Desprogramar** del menú contextual). Sale del horario y queda aparcada.
+2. Cuando quieras, arrástrala de la lista a la hora que prefieras. Se pinta en verde donde
+   cabe y en rojo donde no, igual que al mover.
+3. Si no cabe en ningún sitio, ahí se queda hasta que hagas hueco: por ejemplo, aparcando otra
+   clase o abriendo una hora cerrada.
+
+El menú contextual de la ventana propia trae además **Fijar** y **Desfijar** (una clase fijada
+no la mueve la optimización) y **Abrir lección**, que salta a esa lección en la ventana
+Lecciones. Todo se deshace con Ctrl+Z.
+
+Esto es lo mismo que ofrece el [Diálogo de planificación](09-planificacion-manual.md); la
+diferencia es que aquí tienes un horario por ventana y puedes tener varios delante.
+
 ## Los formatos
 
 El desplegable `Formato:` aplica de golpe una combinación ya pensada:

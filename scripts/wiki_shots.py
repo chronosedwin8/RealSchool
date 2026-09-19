@@ -121,6 +121,42 @@ def shoot(
     return destino
 
 
+def shoot_child_windows(app: QApplication, sesion: UntisSession) -> Path | None:
+    """La ventana principal con tres horarios abiertos en ventanas propias.
+
+    Es el modo de trabajo de Untis: el horario de una clase, el de un profesor
+    y el de un aula a la vez, cada uno con su lista Sin colocar.
+    """
+    from untis_desktop.main_window import MainWindow
+
+    ventana = MainWindow()
+    ventana.resize(1500, 900)
+    ventana.show()
+    ventana.bridge.attach(sesion)
+    for _ in range(5):
+        app.processEvents()
+    proyecto = sesion.project
+    for tipo, entidades in (
+        ("class", proyecto.classes),
+        ("teacher", proyecto.teachers),
+        ("room", proyecto.rooms),
+    ):
+        if entidades:
+            ventana.open_timetable_window(tipo, entidades[0].id)
+    ventana.tile()
+    final = time.monotonic() + 2.0
+    while time.monotonic() < final:
+        app.processEvents()
+        time.sleep(0.05)
+    destino = OUT / "timetable_windows.png"
+    imagen = ventana.grab()
+    ventana.close()
+    if imagen.isNull():
+        return None
+    imagen.save(str(destino), "PNG")
+    return destino
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--windows", default="", help="claves separadas por comas")
@@ -150,6 +186,11 @@ def main(argv: list[str]) -> int:
             continue
         hechas += 1
         print(f"  {spec.key} -> {destino.relative_to(ROOT)}")
+    if not pedidas or "timetable_windows" in pedidas:
+        destino = shoot_child_windows(app, sesion)
+        if destino is not None:
+            hechas += 1
+            print(f"  timetable_windows -> {destino.relative_to(ROOT)}")
     print(f"{hechas} captura(s) en {OUT.relative_to(ROOT)}")
     return 0
 
